@@ -288,6 +288,19 @@ textarea.short{min-height:64px}
 .next-r{font-size:13px;color:var(--muted)}
 .rt-fields{border:1px solid var(--line);border-radius:12px;margin:16px 0 0;padding:4px 12px 12px}
 .rt-fields legend{font-size:13px;color:var(--muted);padding:0 4px}
+.cat{display:inline-block;font-size:13px;font-weight:700;line-height:1.3;padding:2px 9px;border-radius:6px;background:var(--cat-bg);color:var(--cat-fg);vertical-align:1px}
+.row-k .cat{margin-right:8px}
+.row-when{color:var(--muted)}
+.sheet .sub .cat{margin-right:4px}
+.cat--flight{--cat-fg:#2E4E97;--cat-bg:#E2E8F6}
+.cat--hotel{--cat-fg:#3E6A48;--cat-bg:#DFEBE2}
+.cat--rail{--cat-fg:#6B4FA0;--cat-bg:#ECE5F6}
+.cat--food{--cat-fg:#B1501D;--cat-bg:#F7E5DA}
+.cat--ticket{--cat-fg:#8C6300;--cat-bg:#F4EBD2}
+.cat--etc{--cat-fg:#56625C;--cat-bg:#E4E8E3}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]) .cat--flight{--cat-fg:#A4BBF2;--cat-bg:#1F2A45}:root:not([data-theme="light"]) .cat--hotel{--cat-fg:#93C49E;--cat-bg:#1C2D21}:root:not([data-theme="light"]) .cat--rail{--cat-fg:#C6B2EC;--cat-bg:#2A2340}:root:not([data-theme="light"]) .cat--food{--cat-fg:#F2A981;--cat-bg:#3A2418}:root:not([data-theme="light"]) .cat--ticket{--cat-fg:#E8C66E;--cat-bg:#352B12}:root:not([data-theme="light"]) .cat--etc{--cat-fg:#B3BDB7;--cat-bg:#262D29}}
+:root[data-theme="dark"] .cat--flight{--cat-fg:#A4BBF2;--cat-bg:#1F2A45}:root[data-theme="dark"] .cat--hotel{--cat-fg:#93C49E;--cat-bg:#1C2D21}:root[data-theme="dark"] .cat--rail{--cat-fg:#C6B2EC;--cat-bg:#2A2340}:root[data-theme="dark"] .cat--food{--cat-fg:#F2A981;--cat-bg:#3A2418}:root[data-theme="dark"] .cat--ticket{--cat-fg:#E8C66E;--cat-bg:#352B12}:root[data-theme="dark"] .cat--etc{--cat-fg:#B3BDB7;--cat-bg:#262D29}
+.tev-type b.nx{color:var(--osaka)}
 </style>
 </head>
 <body>
@@ -366,6 +379,7 @@ function routeBox(d,ev){
   return '<div class="rt-box"><div class="rt-line"><span class="rt-k">가는 길</span> '+esc(routeLine(r))+'</div>'+(r.detail?'<p class="rt-d">'+esc(r.detail)+'</p>':'')+
     (to?'<a class="mini" href="'+esc(routeUrl(from,to,r.how))+'" target="_blank" rel="noopener">'+ICON.nav+'구글 지도로 경로 보기</a>':'')+'</div>';
 }
+function catBadge(c){ return '<span class="cat cat--'+esc(CAT[c]?c:'etc')+'">'+esc(CAT[c]||'기타')+'</span>'; }
 function confirmCodes(c){return confirmParts(c).map(function(p){return p.code;}).join(', ');}
 function resRange(r){
   if(!r.date) return '날짜 없음';
@@ -481,9 +495,9 @@ function sortedRes(){
 }
 
 function resRow(r){
-  var sub=[]; if(r.app) sub.push(r.app); if(r.confirm) sub.push('예약번호 '+confirmCodes(r.confirm));
+  var sub=[]; if(r.app) sub.push(r.app); if(r.confirm){ var cps=confirmParts(r.confirm); sub.push(cps.length>2?'예약번호 '+cps.length+'개':'예약번호 '+confirmCodes(r.confirm)); }
   return '<button class="row" data-act="res-open" data-id="'+r.id+'"><div class="row-main">'+
-    '<div class="row-k">'+esc(CAT[r.cat]||'기타')+(r.date?', '+esc(resRange(r)):'')+'</div>'+
+    '<div class="row-k">'+catBadge(r.cat)+(r.date?'<span class="row-when">'+esc(resRange(r))+'</span>':'')+'</div>'+
     '<div class="row-title">'+esc(r.title)+'</div>'+
     (sub.length?'<div class="row-sub">'+esc(sub.join(', '))+'</div>':'')+
     '</div>'+(qrCount(r.id)?'<span class="qr-badge">QR '+qrCount(r.id)+'</span>':'')+(isMissing(r)?'<span class="pill">입력 전</span>':ICON.chev)+'</button>';
@@ -509,8 +523,8 @@ var CLAUDE_APP='https://claude.ai/artifact/CGoEBzj2g45Sw2EvaXSzCD';
 var CAPTURE_CHAT='https://claude.ai/chat/ec9479d8-755a-45e1-addd-c43876c2b2b4';
 function syncBar(){
   return '<div class="sync">'+
-    '<a class="sync-btn" href="'+CAPTURE_CHAT+'" target="_blank" rel="noopener"><span class="sync-n">1</span><span><b>캡처로 예약 등록</b><small>예약 등록 채팅이 열려요. 캡처를 올리고 답장 끝의 백업을 복사해요</small></span></a>'+
-    '<button class="sync-btn" data-act="backup-paste"><span class="sync-n">2</span><span><b>복사한 백업 붙여넣기</b><small>돌아와서 누르면 등록한 예약이 여기로 옮겨와요</small></span></button>'+
+    '<a class="sync-btn" href="'+CAPTURE_CHAT+'" target="_blank" rel="noopener"><span class="sync-n">1</span><span><b>Claude에게 추가·수정 부탁하기</b><small>전용 채팅이 열려요. 예약 캡처를 올리거나 바꾸고 싶은 일정을 말하면 돼요. 답장 끝의 백업을 복사해 주세요</small></span></a>'+
+    '<button class="sync-btn" data-act="backup-paste"><span class="sync-n">2</span><span><b>복사한 백업 붙여넣기</b><small>돌아와서 누르면 바뀐 내용이 이 앱에 바로 반영돼요</small></span></button>'+
   '</div>';
 }
 function renderInfo(){
@@ -523,7 +537,7 @@ function renderInfo(){
   var tips=[
     ['5명이면 택시 2대','일반 택시는 4명까지 타요. 짐이 많은 날은 점보택시(9인승)를 미리 예약하면 한 번에 움직일 수 있어요.'],
     ['교통카드','아이폰은 지갑 앱에 ICOCA나 Suica를 넣어 쓸 수 있어요. 한국 갤럭시는 지원하지 않아서 실물 카드가 필요해요.'],
-    ['교토 시내버스는 붐벼요','관광지 가는 버스는 늘 만원이에요. 5명이 나눠 타는 택시 2대가 시간도 아끼고 비용 차이도 크지 않아요.'],
+    ['교토 시내버스는 붐벼요','관광지 가는 버스는 늘 만원이에요. 가능하면 JR, 한큐, 게이한, 지하철 같은 전철 위주로 다니면 편해요.'],
     ['전기','일본은 100V, 콘센트가 11자 모양(A타입)이에요. 돼지코를 챙기세요.'],
     ['10월 중순 날씨','평년 기준 낮 22~24도, 아침저녁 14~15도 정도예요. 얇은 겉옷이 있으면 좋아요.'],
     ['면세 쇼핑','한 가게에서 같은 날 5,000엔 이상이면 면세. 여권 실물이 있어야 해요.'],
@@ -536,13 +550,11 @@ function renderInfo(){
     }).join('')+'</div>'+
     '<div class="head-row group-label" style="margin-right:20px"><span>가족 메모</span>'+(canEdit()?'<button class="link-btn" data-act="note-edit">고치기</button>':'')+'</div>'+
     '<div class="list"><div class="text-block'+(state.notes?'':' empty')+'">'+esc(state.notes||'공동 경비 담당, 모이는 장소, 부모님 복용약처럼 다 같이 알아야 할 것을 적어두세요.')+'</div></div>'+
-    '<h2 class="group-label">백업 가져오기, 가족과 나누기</h2><div class="list">'+
-      '<a class="row" href="'+CAPTURE_CHAT+'" target="_blank" rel="noopener"><div class="row-main"><div class="row-title">예약 등록 채팅 열기</div><div class="row-sub">캡처를 올리면 Claude가 넣어줘요</div></div>'+ICON.chev+'</a>'+
-      '<a class="row" href="'+CLAUDE_APP+'" target="_blank" rel="noopener"><div class="row-main"><div class="row-title">claude.ai 앱 열기</div><div class="row-sub">일정을 고치거나 백업을 복사할 때 써요</div></div>'+ICON.chev+'</a>'+
-      '<button class="row" data-act="backup-paste"><div class="row-main"><div class="row-title">복사한 백업 붙여넣기</div><div class="row-sub">claude.ai 앱에서 \'백업 복사하기\'를 누른 뒤 여기를 눌러요</div></div>'+ICON.chev+'</button>'+
-      '<button class="row" data-act="backup-export"><div class="row-main"><div class="row-title">백업 파일 보내기</div><div class="row-sub">카카오톡으로 가족에게 보내거나 파일 앱에 저장해요</div></div>'+ICON.chev+'</button>'+
-      '<label class="row" style="cursor:pointer"><div class="row-main"><div class="row-title">백업 파일 가져오기</div><div class="row-sub">받은 백업 파일로 이 휴대폰 내용을 바꿔요</div></div>'+ICON.chev+'<input type="file" accept=".json,application/json,text/plain" data-import="backup" hidden></label>'+
-    '</div><p class="foot">QR 이미지는 백업에 들어가지 않아요. 가족에게는 QR 화면의 보내기로 나눠 주세요.</p><p class="foot">모든 내용은 이 휴대폰 안에만 저장돼요. 인터넷 없이도 열리지만, 지도와 길찾기는 인터넷이 필요해요.</p><p class="foot">앱 버전 9</p>'+
+    '<h2 class="group-label">가족과 나누기</h2><div class="list">'+
+      '<button class="row" data-act="backup-export"><div class="row-main"><div class="row-title">가족에게 보내기</div><div class="row-sub">지금 내용을 파일로 만들어 카카오톡 등으로 보내요</div></div>'+ICON.chev+'</button>'+
+      '<label class="row" style="cursor:pointer"><div class="row-main"><div class="row-title">받은 파일 넣기</div><div class="row-sub">가족에게 받은 파일을 넣으면 같은 내용으로 바뀌어요</div></div>'+ICON.chev+'<input type="file" accept=".json,application/json,text/plain" data-import="backup" hidden></label>'+
+
+    '</div><p class="foot">QR 이미지는 백업에 들어가지 않아요. 가족에게는 QR 화면의 보내기로 나눠 주세요.</p><p class="foot">모든 내용은 이 휴대폰 안에만 저장돼요. 인터넷 없이도 열리지만, 지도와 길찾기는 인터넷이 필요해요.</p><p class="foot">앱 버전 10</p>'+
     '<h2 class="group-label">알아두면 좋은 것</h2><div class="list">'+tips.map(function(t){
       return '<div class="row"><div class="row-main"><div class="tip-title">'+esc(t[0])+'</div><div class="tip-body">'+esc(t[1])+'</div></div></div>';
     }).join('')+'</div>';
@@ -627,7 +639,7 @@ function renderToday(){
   var res=resForDay(d.date).filter(function(x){return x.r.cat!=='hotel';});
   var qrAllN=qrAllList().length;
   var resHtml=res.length?'<h2 class="group-label">오늘 쓰는 예약</h2><div class="list">'+res.map(function(x){var r=x.r;
-    return '<div class="row"><div class="row-main" data-act="res-open" data-id="'+r.id+'" style="cursor:pointer"><div class="row-k">'+esc(x.tag+(r.time?', '+r.time:''))+'</div><div class="row-title">'+esc(r.title)+'</div>'+
+    return '<div class="row"><div class="row-main" data-act="res-open" data-id="'+r.id+'" style="cursor:pointer"><div class="row-k">'+catBadge(r.cat)+(r.time?'<span class="row-when">'+esc(r.time)+'</span>':'')+'</div><div class="row-title">'+esc(r.title)+'</div>'+
       (r.confirm?'<div class="row-num">'+esc(confirmCodes(r.confirm))+'</div>':'<div class="row-sub">'+(isMissing(r)?'예약번호를 아직 안 넣었어요':esc(r.app))+'</div>')+'</div>'+
       (qrCount(r.id)?'<button class="mini" data-act="qr-open" data-id="'+r.id+'" data-i="0">QR</button>':'')+(r.confirm?(confirmParts(r.confirm).length>1?'<button class="mini" data-act="res-open" data-id="'+r.id+'">번호 보기</button>':'<button class="mini" data-act="copy" data-v="'+esc(confirmParts(r.confirm)[0].code)+'">복사</button>'):ICON.chev)+'</div>';
   }).join('')+'</div>':'';
@@ -635,7 +647,7 @@ function renderToday(){
   var items=d.items.map(function(ev){
     var q=evQuery(ev), past=isLive&&ev.time&&cur&&ev.time<cur.time, isCur=cur===ev;
     return '<li class="tev'+(past?' is-past':'')+(isCur?' is-cur':'')+'"><div class="tev-time">'+esc(ev.time||'')+'</div><div class="tev-body">'+
-      '<div class="tev-type">'+esc(TYPE[ev.type]||'')+(isCur?'<b>지금</b>':'')+'</div>'+
+      '<div class="tev-type">'+esc(TYPE[ev.type]||'')+(isCur?'<b>지금</b>':'')+(isLive&&ev===next?'<b class="nx">다음, '+esc(inHow(now,next.time))+'</b>':'')+'</div>'+
       '<h3>'+esc(ev.title)+'</h3>'+(ev.place?'<p class="tev-place">'+esc(ev.place)+'</p>':'')+
       (ev.memo?'<p class="tev-memo">'+esc(ev.memo)+'</p>':'')+routeBox(d,ev)+
       (q?'<div class="btns"><a class="mini" href="'+esc(dirUrl(q))+'" target="_blank" rel="noopener">'+ICON.nav+'길찾기</a><a class="mini" href="'+esc(mapUrl(q))+'" target="_blank" rel="noopener">'+ICON.pin+'지도</a></div>':'')+
@@ -643,9 +655,11 @@ function renderToday(){
       '</div></li>';
   }).join('');
 
-  return head+(qrAllN?'<div class="pad"><button class="qr-all" data-act="qr-all">QR·바우처 모아보기 <b>'+qrAllN+'장</b></button></div>':'')+focus+stay+resHtml+
+  return head+
     '<h2 class="group-label">하루 일정 자세히</h2><ol class="tlist day--'+d.city+'">'+items+'</ol>'+
-    (canEdit()?'<div class="pad"><button class="add wide" data-act="ev-add-today" data-i="'+idx+'">이 날 일정 추가</button></div>':'');
+    (canEdit()?'<div class="pad"><button class="add wide" data-act="ev-add-today" data-i="'+idx+'">이 날 일정 추가</button></div>':'')+
+    (qrAllN?'<div class="pad"><button class="qr-all" data-act="qr-all">QR·바우처 모아보기 <b>'+qrAllN+'장</b></button></div>':'')+
+    (stay||resHtml?'<h2 class="group-label">숙소와 예약</h2>':'')+stay+resHtml;
 }
 
 /* ---------- backup ---------- */
@@ -790,7 +804,7 @@ function evForm(id){
 function resDetail(id){
   var r=findRes(id); if(!r) return;
   function kv(k,v,btn,big){return '<div class="kv"><div class="kv-main"><div class="kv-k">'+k+'</div><div class="kv-v'+(v?'':' empty')+(big&&v?' big':'')+'">'+esc(v||'아직 없음')+'</div></div>'+(v&&btn?btn:'')+'</div>';}
-  var html='<h2>'+esc(r.title)+'</h2><p class="sub">'+esc((CAT[r.cat]||'기타')+', '+resRange(r))+'</p>'+
+  var html='<h2>'+esc(r.title)+'</h2><p class="sub">'+catBadge(r.cat)+' '+esc(resRange(r))+'</p>'+
     (function(){var ps=confirmParts(r.confirm); if(!ps.length) return kv('예약번호','');
       return ps.map(function(p,i){return '<div class="kv"><div class="kv-main"><div class="kv-k">예약번호'+(ps.length>1?' '+(i+1):'')+'</div><div class="kv-v big">'+esc(p.code)+'</div>'+(p.note?'<div class="kv-note">'+esc(noteFmt(p.note))+'</div>':'')+'</div><button class="mini" data-act="copy" data-v="'+esc(p.code)+'">복사</button></div>';}).join('');})()+
     qrSection(r)+
