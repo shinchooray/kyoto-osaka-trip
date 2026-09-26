@@ -276,6 +276,18 @@ textarea.short{min-height:64px}
 .qrv-tip{margin:0 0 10px;text-align:center;font-size:13px;color:#666}
 .qrv-btns{display:flex;gap:8px;justify-content:center;flex-wrap:wrap}
 .qrv .mini{background:#f2f2f2;color:#111;border-color:#ddd}
+.ev-route{display:grid;grid-template-columns:54px 20px 1fr;column-gap:10px;padding:2px 0 4px}
+.rt-dot{position:relative;z-index:1;width:8px;height:8px;border-radius:50%;background:var(--bg);border:2px solid var(--muted);margin-top:7px}
+.rt{min-width:0;padding:8px 12px;border-radius:12px;background:var(--soft);font-size:14px}
+.rt-line{font-weight:600}
+.rt-k{color:var(--muted);font-weight:500;margin-right:2px}
+.rt-d{margin:3px 0 0;color:var(--muted);line-height:1.5}
+.rt .maplink{margin-top:4px}
+.rt-box{margin-top:10px;padding:10px 12px;border-radius:12px;background:var(--soft);font-size:14px}
+.rt-box .mini{display:inline-block;margin-top:8px}
+.next-r{font-size:13px;color:var(--muted)}
+.rt-fields{border:1px solid var(--line);border-radius:12px;margin:16px 0 0;padding:4px 12px 12px}
+.rt-fields legend{font-size:13px;color:var(--muted);padding:0 4px}
 </style>
 </head>
 <body>
@@ -331,6 +343,28 @@ function appLink(r){
   if(!r.app) return null;
   for(var i=0;i<APP_LINKS.length;i++){ if(APP_LINKS[i][0].test(r.app)) return {url:APP_LINKS[i][1],kind:'site'}; }
   return {url:'https://www.google.com/search?q='+encodeURIComponent(r.app+' 예약 조회'),kind:'search'};
+}
+var HOW={train:'전철',bus:'버스',walk:'도보',taxi:'택시',etc:'이동'};
+function routeOf(ev){ var r=ev&&ev.route; return r&&(r.how||r.min||r.detail)?r:null; }
+function routeLine(r){ var p=[]; p.push(HOW[r.how]||r.how||'이동'); if(r.min) p.push('약 '+r.min+'분'); if(r.cost) p.push(r.cost); return p.join(', '); }
+function prevQuery(d,ev){
+  var i=d.items.indexOf(ev);
+  for(var j=i-1;j>=0;j--){ var q=evQuery(d.items[j]); if(q) return q; }
+  var h=null; state.reservations.forEach(function(r){ if(r.cat==='hotel'&&r.date&&r.endDate&&r.date<d.date&&d.date<=r.endDate) h=r; });
+  return h?(h.address||''):'';
+}
+function routeUrl(from,to,how){ var m=how==='walk'?'walking':(how==='taxi'?'driving':'transit'); return 'https://www.google.com/maps/dir/?api=1'+(from?'&origin='+encodeURIComponent(from):'')+'&destination='+encodeURIComponent(to)+'&travelmode='+m; }
+function routeRow(d,ev){
+  var r=routeOf(ev); if(!r) return '';
+  var to=evQuery(ev), from=prevQuery(d,ev);
+  return '<li class="ev-route"><div></div><div class="ev-rail"><span class="rt-dot"></span></div><div class="rt"><div class="rt-line"><span class="rt-k">가는 길</span> '+esc(routeLine(r))+'</div>'+
+    (r.detail?'<p class="rt-d">'+esc(r.detail)+'</p>':'')+(to?'<a class="maplink" href="'+esc(routeUrl(from,to,r.how))+'" target="_blank" rel="noopener">'+ICON.nav+'구글 지도로 경로 보기</a>':'')+'</div></li>';
+}
+function routeBox(d,ev){
+  var r=routeOf(ev); if(!r) return '';
+  var to=evQuery(ev), from=prevQuery(d,ev);
+  return '<div class="rt-box"><div class="rt-line"><span class="rt-k">가는 길</span> '+esc(routeLine(r))+'</div>'+(r.detail?'<p class="rt-d">'+esc(r.detail)+'</p>':'')+
+    (to?'<a class="mini" href="'+esc(routeUrl(from,to,r.how))+'" target="_blank" rel="noopener">'+ICON.nav+'구글 지도로 경로 보기</a>':'')+'</div>';
 }
 function confirmCodes(c){return confirmParts(c).map(function(p){return p.code;}).join(', ');}
 function resRange(r){
@@ -411,7 +445,7 @@ function renderPlan(){
     var body='<h3 class="ev-title">'+esc(ev.title)+'</h3>'+
       (ev.memo?'<p class="ev-memo">'+esc(ev.memo)+'</p>':'')+
       (q?'<a class="maplink" href="'+esc(mapUrl(q))+'" target="_blank" rel="noopener">'+ICON.pin+esc(ev.place||'지도에서 보기')+'</a>':'');
-    return '<li class="ev ev--'+esc(ev.type||'sight')+'"><div class="ev-time">'+esc(ev.time||'')+'</div><div class="ev-rail"><span class="ev-dot"></span></div>'+
+    return routeRow(d,ev)+'<li class="ev ev--'+esc(ev.type||'sight')+'"><div class="ev-time">'+esc(ev.time||'')+'</div><div class="ev-rail"><span class="ev-dot"></span></div>'+
       '<div class="ev-body"'+(canEdit()?' data-act="ev-edit" data-id="'+ev.id+'" role="button" tabindex="0" aria-label="'+esc(ev.title)+' 고치기"':'')+'>'+body+'</div></li>';
   }).join('');
   return '<header class="top"><h1>'+esc(state.trip.title)+'</h1>'+
@@ -508,7 +542,7 @@ function renderInfo(){
       '<button class="row" data-act="backup-paste"><div class="row-main"><div class="row-title">복사한 백업 붙여넣기</div><div class="row-sub">claude.ai 앱에서 \'백업 복사하기\'를 누른 뒤 여기를 눌러요</div></div>'+ICON.chev+'</button>'+
       '<button class="row" data-act="backup-export"><div class="row-main"><div class="row-title">백업 파일 보내기</div><div class="row-sub">카카오톡으로 가족에게 보내거나 파일 앱에 저장해요</div></div>'+ICON.chev+'</button>'+
       '<label class="row" style="cursor:pointer"><div class="row-main"><div class="row-title">백업 파일 가져오기</div><div class="row-sub">받은 백업 파일로 이 휴대폰 내용을 바꿔요</div></div>'+ICON.chev+'<input type="file" accept=".json,application/json,text/plain" data-import="backup" hidden></label>'+
-    '</div><p class="foot">QR 이미지는 백업에 들어가지 않아요. 가족에게는 QR 화면의 보내기로 나눠 주세요.</p><p class="foot">모든 내용은 이 휴대폰 안에만 저장돼요. 인터넷 없이도 열리지만, 지도와 길찾기는 인터넷이 필요해요.</p><p class="foot">앱 버전 7</p>'+
+    '</div><p class="foot">QR 이미지는 백업에 들어가지 않아요. 가족에게는 QR 화면의 보내기로 나눠 주세요.</p><p class="foot">모든 내용은 이 휴대폰 안에만 저장돼요. 인터넷 없이도 열리지만, 지도와 길찾기는 인터넷이 필요해요.</p><p class="foot">앱 버전 8</p>'+
     '<h2 class="group-label">알아두면 좋은 것</h2><div class="list">'+tips.map(function(t){
       return '<div class="row"><div class="row-main"><div class="tip-title">'+esc(t[0])+'</div><div class="tip-body">'+esc(t[1])+'</div></div></div>';
     }).join('')+'</div>';
@@ -570,7 +604,7 @@ function renderToday(){
         focus+='<section class="now day--'+d.city+'"><p class="now-k">지금, '+esc(cur.time)+'부터</p><h2>'+esc(cur.title)+'</h2>'+
           (cur.memo?'<p class="now-memo">'+esc(cur.memo)+'</p>':'')+
           (q?'<div class="btns"><a class="mini" href="'+esc(dirUrl(q))+'" target="_blank" rel="noopener">'+ICON.nav+'길찾기</a><a class="mini" href="'+esc(mapUrl(q))+'" target="_blank" rel="noopener">'+ICON.pin+'지도</a></div>':'')+'</section>';}
-      if(next){focus+='<div class="next"><span class="next-k">다음, '+esc(inHow(now,next.time))+'</span><span class="next-t">'+esc(next.time)+' '+esc(next.title)+'</span></div>';}
+      if(next){focus+='<div class="next"><span class="next-k">다음, '+esc(inHow(now,next.time))+'</span><span class="next-t">'+esc(next.time)+' '+esc(next.title)+'</span>'+(routeOf(next)?'<span class="next-r">가는 길: '+esc(routeLine(routeOf(next)))+'</span>':'')+'</div>';}
       else if(cur){focus+='<div class="next"><span class="next-k">오늘 남은 일정이 없어요</span><span class="next-t">푹 쉬세요</span></div>';}
     } else if(d.items.some(function(e){return e.time;})){
       var first=d.items.filter(function(e){return e.time;})[0];
@@ -603,7 +637,7 @@ function renderToday(){
     return '<li class="tev'+(past?' is-past':'')+(isCur?' is-cur':'')+'"><div class="tev-time">'+esc(ev.time||'')+'</div><div class="tev-body">'+
       '<div class="tev-type">'+esc(TYPE[ev.type]||'')+(isCur?'<b>지금</b>':'')+'</div>'+
       '<h3>'+esc(ev.title)+'</h3>'+(ev.place?'<p class="tev-place">'+esc(ev.place)+'</p>':'')+
-      (ev.memo?'<p class="tev-memo">'+esc(ev.memo)+'</p>':'')+
+      (ev.memo?'<p class="tev-memo">'+esc(ev.memo)+'</p>':'')+routeBox(d,ev)+
       (q?'<div class="btns"><a class="mini" href="'+esc(dirUrl(q))+'" target="_blank" rel="noopener">'+ICON.nav+'길찾기</a><a class="mini" href="'+esc(mapUrl(q))+'" target="_blank" rel="noopener">'+ICON.pin+'지도</a></div>':'')+
       (canEdit()?'<button class="link-btn small" data-act="ev-edit" data-id="'+ev.id+'">고치기</button>':'')+
       '</div></li>';
@@ -737,7 +771,7 @@ function areaField(label,name,val,hint){
 
 function evForm(id){
   var f=id?findEv(id):null, ev=f?f.ev:{time:'',type:'sight',title:'',place:'',map:'',memo:''};
-  var dayIdx=f?f.day:ui.day;
+  var dayIdx=f?f.day:ui.day, rt=ev.route||{};
   openSheet('<form data-form="ev" data-id="'+(id||'')+'"><h2>'+(id?'일정 고치기':'일정 추가')+'</h2>'+
     '<div class="two">'+selectField('날짜','day',String(dayIdx),state.days.map(function(d,i){return [String(i),mdw(d.date)];}))+field('시간','time',ev.time,'time')+'</div>'+
     field('할 일','title',ev.title,'text',' required placeholder="예: 킨카쿠지 구경"')+
@@ -745,6 +779,10 @@ function evForm(id){
     field('장소 이름','place',ev.place,'text',' placeholder="화면에 보이는 이름"')+
     '<label class="field"><span>지도 검색어</span><input name="map" value="'+esc(ev.map||'')+'" placeholder="예: Kinkaku-ji"><small>영어나 일본어로 적으면 구글 지도가 더 정확하게 찾아요. 비워두면 장소 이름으로 찾아요.</small></label>'+
     areaField('메모','memo',ev.memo)+
+    '<fieldset class="rt-fields"><legend>가는 길 (앞 일정 장소에서)</legend>'+
+    '<div class="two">'+selectField('방법','rhow',rt.how||'',[['','없음'],['train','전철'],['bus','버스'],['walk','도보'],['taxi','택시'],['etc','기타']])+field('걸리는 시간(분)','rmin',rt.min,'number',' inputmode="numeric" min="0"')+'</div>'+
+    areaField('경로','rdetail',rt.detail,'예: JR 나라선 이나리역 → 교토역 환승 → 사가노선 사가아라시야마역')+
+    field('요금','rcost',rt.cost,'text',' placeholder="예: 1인 240엔"')+'</fieldset>'+
     '<div class="actions">'+(id?'<button type="button" class="btn btn-danger" data-act="del-ev" data-id="'+id+'">삭제</button>':'')+
     '<button type="button" class="btn btn-ghost" data-act="sheet-close">취소</button><button type="submit" class="btn btn-primary">저장</button></div></form>');
 }
@@ -897,7 +935,9 @@ document.addEventListener('submit',function(e){
     if(!v.title) return;
     var dayIdx=+v.day; closeSheet(); ui.day=dayIdx;
     commit(function(s){
-      var item={id:id||uid('e'),time:v.time,type:v.type,title:v.title,place:v.place,map:v.map,memo:v.memo};
+      var old=id?findEv(id):null, item=old?JSON.parse(JSON.stringify(old.ev)):{id:uid('e')};
+      item.time=v.time; item.type=v.type; item.title=v.title; item.place=v.place; item.map=v.map; item.memo=v.memo;
+      item.route=(v.rhow||v.rmin||v.rdetail||v.rcost)?{how:v.rhow,min:v.rmin,detail:v.rdetail,cost:v.rcost}:null;
       s.days.forEach(function(d){d.items=d.items.filter(function(x){return x.id!==item.id;});});
       var target=s.days[dayIdx];
       target.items.push(item); target.items=sortItems(target.items);
