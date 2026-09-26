@@ -542,7 +542,7 @@ function renderInfo(){
       '<button class="row" data-act="backup-paste"><div class="row-main"><div class="row-title">복사한 백업 붙여넣기</div><div class="row-sub">claude.ai 앱에서 \'백업 복사하기\'를 누른 뒤 여기를 눌러요</div></div>'+ICON.chev+'</button>'+
       '<button class="row" data-act="backup-export"><div class="row-main"><div class="row-title">백업 파일 보내기</div><div class="row-sub">카카오톡으로 가족에게 보내거나 파일 앱에 저장해요</div></div>'+ICON.chev+'</button>'+
       '<label class="row" style="cursor:pointer"><div class="row-main"><div class="row-title">백업 파일 가져오기</div><div class="row-sub">받은 백업 파일로 이 휴대폰 내용을 바꿔요</div></div>'+ICON.chev+'<input type="file" accept=".json,application/json,text/plain" data-import="backup" hidden></label>'+
-    '</div><p class="foot">QR 이미지는 백업에 들어가지 않아요. 가족에게는 QR 화면의 보내기로 나눠 주세요.</p><p class="foot">모든 내용은 이 휴대폰 안에만 저장돼요. 인터넷 없이도 열리지만, 지도와 길찾기는 인터넷이 필요해요.</p><p class="foot">앱 버전 8</p>'+
+    '</div><p class="foot">QR 이미지는 백업에 들어가지 않아요. 가족에게는 QR 화면의 보내기로 나눠 주세요.</p><p class="foot">모든 내용은 이 휴대폰 안에만 저장돼요. 인터넷 없이도 열리지만, 지도와 길찾기는 인터넷이 필요해요.</p><p class="foot">앱 버전 9</p>'+
     '<h2 class="group-label">알아두면 좋은 것</h2><div class="list">'+tips.map(function(t){
       return '<div class="row"><div class="row-main"><div class="tip-title">'+esc(t[0])+'</div><div class="tip-body">'+esc(t[1])+'</div></div></div>';
     }).join('')+'</div>';
@@ -882,7 +882,7 @@ document.addEventListener('click',function(e){
         navigator.clipboard.readText().then(function(t){ if(t&&t.indexOf('"days"')>=0) readBackup(t); else pasteBackup(); },function(){ pasteBackup(); });
       } else pasteBackup();
       break;
-    case 'backup-apply': if(pendingBackup){ var nb=pendingBackup; pendingBackup=null; closeSheet(); commit(function(){ state=nb; }); } break;
+    case 'backup-apply': if(pendingBackup){ var nb=pendingBackup; pendingBackup=null; closeSheet(); commit(function(){ state=nb; },true); ssSet('kyosaka:toast','백업을 가져왔어요'); stashUI(); setTimeout(function(){ location.reload(); },150); } break;
     case 'ev-edit': evForm(id); break;
     case 'ev-add': evForm(null); break;
     case 'res-open': resDetail(id); break;
@@ -957,6 +957,7 @@ document.addEventListener('submit',function(e){
 });
 
 render();
+(function(){ var t=ssGet('kyosaka:toast'); if(t){ ssDel('kyosaka:toast'); setTimeout(function(){ toast(t); },300); } })();
 setInterval(function(){ if(ui.tab==='today' && !$('#sheet-root').classList.contains('open') && !document.querySelector('.taxi')) render(); },60000);
 if('serviceWorker' in navigator){
   var hadCtl=!!navigator.serviceWorker.controller, reloaded=false;
