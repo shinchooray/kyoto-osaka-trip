@@ -1,5 +1,5 @@
 // 앱 화면을 휴대폰에 저장해 두고, 인터넷이 없어도 열리게 합니다.
-const CACHE = 'kyosaka-v3';
+const CACHE = 'kyosaka-v4';
 const SHELL = ['./', './index.html', './manifest.webmanifest', './icon-192.png', './icon-512.png', './apple-touch-icon.png'];
 
 self.addEventListener('install', (e) => {
@@ -14,7 +14,7 @@ self.addEventListener('install', (e) => {
 self.addEventListener('activate', (e) => {
   e.waitUntil(
     caches.keys()
-      .then((keys) => Promise.all(keys.filter((k) => k.startsWith('kyosaka-') && k !== CACHE && k !== 'kyosaka-fonts').map((k) => caches.delete(k))))
+      .then((keys) => Promise.all(keys.filter((k) => k.startsWith('kyosaka-') && k !== CACHE && k !== 'kyosaka-fonts' && k !== 'kyosaka-photos').map((k) => caches.delete(k))))
       .then(() => self.clients.claim())
   );
 });
@@ -26,6 +26,13 @@ self.addEventListener('fetch', (e) => {
 
   if (url.hostname === 'fonts.googleapis.com' || url.hostname === 'fonts.gstatic.com') {
     e.respondWith(caches.open('kyosaka-fonts').then((c) => c.match(req).then((hit) =>
+      hit || fetch(req).then((res) => { if (res.ok || res.type === 'opaque') c.put(req, res.clone()); return res; })
+    )));
+    return;
+  }
+  // 관광지 사진: 한 번 받은 건 저장해 두고 오프라인에서도 보여줌
+  if (url.hostname === 'upload.wikimedia.org') {
+    e.respondWith(caches.open('kyosaka-photos').then((c) => c.match(req).then((hit) =>
       hit || fetch(req).then((res) => { if (res.ok || res.type === 'opaque') c.put(req, res.clone()); return res; })
     )));
     return;
