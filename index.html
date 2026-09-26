@@ -316,15 +316,6 @@ textarea.short{min-height:64px}
 .about-tip b{font-size:13px;color:var(--muted)}
 .about-tip p{margin:4px 0 0;font-size:15px;line-height:1.6}
 .about-p+.about-p{margin-top:10px}
-.ph-slot{margin-top:12px}
-.ph-wait{font-size:13px;color:var(--muted);padding:8px 0}
-.ph-strip{display:flex;gap:10px;overflow-x:auto;scroll-snap-type:x mandatory;margin:0 -20px;padding:0 20px 4px;scrollbar-width:none}
-.ph-strip::-webkit-scrollbar{display:none}
-.ph{flex:0 0 82%;margin:0;scroll-snap-align:start}
-.ph:only-child{flex-basis:100%}
-.ph img{display:block;width:100%;height:210px;object-fit:cover;border-radius:12px;background:var(--soft)}
-.ph figcaption{font-size:11px;color:var(--muted);margin-top:4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.ph figcaption a{color:inherit;text-decoration:none}
 </style>
 </head>
 <body>
@@ -410,14 +401,12 @@ function aboutSheet(id){
   var facts=Array.isArray(a.facts)?a.facts.filter(Boolean):[], hl=Array.isArray(a.highlights)?a.highlights.filter(Boolean):[];
   var paras=String(a.history||'').split(/\n+/).filter(Boolean);
   openSheet('<p class="about-kicker">이곳 이야기</p><h2>'+esc(ev.place||ev.title)+'</h2>'+
-    (typeof aboutPhotosSlot==='function'?aboutPhotosSlot(ev):'')+
     (a.intro?'<p class="about-intro">'+esc(a.intro)+'</p>':'')+
     (paras.length?'<h3 class="about-h">기원과 역사</h3>'+paras.map(function(p){return '<p class="about-p">'+esc(p)+'</p>';}).join(''):'')+
     (hl.length?'<h3 class="about-h">꼭 볼 것</h3><ul class="about-ul">'+hl.map(function(x){return '<li>'+esc(x)+'</li>';}).join('')+'</ul>':'')+
     (facts.length?'<h3 class="about-h">재밌는 이야기</h3><ul class="about-ul">'+facts.map(function(x){return '<li>'+esc(x)+'</li>';}).join('')+'</ul>':'')+
     (a.tip?'<div class="about-tip"><b>알아두면 좋아요</b><p>'+esc(a.tip)+'</p></div>':'')+
     '<div class="actions"><button class="btn btn-primary" data-act="sheet-close">닫기</button></div>');
-  if(typeof aboutPhotosLoad==='function') aboutPhotosLoad(ev);
 }
 function confirmCodes(c){return confirmParts(c).map(function(p){return p.code;}).join(', ');}
 function resRange(r){
@@ -594,7 +583,7 @@ function renderInfo(){
       '<button class="row" data-act="backup-export"><div class="row-main"><div class="row-title">가족에게 보내기</div><div class="row-sub">지금 내용을 파일로 만들어 카카오톡 등으로 보내요</div></div>'+ICON.chev+'</button>'+
       '<label class="row" style="cursor:pointer"><div class="row-main"><div class="row-title">받은 파일 넣기</div><div class="row-sub">가족에게 받은 파일을 넣으면 같은 내용으로 바뀌어요</div></div>'+ICON.chev+'<input type="file" accept=".json,application/json,text/plain" data-import="backup" hidden></label>'+
 
-    '</div><p class="foot">QR 이미지는 이 휴대폰에 따로 저장돼서 백업을 가져와도 지워지지 않아요. 가족에게는 QR 화면의 보내기로 나눠 주세요.</p><p class="foot">모든 내용은 이 휴대폰 안에만 저장돼요. 인터넷 없이도 열리지만, 지도와 길찾기는 인터넷이 필요해요.</p><p class="foot">앱 버전 13</p>'+
+    '</div><p class="foot">QR 이미지는 이 휴대폰에 따로 저장돼서 백업을 가져와도 지워지지 않아요. 가족에게는 QR 화면의 보내기로 나눠 주세요.</p><p class="foot">모든 내용은 이 휴대폰 안에만 저장돼요. 인터넷 없이도 열리지만, 지도와 길찾기는 인터넷이 필요해요.</p><p class="foot">앱 버전 14</p>'+
     '<h2 class="group-label">알아두면 좋은 것</h2><div class="list">'+tips.map(function(t){
       return '<div class="row"><div class="row-main"><div class="tip-title">'+esc(t[0])+'</div><div class="tip-body">'+esc(t[1])+'</div></div></div>';
     }).join('')+'</div>';
@@ -802,77 +791,6 @@ function qrSection(r){
 }
 qrLoad();
 
-/* ---------- place photos from Wikimedia Commons (cached for offline) ---------- */
-var WIKI_MEM={};
-function plainText(h){ try{ return (new DOMParser().parseFromString(String(h||''),'text/html').body.textContent||'').replace(/\s+/g,' ').trim().slice(0,80); }catch(e){ return ''; } }
-function wikiGet(title,fallbackQ){
-  if(!title) return Promise.resolve(null);
-  if(WIKI_MEM[title]) return Promise.resolve(WIKI_MEM[title]);
-  try{ var c=localStorage.getItem('kyosaka:wiki:'+title); if(c){ var o=JSON.parse(c); if(o&&o.v===1){ WIKI_MEM[title]=o; return Promise.resolve(o); } } }catch(e){}
-  if(!navigator.onLine) return Promise.resolve(null);
-  var API='https://en.wikipedia.org/w/api.php?format=json&origin=*&';
-  var J=function(u){ return fetch(u).then(function(r){ if(!r.ok) throw 0; return r.json(); }); };
-  return J(API+'action=query&redirects=1&titles='+encodeURIComponent(title)).then(function(j){
-    var pages=(j&&j.query&&j.query.pages)||{}, p=Object.keys(pages).map(function(k){return pages[k];}).filter(function(x){return !('missing' in x)&&!('invalid' in x);})[0];
-    if(p) return p.title;
-    if(!fallbackQ) return null;
-    return J(API+'action=query&list=search&srlimit=1&srsearch='+encodeURIComponent(fallbackQ)).then(function(j2){ var r=j2&&j2.query&&j2.query.search; return r&&r[0]?r[0].title:null; });
-  }).then(function(t){
-    if(!t) return null;
-    return J('https://en.wikipedia.org/api/rest_v1/page/media-list/'+encodeURIComponent(t.replace(/ /g,'_'))).then(function(m){
-      var items=(m.items||[]).filter(function(i){ return i.type==='image'&&i.showInGallery!==false&&i.title&&!/\.(svg|gif|webm|ogv)$/i.test(i.title)&&i.srcset&&i.srcset.length; }).slice(0,5);
-      if(!items.length) return {v:1,page:t,photos:[]};
-      return J('https://commons.wikimedia.org/w/api.php?format=json&origin=*&action=query&prop=imageinfo&iiprop=extmetadata&titles='+encodeURIComponent(items.map(function(i){return i.title;}).join('|'))).then(function(cj){
-        var q=(cj&&cj.query)||{}, pg=q.pages||{}, norm={}, meta={};
-        (q.normalized||[]).forEach(function(n){ norm[n.from]=n.to; });
-        Object.keys(pg).forEach(function(k){ var x=pg[k]; if(x.imageinfo&&x.imageinfo[0]) meta[x.title]=x.imageinfo[0].extmetadata||{}; });
-        var photos=[];
-        items.forEach(function(i){
-          var ft=norm[i.title]||i.title, md=meta[ft]; if(!md) return;
-          var lic=plainText(md.LicenseShortName&&md.LicenseShortName.value), art=plainText(md.Artist&&md.Artist.value);
-          var best=i.srcset[i.srcset.length-1], src=String(best.src||''); if(src.indexOf('//')===0) src='https:'+src;
-          if(!/^https:\/\/upload\.wikimedia\.org\//.test(src)) return;
-          photos.push({src:src,credit:(art?art+', ':'')+(lic||'Wikimedia Commons'),file:'https://commons.wikimedia.org/wiki/'+encodeURIComponent(ft.replace(/ /g,'_'))});
-        });
-        return {v:1,page:t,photos:photos.slice(0,3)};
-      });
-    });
-  }).then(function(o){ if(o){ WIKI_MEM[title]=o; try{ localStorage.setItem('kyosaka:wiki:'+title,JSON.stringify(o)); }catch(e){} } return o; })
-    .catch(function(){ return null; });
-}
-function photoHtml(o){
-  if(!o||!o.photos||!o.photos.length) return '';
-  return '<div class="ph-strip">'+o.photos.map(function(p){
-    return '<figure class="ph"><img src="'+esc(p.src)+'" alt="" loading="lazy" onerror="this.closest(\'figure\').style.display=\'none\'"><figcaption><a href="'+esc(p.file)+'" target="_blank" rel="noopener">사진: '+esc(p.credit)+'</a></figcaption></figure>';
-  }).join('')+'</div>';
-}
-function aboutPhotosSlot(ev){
-  var a=aboutOf(ev); if(!a||!a.wiki) return '';
-  var o=WIKI_MEM[a.wiki];
-  return '<div class="ph-slot" data-ph="'+esc(ev.id)+'">'+(o?photoHtml(o):(navigator.onLine?'<div class="ph-wait">사진 불러오는 중…</div>':''))+'</div>';
-}
-function aboutPhotosLoad(ev){
-  var a=aboutOf(ev); if(!a||!a.wiki||WIKI_MEM[a.wiki]) return;
-  wikiGet(a.wiki,ev.map).then(function(o){
-    var slot=document.querySelector('.ph-slot[data-ph="'+ev.id+'"]'); if(!slot) return;
-    slot.innerHTML=photoHtml(o);
-  });
-}
-function prefetchPhotos(){
-  if(!navigator.onLine||!('serviceWorker' in navigator)||!navigator.serviceWorker.controller) return;
-  var today=todayJST(); try{ if(localStorage.getItem('kyosaka:wikiPrefetch')===today) return; }catch(e){}
-  var list=[]; state.days.forEach(function(d){ d.items.forEach(function(ev){ var a=aboutOf(ev); if(a&&a.wiki) list.push(ev); }); });
-  var i=0;
-  (function next(){
-    if(i>=list.length){ try{ localStorage.setItem('kyosaka:wikiPrefetch',today); }catch(e){} return; }
-    var ev=list[i++], a=aboutOf(ev);
-    wikiGet(a.wiki,ev.map).then(function(o){
-      (o&&o.photos||[]).forEach(function(p){ fetch(p.src,{mode:'no-cors'}).catch(function(){}); });
-      setTimeout(next,400);
-    });
-  })();
-}
-setTimeout(prefetchPhotos,4000);
 
 /* ---------- sheets ---------- */
 function openSheet(html){
