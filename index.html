@@ -463,6 +463,20 @@ textarea.short{min-height:64px}
 .sp-cat[open] .sp-open::after{transform:rotate(-135deg);margin-top:3px}
 .sp-cat-list{background:var(--bg);border-top:1px solid var(--line)}
 .sp-cat-list .sp-row:first-child{border-top:0}
+/* memo as tidy bullet lines */
+.memo-ul{list-style:none;padding:0;margin:6px 0 0}
+.memo-ul li{position:relative;padding-left:14px;margin-top:3px;line-height:1.5}
+.memo-ul li:first-child{margin-top:0}
+.memo-ul li::before{content:"";position:absolute;left:3px;top:.68em;width:5px;height:5px;border-radius:50%;background:currentColor;opacity:.55}
+ul.ev-memo{margin-top:6px;font-size:14px;color:var(--muted)}
+ul.tev-memo{font-size:14px;color:var(--muted)}
+/* prepaid rows: badge + amount on top, full name on one line below */
+.sp-pre{padding:11px 16px;border-top:1px solid var(--line)}
+.list > .sp-pre:first-child{border-top:0}
+.sp-pre-top{display:flex;align-items:center;justify-content:space-between;gap:8px}
+.sp-pre-top b{font-variant-numeric:tabular-nums;font-size:15px}
+.sp-pre-name{margin-top:5px;font-size:14px;line-height:1.4;color:var(--ink);white-space:nowrap;overflow-x:auto;scrollbar-width:none}
+.sp-pre-name::-webkit-scrollbar{display:none}
 </style>
 </head>
 <body>
@@ -572,6 +586,15 @@ function aboutSheet(id){
 }
 function showPlace(ev){ var p=String(ev.place||'').trim(), t=String(ev.title||''); if(!p) return false; var k=p.replace(/\s+/g,''); return t.replace(/\s+/g,'').indexOf(k)<0 && !/^\d|[0-9]{3}-?[0-9]{4}/.test(p); }
 function costText(r){ var c=r&&r.cost; if(!c||!(+c.amount>0)) return ''; var n=Math.round(+c.amount).toLocaleString('ko-KR'); return (c.cur==='JPY'?'¥'+n:n+'원')+(c.when==='onsite'?' (현장 결제)':' (결제 완료)'); }
+function memoLines(t){
+  return String(t||'').replace(/([.!?。])\s+/g,'$1\n').replace(/\s+\/\s+/g,'\n').split(/\n+/)
+    .map(function(x){ return x.replace(/^\s*[-•·*]\s*/,'').replace(/[.。]\s*$/,'').trim(); }).filter(Boolean);
+}
+function memoHtml(t,cls){
+  var l=memoLines(t); if(!l.length) return '';
+  if(l.length===1) return '<p class="'+cls+'">'+esc(l[0])+'</p>';
+  return '<ul class="'+cls+' memo-ul">'+l.map(function(x){return '<li>'+esc(x)+'</li>';}).join('')+'</ul>';
+}
 function confirmCodes(c){return confirmParts(c).map(function(p){return p.code;}).join(', ');}
 function resRange(r){
   if(!r.date) return '날짜 없음';
@@ -651,7 +674,7 @@ function renderPlan(){
     if(!ev.map && ev.place) state.reservations.forEach(function(r){ if(r.cat==='hotel' && r.title===ev.place) hotel=r; });
     if(hotel) q=hotel.address||'';
     var body='<h3 class="ev-title">'+esc(ev.title)+'</h3>'+
-      (ev.memo?'<p class="ev-memo">'+esc(ev.memo)+'</p>':'')+
+      memoHtml(ev.memo,'ev-memo')+
       ((q||aboutOf(ev))?'<div class="ev-acts">'+(q?'<a class="maplink" href="'+esc(mapUrl(q))+'" target="_blank" rel="noopener">'+ICON.pin+esc(showPlace(ev)?ev.place:'지도')+'</a>':'')+(aboutOf(ev)?'<button class="maplink about-link" data-act="about" data-id="'+ev.id+'">'+ICON.book+'이곳 이야기</button>':'')+'</div>':'');
     return routeRow(d,ev)+'<li class="ev ev--'+esc(ev.type||'sight')+'"><div class="ev-time">'+esc(ev.time||'')+'</div><div class="ev-rail"><span class="ev-dot"></span></div>'+
       '<div class="ev-body"'+(canEdit()?' data-act="ev-edit" data-id="'+ev.id+'" role="button" tabindex="0" aria-label="'+esc(ev.title)+' 고치기"':'')+'>'+body+'</div></li>';
@@ -748,7 +771,7 @@ function renderInfo(){
       '<button class="row" data-act="backup-export"><div class="row-main"><div class="row-title">가족에게 보내기</div><div class="row-sub">일정과 예약을 파일 하나로 만들어 보내요. 받은 사람은 파일을 누르기만 하면 볼 수 있어요</div></div>'+ICON.chev+'</button>'+
       '<label class="row" style="cursor:pointer"><div class="row-main"><div class="row-title">받은 파일 넣기</div><div class="row-sub">받은 일정 파일을 넣으면 이 앱에서도 똑같이 볼 수 있어요</div></div>'+ICON.chev+'<input type="file" accept=".html,.htm,text/html,.json,application/json,text/plain" data-import="backup" hidden></label>'+
 
-    '</div><p class="foot">QR 이미지는 이 휴대폰에 따로 저장돼서 백업을 가져와도 지워지지 않아요. 가족에게는 QR 화면의 보내기로 나눠 주세요.</p><p class="foot">모든 내용은 이 휴대폰 안에만 저장돼요. 인터넷 없이도 열리지만, 지도와 길찾기는 인터넷이 필요해요.</p><p class="foot">앱 버전 16</p>'+
+    '</div><p class="foot">QR 이미지는 이 휴대폰에 따로 저장돼서 백업을 가져와도 지워지지 않아요. 가족에게는 QR 화면의 보내기로 나눠 주세요.</p><p class="foot">모든 내용은 이 휴대폰 안에만 저장돼요. 인터넷 없이도 열리지만, 지도와 길찾기는 인터넷이 필요해요.</p><p class="foot">앱 버전 17</p>'+
     '<h2 class="group-label">알아두면 좋은 것</h2><div class="list">'+tips.map(function(t){
       return '<div class="row"><div class="row-main"><div class="tip-title">'+esc(t[0])+'</div><div class="tip-body">'+esc(t[1])+'</div></div></div>';
     }).join('')+'</div>';
@@ -843,7 +866,7 @@ function renderToday(){
     return (routeOf(ev)?'<li class="tev-route'+(past?' is-past':'')+'">'+routeCard(d,ev,'today',isLive&&(ev===next||isCur))+'</li>':'')+'<li class="tev'+(past?' is-past':'')+(isCur?' is-cur':'')+'"><div class="tev-time">'+esc(ev.time||'')+'</div><div class="tev-body">'+
       ((isCur||(isLive&&ev===next))?'<div class="tev-type">'+(isCur?'<b>지금</b>':'')+(isLive&&ev===next?'<b class="nx">다음, '+esc(inHow(now,next.time))+'</b>':'')+'</div>':'')+
       '<h3>'+esc(ev.title)+'</h3>'+(showPlace(ev)?'<p class="tev-place">'+esc(ev.place)+'</p>':'')+
-      (ev.memo?'<p class="tev-memo">'+esc(ev.memo)+'</p>':'')+
+      memoHtml(ev.memo,'tev-memo')+
       ((q||aboutOf(ev))?'<div class="tev-acts">'+(q?'<a class="chip" href="'+esc(mapUrl(q))+'" target="_blank" rel="noopener">'+ICON.pin+'지도</a>':'')+
         (aboutOf(ev)?'<button class="chip chip--story" data-act="about" data-id="'+ev.id+'">'+ICON.book+'이곳 이야기</button>':'')+spChip(ev,d.date)+'</div>':'<div class="tev-acts">'+spChip(ev,d.date)+'</div>')+
       '</div></li>';
@@ -868,7 +891,7 @@ function familyHtml(){
         var steps=r&&r.detail?String(r.detail).split(/\s*(?:→|->)\s*/).filter(Boolean):[];
         return (r?'<div class="rt"><b>가는 길 · '+H(HOW[r.how]||'이동')+(r.min?' 약 '+H(r.min)+'분':'')+(r.cost?' · '+H(r.cost):'')+'</b>'+(steps.length>1?'<ol>'+steps.map(function(x){return '<li>'+H(x)+'</li>';}).join('')+'</ol>':(r.detail?'<p>'+H(r.detail)+'</p>':''))+'</div>':'')+
           '<div class="ev"><div class="tm">'+H(ev.time||'')+'</div><div class="bd"><div class="tt">'+H(ev.title)+'</div>'+
-          (ev.place&&ev.place!==ev.title?'<div class="pl">'+H(ev.place)+'</div>':'')+(ev.memo?'<div class="mm">'+H(ev.memo)+'</div>':'')+
+          (ev.place&&ev.place!==ev.title?'<div class="pl">'+H(ev.place)+'</div>':'')+(ev.memo?(memoLines(ev.memo).length>1?'<ul class="mm">'+memoLines(ev.memo).map(function(x){return '<li>'+H(x)+'</li>';}).join('')+'</ul>':'<div class="mm">'+H(memoLines(ev.memo)[0]||'')+'</div>'):'')+
           (a?'<details><summary>이곳 이야기</summary>'+(a.intro?'<p>'+H(a.intro)+'</p>':'')+String(a.history||'').split(/\n+/).filter(Boolean).map(function(p){return '<p>'+H(p)+'</p>';}).join('')+
             ((a.highlights||[]).length?'<p><b>꼭 볼 것</b></p><ul>'+a.highlights.map(function(x){return '<li>'+H(x)+'</li>';}).join('')+'</ul>':'')+
             ((a.facts||[]).length?'<p><b>재밌는 이야기</b></p><ul>'+a.facts.map(function(x){return '<li>'+H(x)+'</li>';}).join('')+'</ul>':'')+
@@ -890,7 +913,7 @@ function familyHtml(){
     '.note{background:#fff;border:1px solid #D3D9D2;border-radius:12px;padding:12px 14px;font-size:14px;margin-bottom:18px}.note a{color:#2E4E97;font-weight:600}'+
     'h2{font-size:20px;margin:26px 0 2px}h2 small{font-size:14px;color:#5E6A64;font-weight:500}.dt{margin:0 0 10px;color:#5E6A64}'+
     '.ev{display:flex;gap:12px;background:#fff;border:1px solid #D3D9D2;border-radius:12px;padding:12px 14px;margin:8px 0}.tm{flex:none;width:48px;font-weight:700;color:#3E6A48}'+
-    '.bd{flex:1;min-width:0}.tt{font-weight:700}.pl{font-size:14px;color:#3E6A48}.mm{font-size:14px;color:#5E6A64;white-space:pre-wrap;margin-top:2px}'+
+    '.bd{flex:1;min-width:0}.tt{font-weight:700}.pl{font-size:14px;color:#3E6A48}.mm{font-size:14px;color:#5E6A64;white-space:pre-wrap;margin-top:2px}ul.mm{white-space:normal;margin:4px 0 0;padding-left:18px}'+
     '.rt{margin:6px 0 6px 20px;background:#E7EDFA;border-left:4px solid #244A9E;border-radius:10px;padding:8px 12px;font-size:14px}.rt b{color:#244A9E}.rt ol{margin:4px 0 0;padding-left:18px}.rt p{margin:4px 0 0}'+
     'details{margin-top:8px;font-size:14px}summary{color:#2E4E97;font-weight:600;cursor:pointer}details p{margin:6px 0}details ul{margin:4px 0;padding-left:18px}'+
     '.res{background:#fff;border:1px solid #D3D9D2;border-radius:12px;padding:12px 14px;margin:8px 0}.rk{font-size:13px;color:#5E6A64}.cat{display:inline-block;font-weight:700;color:#2E4E97;background:#E2E8F6;border-radius:6px;padding:1px 8px}'+
@@ -1061,6 +1084,9 @@ function renderSpend(){
     var items=all.filter(function(x){return x.cat===c.k;}).sort(function(a,b){return (a.date||'0')<(b.date||'0')?-1:(a.date||'0')>(b.date||'0')?1:0;});
     return '<details class="sp-cat"><summary><div class="sp-cat-top"><span class="cat cat--'+c.k+'">'+esc(c.n)+'</span><span class="sp-cnt">'+items.length+'건</span><b>'+esc(krwShort(c.t.total))+'</b><small>'+pct+'%</small></div><div class="sp-bar"><span class="sp-fill sp-fill--'+c.k+'" style="width:'+Math.max(3,Math.round(c.t.total/max*100))+'%"></span></div><div class="sp-cat-raw">'+esc(spSumText(c.t))+'<span class="sp-open">내역 보기</span></div></summary>'+
       '<div class="sp-cat-list">'+items.map(function(x){return entryRow(x,true);}).join('')+'</div></details>'; }).join('')+'</div>':'<div class="list"><div class="text-block empty">아직 기록이 없어요. 오늘 탭의 일정마다 있는 "+ 쓴 돈"을 눌러 기록해 보세요.</div></div>';
+  function preRow(x){
+    return '<div class="sp-pre"><div class="sp-pre-top"><span class="cat cat--'+x.cat+'">'+esc(SPNAME[x.cat]||'기타')+'</span><b>'+esc(money(x.amount,x.cur))+'</b></div><div class="sp-pre-name">'+esc(x.memo||'')+'</div></div>';
+  }
   function entryRow(x,withDate){
     var label=x.memo||(x.ev&&findEv(x.ev)?findEv(x.ev).ev.title:'')||(SPNAME[x.cat]||'기타');
     var when=withDate?(x.date?md(x.date):'여행 전'):'';
@@ -1076,7 +1102,7 @@ function renderSpend(){
     '<div class="pad"><button class="add wide" data-act="sp-open" data-id="" data-d="">+ 쓴 돈 추가</button></div>'+
     '<h2 class="group-label">분류별</h2>'+catHtml+
     '<h2 class="group-label">날짜별</h2><div class="list sp-days">'+dayHtml+'</div>'+
-    '<h2 class="group-label">여행 전에 결제</h2><div class="list">'+(pre.length?pre.map(function(x){return entryRow(x,false);}).join('')+'<div class="sp-row sp-sub"><span>합계</span><b>'+esc(spSumText(pt))+'</b></div>':'<div class="text-block empty">예약에 결제 금액이 들어 있으면 여기에 자동으로 모여요</div>')+'</div>';
+    '<h2 class="group-label">여행 전에 결제</h2><div class="list">'+(pre.length?pre.map(function(x){return preRow(x);}).join('')+'<div class="sp-row sp-sub"><span>합계</span><b>'+esc(spSumText(pt))+'</b></div>':'<div class="text-block empty">예약에 결제 금액이 들어 있으면 여기에 자동으로 모여요</div>')+'</div>';
 }
 
 /* ---------- sheets ---------- */
