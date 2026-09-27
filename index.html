@@ -481,6 +481,20 @@ ul.tev-memo{font-size:14px;color:var(--muted)}
 .sp-pre-name .sp-ul{white-space:normal}
 .sp-ul li::before{opacity:.75}
 .sp-pre-name .sp-ul li{white-space:nowrap}
+/* one line per spending item */
+.sp-one{align-items:center;gap:7px;padding:10px 14px 10px 16px}
+.sp-one .cat{margin-top:0;flex:none}
+.sp-fit{flex:1;min-width:0;white-space:nowrap;overflow:hidden;font-size:14px;color:var(--ink);line-height:1.4}
+.sp-dot{display:inline-block;width:4px;height:4px;border-radius:50%;background:currentColor;opacity:.6;vertical-align:middle;margin:0 6px 2px 0}
+.sp-wh{color:var(--muted);font-size:.9em;margin-right:5px;font-variant-numeric:tabular-nums}
+.sp-one .sp-auto{flex:none;margin:0}
+.sp-one b{flex:none;padding-top:0;font-size:14px}
+.sp-one .x{flex:none;margin-top:0;width:24px;height:24px;font-size:15px}
+.sp-one{gap:5px;padding:10px 12px 10px 14px}
+.sp-one .cat{font-size:11.5px;padding:1px 6px;border-radius:5px}
+.sp-one .sp-auto{font-size:10px;padding:0 4px;border-radius:4px;line-height:1.5}
+.sp-one b{font-size:13px}
+.sp-dot{margin-right:5px}
 </style>
 </head>
 <body>
@@ -638,6 +652,7 @@ var ICON = {
 function render(){
   var html = ui.tab==='res'?renderRes():ui.tab==='info'?renderInfo():ui.tab==='check'?renderCheck():ui.tab==='plan'?renderPlan():ui.tab==='spend'?renderSpend():renderToday();
   var tabs=[['today','오늘'],['plan','일정'],['res','예약'],['spend','경비'],['info','정보'],['check','준비물']];
+  setTimeout(function(){ if(ui.tab==='spend') fitLines(); },0);
   $('#app').innerHTML = '<main class="main">'+banner()+html+'</main>'+
     '<nav class="tabs" aria-label="메뉴"><div class="tabs-in" role="tablist">'+
     tabs.map(function(t){return '<button class="tab" role="tab" aria-selected="'+(ui.tab===t[0])+'" data-act="tab" data-v="'+t[0]+'">'+ICON[t[0]]+'<span>'+t[1]+'</span></button>';}).join('')+
@@ -775,7 +790,7 @@ function renderInfo(){
       '<button class="row" data-act="backup-export"><div class="row-main"><div class="row-title">가족에게 보내기</div><div class="row-sub">일정과 예약을 파일 하나로 만들어 보내요. 받은 사람은 파일을 누르기만 하면 볼 수 있어요</div></div>'+ICON.chev+'</button>'+
       '<label class="row" style="cursor:pointer"><div class="row-main"><div class="row-title">받은 파일 넣기</div><div class="row-sub">받은 일정 파일을 넣으면 이 앱에서도 똑같이 볼 수 있어요</div></div>'+ICON.chev+'<input type="file" accept=".html,.htm,text/html,.json,application/json,text/plain" data-import="backup" hidden></label>'+
 
-    '</div><p class="foot">QR 이미지는 이 휴대폰에 따로 저장돼서 백업을 가져와도 지워지지 않아요. 가족에게는 QR 화면의 보내기로 나눠 주세요.</p><p class="foot">모든 내용은 이 휴대폰 안에만 저장돼요. 인터넷 없이도 열리지만, 지도와 길찾기는 인터넷이 필요해요.</p><p class="foot">앱 버전 19</p>'+
+    '</div><p class="foot">QR 이미지는 이 휴대폰에 따로 저장돼서 백업을 가져와도 지워지지 않아요. 가족에게는 QR 화면의 보내기로 나눠 주세요.</p><p class="foot">모든 내용은 이 휴대폰 안에만 저장돼요. 인터넷 없이도 열리지만, 지도와 길찾기는 인터넷이 필요해요.</p><p class="foot">앱 버전 20</p>'+
     '<h2 class="group-label">알아두면 좋은 것</h2><div class="list">'+tips.map(function(t){
       return '<div class="row"><div class="row-main"><div class="tip-title">'+esc(t[0])+'</div><div class="tip-body">'+esc(t[1])+'</div></div></div>';
     }).join('')+'</div>';
@@ -1052,6 +1067,15 @@ function spSumText(s){ var p=[]; if(s.jpy) p.push(money(s.jpy,'JPY')); if(s.krw)
 function spForEv(id){ return spAll().filter(function(x){return x.ev===id;}); }
 function spForDay(date){ return spAll().filter(function(x){return x.date===date;}); }
 function spText(label){ var l=memoLines(label); if(!l.length&&label) l=[String(label)]; if(!l.length) return ''; return '<ul class="memo-ul sp-ul">'+l.map(function(x){return '<li>'+esc(x)+'</li>';}).join('')+'</ul>'; }
+function fitLines(root){
+  (root||document).querySelectorAll('.sp-fit').forEach(function(el){
+    if(!el.clientWidth) return; var fs=14; el.style.fontSize=fs+'px';
+    el.style.whiteSpace=''; while(el.scrollWidth>el.clientWidth+1&&fs>10){ fs-=0.5; el.style.fontSize=fs+'px'; }
+    if(el.scrollWidth>el.clientWidth+1){ el.style.whiteSpace='normal'; el.style.fontSize='13px'; }
+  });
+}
+document.addEventListener('toggle',function(e){ if(e.target&&e.target.querySelector&&e.target.open) fitLines(e.target); },true);
+window.addEventListener('resize',function(){ if(ui.tab==='spend') fitLines(); });
 function spChip(ev,date){
   var l=spForEv(ev.id);
   if(!l.length) return '<button class="chip chip--spend" data-act="sp-open" data-id="'+ev.id+'" data-d="'+date+'">+ 쓴 돈</button>';
@@ -1094,12 +1118,17 @@ function renderSpend(){
   }
   function entryRow(x,withDate){
     var label=x.memo||(x.ev&&findEv(x.ev)?findEv(x.ev).ev.title:'')||(SPNAME[x.cat]||'기타');
-    var when=withDate?(x.date?md(x.date):'여행 전'):'';
-    return '<div class="sp-row">'+(withDate?'':'<span class="cat cat--'+x.cat+'">'+esc(SPNAME[x.cat]||'기타')+'</span>')+
-      '<span class="sp-m">'+(when?'<small class="sp-when">'+esc(when)+'</small>':'')+spText(label)+(x.auto?' <small class="sp-auto">예약</small>':'')+'</span>'+
+    var one=memoLines(label).join(' · ')||label;
+    var when=withDate&&x.date?(+x.date.slice(5,7))+'/'+(+x.date.slice(8,10)):'';
+    return '<div class="sp-row sp-one">'+(withDate?'':'<span class="cat cat--'+x.cat+'">'+esc(SPNAME[x.cat]||'기타')+'</span>')+
+      '<span class="sp-fit"><i class="sp-dot"></i>'+(when?'<small class="sp-wh">'+esc(when)+'</small>':'')+esc(one)+'</span>'+
+      (x.auto?'<small class="sp-auto">예약</small>':'')+
       '<b>'+esc(money(x.amount,x.cur))+'</b>'+(x.auto?'':'<button class="x" data-act="sp-del" data-id="'+x.id+'" aria-label="지우기">×</button>')+'</div>';
   }
-  var dayHtml=state.days.map(function(d){ var l=spForDay(d.date), t=spSum(l);
+
+  var preAll=all.filter(function(x){return !x.date;}), preT=spSum(preAll);
+  var preDay=preAll.length?'<details class="sp-dayd"><summary><span>여행 전 결제</span><b>'+esc(spSumText(preT))+'</b>'+(preT.jpy?'<small>'+esc(krwShort(preT.total))+'</small>':'')+'</summary>'+preAll.map(function(x){return entryRow(x,false);}).join('')+'</details>':'';
+  var dayHtml=preDay+state.days.map(function(d){ var l=spForDay(d.date), t=spSum(l);
     return '<details class="sp-dayd"'+(d.date===todayJST()?' open':'')+'><summary><span>'+esc(mdw(d.date))+'</span><b>'+(t.total?esc(spSumText(t)):'<span class="muted">0</span>')+'</b>'+(t.jpy?'<small>'+esc(krwShort(t.total))+'</small>':'')+'</summary>'+(l.length?l.map(function(x){return entryRow(x,false);}).join(''):'<div class="sp-empty">기록 없음</div>')+'</details>'; }).join('');
   var pre=all.filter(function(x){return !x.date;}), pt=spSum(pre);
   return '<header class="page-head"><h1>경비</h1><p>쓴 돈 기록은 이 휴대폰에만 저장돼요. 백업을 가져와도 지워지지 않아요.</p></header>'+
