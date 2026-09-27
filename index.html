@@ -651,7 +651,7 @@ var ICON = {
 
 function render(){
   var html = ui.tab==='res'?renderRes():ui.tab==='info'?renderInfo():ui.tab==='check'?renderCheck():ui.tab==='plan'?renderPlan():ui.tab==='spend'?renderSpend():renderToday();
-  var tabs=[['today','오늘'],['plan','일정'],['res','예약'],['spend','경비'],['info','정보'],['check','준비물']];
+  var tabs=[['today','오늘'],['plan','일정'],['res','예약'],['check','준비물'],['info','정보'],['spend','경비']];
   setTimeout(function(){ if(ui.tab==='spend') fitLines(); },0);
   $('#app').innerHTML = '<main class="main">'+banner()+html+'</main>'+
     '<nav class="tabs" aria-label="메뉴"><div class="tabs-in" role="tablist">'+
@@ -770,15 +770,7 @@ function renderInfo(){
       '<div class="row-sub">'+esc(h.address||h.addressJa||'주소를 넣으면 택시 기사님께 보여줄 수 있어요')+'</div></div>'+ICON.chev+'</button>';
   }).join('');
   var sos=[['경찰','110'],['구급차, 화재','119'],['영사콜센터 (24시간, 한국어)','+82-2-3210-0404'],['주오사카 대한민국 총영사관','+81-6-6213-1401']];
-  var tips=[
-    ['5명이면 택시 2대','일반 택시는 4명까지 타요. 짐이 많은 날은 점보택시(9인승)를 미리 예약하면 한 번에 움직일 수 있어요.'],
-    ['교통카드','아이폰은 지갑 앱에 ICOCA나 Suica를 넣어 쓸 수 있어요. 한국 갤럭시는 지원하지 않아서 실물 카드가 필요해요.'],
-    ['교토 시내버스는 붐벼요','관광지 가는 버스는 늘 만원이에요. 가능하면 JR, 한큐, 게이한, 지하철 같은 전철 위주로 다니면 편해요.'],
-    ['전기','일본은 100V, 콘센트가 11자 모양(A타입)이에요. 돼지코를 챙기세요.'],
-    ['10월 중순 날씨','평년 기준 낮 22~24도, 아침저녁 14~15도 정도예요. 얇은 겉옷이 있으면 좋아요.'],
-    ['면세 쇼핑','한 가게에서 같은 날 5,000엔 이상이면 면세. 여권 실물이 있어야 해요.'],
-    ['쓰레기통이 드물어요','작은 비닐봉지 하나 챙겨두면 편해요.']
-  ];
+
   return '<header class="page-head"><h1>정보</h1><p>급할 때 찾아보는 것들</p></header>'+
     '<h2 class="group-label">숙소</h2><div class="list">'+(hotelRows||'<div class="text-block empty">숙소 예약이 없어요</div>')+'</div>'+
     '<h2 class="group-label">긴급 연락처</h2><div class="list">'+sos.map(function(s){
@@ -790,12 +782,24 @@ function renderInfo(){
       '<button class="row" data-act="backup-export"><div class="row-main"><div class="row-title">가족에게 보내기</div><div class="row-sub">일정과 예약을 파일 하나로 만들어 보내요. 받은 사람은 파일을 누르기만 하면 볼 수 있어요</div></div>'+ICON.chev+'</button>'+
       '<label class="row" style="cursor:pointer"><div class="row-main"><div class="row-title">받은 파일 넣기</div><div class="row-sub">받은 일정 파일을 넣으면 이 앱에서도 똑같이 볼 수 있어요</div></div>'+ICON.chev+'<input type="file" accept=".html,.htm,text/html,.json,application/json,text/plain" data-import="backup" hidden></label>'+
 
-    '</div><p class="foot">QR 이미지는 이 휴대폰에 따로 저장돼서 백업을 가져와도 지워지지 않아요. 가족에게는 QR 화면의 보내기로 나눠 주세요.</p><p class="foot">모든 내용은 이 휴대폰 안에만 저장돼요. 인터넷 없이도 열리지만, 지도와 길찾기는 인터넷이 필요해요.</p><p class="foot">앱 버전 20</p>'+
-    '<h2 class="group-label">알아두면 좋은 것</h2><div class="list">'+tips.map(function(t){
+    '</div><p class="foot">QR 이미지는 이 휴대폰에 따로 저장돼서 백업을 가져와도 지워지지 않아요. 가족에게는 QR 화면의 보내기로 나눠 주세요.</p><p class="foot">모든 내용은 이 휴대폰 안에만 저장돼요. 인터넷 없이도 열리지만, 지도와 길찾기는 인터넷이 필요해요.</p><p class="foot">앱 버전 21</p>'+
+    '';
+}
+
+function tipsHtml(){
+  var tips=[
+    ['5명이면 택시 2대','일반 택시는 4명까지 타요. 짐이 많은 날은 점보택시(9인승)를 미리 예약하면 한 번에 움직일 수 있어요.'],
+    ['교통카드','아이폰은 지갑 앱에 ICOCA나 Suica를 넣어 쓸 수 있어요. 한국 갤럭시는 지원하지 않아서 실물 카드가 필요해요.'],
+    ['교토 시내버스는 붐벼요','관광지 가는 버스는 늘 만원이에요. 가능하면 JR, 한큐, 게이한, 지하철 같은 전철 위주로 다니면 편해요.'],
+    ['전기','일본은 100V, 콘센트가 11자 모양(A타입)이에요. 돼지코를 챙기세요.'],
+    ['10월 중순 날씨','평년 기준 낮 22~24도, 아침저녁 14~15도 정도예요. 얇은 겉옷이 있으면 좋아요.'],
+    ['면세 쇼핑','한 가게에서 같은 날 5,000엔 이상이면 면세. 여권 실물이 있어야 해요.'],
+    ['쓰레기통이 드물어요','작은 비닐봉지 하나 챙겨두면 편해요.']
+  ];
+  return '<h2 class="group-label">알아두면 좋은 것</h2><div class="list">'+tips.map(function(t){
       return '<div class="row"><div class="row-main"><div class="tip-title">'+esc(t[0])+'</div><div class="tip-body">'+esc(t[1])+'</div></div></div>';
     }).join('')+'</div>';
 }
-
 function renderCheck(){
   var list=state.checklist, done=list.filter(isDone).length;
   var pct=list.length?Math.round(done/list.length*100):0;
@@ -809,7 +813,8 @@ function renderCheck(){
     '<p>'+list.length+'개 중 '+done+'개 챙겼어요'+(mode==='readonly'?' (이 기기에만 저장돼요)':'')+'</p></header>'+
     '<div class="progress" aria-hidden="true"><span style="width:'+pct+'%"></span></div>'+
     '<h2 class="group-label">출발 전에</h2><div class="list">'+(rows||'<div class="text-block empty">준비물을 추가해 보세요</div>')+'</div>'+
-    (canEdit()?'<form class="add-row" data-form="check"><input name="text" placeholder="준비물 추가" autocomplete="off" enterkeyhint="done"><button class="mini" type="submit">추가</button></form>':'');
+    (canEdit()?'<form class="add-row" data-form="check"><input name="text" placeholder="준비물 추가" autocomplete="off" enterkeyhint="done"><button class="mini" type="submit">추가</button></form>':'')+
+    tipsHtml();
 }
 
 
