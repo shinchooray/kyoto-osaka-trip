@@ -651,7 +651,7 @@ var ICON = {
 
 function render(){
   var html = ui.tab==='res'?renderRes():ui.tab==='info'?renderInfo():ui.tab==='check'?renderCheck():ui.tab==='plan'?renderPlan():ui.tab==='spend'?renderSpend():renderToday();
-  var tabs=[['today','오늘'],['plan','일정'],['res','예약'],['check','준비물'],['info','정보'],['spend','경비']];
+  var tabs=[['today','오늘'],['plan','일정'],['spend','경비'],['res','예약'],['check','준비물'],['info','정보']];
   setTimeout(function(){ if(ui.tab==='spend') fitLines(); },0);
   $('#app').innerHTML = '<main class="main">'+banner()+html+'</main>'+
     '<nav class="tabs" aria-label="메뉴"><div class="tabs-in" role="tablist">'+
@@ -752,7 +752,7 @@ function renderRes(){
   }).join('');
   return '<header class="page-head"><h1>예약</h1><p>'+
     (missing?'아직 정보를 넣지 않은 예약이 '+missing+'개 있어요. 눌러서 채워 주세요.':'항공, 숙소, 교통 예약을 한곳에 모았어요.')+'</p></header>'+
-    syncBar()+body+(canEdit()?'<div class="pad"><button class="add wide" data-act="res-add">직접 입력해서 추가</button></div>':'');
+    body+(canEdit()?'<div class="pad"><button class="add wide" data-act="res-add">직접 입력해서 추가</button></div>':'');
 }
 
 var CLAUDE_APP='https://claude.ai/artifact/CGoEBzj2g45Sw2EvaXSzCD';
@@ -771,7 +771,7 @@ function renderInfo(){
   }).join('');
   var sos=[['경찰','110'],['구급차, 화재','119'],['영사콜센터 (24시간, 한국어)','+82-2-3210-0404'],['주오사카 대한민국 총영사관','+81-6-6213-1401']];
 
-  return '<header class="page-head"><h1>정보</h1><p>급할 때 찾아보는 것들</p></header>'+
+  return '<header class="page-head"><h1>정보</h1><p>급할 때 찾아보는 것들</p></header>'+syncBar()+
     '<h2 class="group-label">숙소</h2><div class="list">'+(hotelRows||'<div class="text-block empty">숙소 예약이 없어요</div>')+'</div>'+
     '<h2 class="group-label">긴급 연락처</h2><div class="list">'+sos.map(function(s){
       return '<a class="row" href="tel:'+s[1].replace(/[^+\d]/g,'')+'"><div class="row-main"><div class="row-title">'+esc(s[0])+'</div></div><span class="row-num">'+esc(s[1])+'</span></a>';
@@ -782,7 +782,7 @@ function renderInfo(){
       '<button class="row" data-act="backup-export"><div class="row-main"><div class="row-title">가족에게 보내기</div><div class="row-sub">일정과 예약을 파일 하나로 만들어 보내요. 받은 사람은 파일을 누르기만 하면 볼 수 있어요</div></div>'+ICON.chev+'</button>'+
       '<label class="row" style="cursor:pointer"><div class="row-main"><div class="row-title">받은 파일 넣기</div><div class="row-sub">받은 일정 파일을 넣으면 이 앱에서도 똑같이 볼 수 있어요</div></div>'+ICON.chev+'<input type="file" accept=".html,.htm,text/html,.json,application/json,text/plain" data-import="backup" hidden></label>'+
 
-    '</div><p class="foot">QR 이미지는 이 휴대폰에 따로 저장돼서 백업을 가져와도 지워지지 않아요. 가족에게는 QR 화면의 보내기로 나눠 주세요.</p><p class="foot">모든 내용은 이 휴대폰 안에만 저장돼요. 인터넷 없이도 열리지만, 지도와 길찾기는 인터넷이 필요해요.</p><p class="foot">앱 버전 21</p>'+
+    '</div><p class="foot">QR 이미지는 이 휴대폰에 따로 저장돼서 백업을 가져와도 지워지지 않아요. 가족에게는 QR 화면의 보내기로 나눠 주세요.</p><p class="foot">모든 내용은 이 휴대폰 안에만 저장돼요. 인터넷 없이도 열리지만, 지도와 길찾기는 인터넷이 필요해요.</p><p class="foot">앱 버전 22</p>'+
     '';
 }
 
