@@ -495,6 +495,14 @@ ul.tev-memo{font-size:14px;color:var(--muted)}
 .sp-one .sp-auto{font-size:10px;padding:0 4px;border-radius:4px;line-height:1.5}
 .sp-one b{font-size:13px}
 .sp-dot{margin-right:5px}
+/* 날짜별 summary: won total main, raw small */
+.sp-dayd summary small{margin-left:auto;font-size:12px;color:var(--muted)}
+.sp-dayd summary small+b{margin-left:6px}
+/* checklist photos */
+.ck-cam{flex:none;display:grid;place-items:center;width:34px;height:34px;border-radius:50%;border:1px dashed var(--line);color:var(--muted);cursor:pointer;font-size:18px;font-weight:600}
+.ck-cam svg{width:17px;height:17px}
+.chip--photo{color:var(--osaka)}
+.chip--photo svg{width:14px;height:14px}
 </style>
 </head>
 <body>
@@ -782,7 +790,7 @@ function renderInfo(){
       '<button class="row" data-act="backup-export"><div class="row-main"><div class="row-title">가족에게 보내기</div><div class="row-sub">일정과 예약을 파일 하나로 만들어 보내요. 받은 사람은 파일을 누르기만 하면 볼 수 있어요</div></div>'+ICON.chev+'</button>'+
       '<label class="row" style="cursor:pointer"><div class="row-main"><div class="row-title">받은 파일 넣기</div><div class="row-sub">받은 일정 파일을 넣으면 이 앱에서도 똑같이 볼 수 있어요</div></div>'+ICON.chev+'<input type="file" accept=".html,.htm,text/html,.json,application/json,text/plain" data-import="backup" hidden></label>'+
 
-    '</div><p class="foot">QR 이미지는 이 휴대폰에 따로 저장돼서 백업을 가져와도 지워지지 않아요. 가족에게는 QR 화면의 보내기로 나눠 주세요.</p><p class="foot">모든 내용은 이 휴대폰 안에만 저장돼요. 인터넷 없이도 열리지만, 지도와 길찾기는 인터넷이 필요해요.</p><p class="foot">앱 버전 22</p>'+
+    '</div><p class="foot">QR 이미지는 이 휴대폰에 따로 저장돼서 백업을 가져와도 지워지지 않아요. 가족에게는 QR 화면의 보내기로 나눠 주세요.</p><p class="foot">모든 내용은 이 휴대폰 안에만 저장돼요. 인터넷 없이도 열리지만, 지도와 길찾기는 인터넷이 필요해요.</p><p class="foot">앱 버전 23</p>'+
     '';
 }
 
@@ -807,6 +815,8 @@ function renderCheck(){
     var d=isDone(c);
     return '<div class="row'+(d?' is-done':'')+'"><button class="ck" data-act="check" data-id="'+c.id+'" role="checkbox" aria-checked="'+d+'" aria-label="'+esc(c.text)+'">'+ICON.tick+'</button>'+
       '<div class="row-main" data-act="check" data-id="'+c.id+'" style="cursor:pointer"><div class="row-title">'+esc(c.text)+'</div></div>'+
+      (qrCount('ck:'+c.id)?'<button class="chip chip--photo" data-act="ck-photo" data-id="'+c.id+'">'+ICON.cam+qrCount('ck:'+c.id)+'</button>':'')+
+      '<label class="ck-cam" aria-label="'+esc(c.text)+' 사진 추가">'+(qrCount('ck:'+c.id)?'+':ICON.cam)+'<input type="file" accept="image/*" multiple data-import="ckphoto" data-id="'+c.id+'" hidden></label>'+
       (ui.ckEdit&&canEdit()?'<button class="x" data-act="check-del" data-id="'+c.id+'" aria-label="'+esc(c.text)+' 지우기">×</button>':'')+'</div>';
   }).join('');
   return '<header class="page-head"><div class="head-row"><h1>준비물</h1>'+(canEdit()?'<button class="link-btn" data-act="ck-edit">'+(ui.ckEdit?'완료':'정리')+'</button>':'')+'</div>'+
@@ -898,7 +908,7 @@ function renderToday(){
 
   return head+spDayLine(d.date)+
     '<h2 class="group-label">하루 일정 자세히</h2><ol class="tlist day--'+d.city+'">'+items+'</ol>'+
-    (qrAllN?'<div class="pad"><button class="qr-all" data-act="qr-all">QR·바우처 모아보기 <b>'+qrAllN+'장</b></button></div>':'')+
+    (qrAllN?'<div class="pad"><button class="qr-all" data-act="qr-all">QR·사진 모아보기 <b>'+qrAllN+'장</b></button></div>':'')+
     (stay||resHtml?'<h2 class="group-label">숙소와 예약</h2>':'')+stay+resHtml;
 }
 
@@ -1007,7 +1017,7 @@ function qrAdd(resId,files){
   var recs=list.map(function(f,i){ return {id:uid('q'),res:resId,blob:f,added:now+i}; });
   qrTx('readwrite',function(st){ recs.forEach(function(r){st.put(r);}); }).then(function(){
     recs.forEach(function(r){ (QR[resId]=QR[resId]||[]).push(r); });
-    toast('QR '+recs.length+'장을 저장했어요'); resDetail(resId); render();
+    toast((resId.indexOf('ck:')===0?'사진 ':'QR ')+recs.length+'장을 저장했어요'); if(resId.indexOf('ck:')!==0) resDetail(resId); render();
   }).catch(function(){ toast('저장하지 못했어요. 휴대폰 저장 공간을 확인해 주세요'); });
 }
 function qrDelete(q){
@@ -1018,11 +1028,12 @@ function qrDelete(q){
     if(qrView){ qrView.list=qrView.list.filter(function(x){return x.id!==q.id;}); if(!qrView.list.length) qrClose(); else { qrView.i=Math.min(qrView.i,qrView.list.length-1); qrDraw(); } }
   });
 }
-function qrAllList(){ var out=[]; sortedRes().forEach(function(r){ (QR[r.id]||[]).forEach(function(q){out.push(q);}); }); return out; }
+function ckTitleObj(key){ if(String(key).indexOf('ck:')!==0) return null; var id=key.slice(3), c=state.checklist.filter(function(x){return x.id===id;})[0]; return {title:c?c.text:'준비물 사진'}; }
+function qrAllList(){ var out=[]; sortedRes().forEach(function(r){ (QR[r.id]||[]).forEach(function(q){out.push(q);}); }); state.checklist.forEach(function(c){ (QR['ck:'+c.id]||[]).forEach(function(q){out.push(q);}); }); return out; }
 function qrOpen(list,i){ if(!list.length) return; qrView={list:list,i:i||0,armed:false}; qrDraw(); }
 function qrClose(){ var el=document.querySelector('.qrv'); if(el) el.remove(); qrView=null; }
 function qrDraw(){
-  var v=qrView, q=v.list[v.i], r=findRes(q.res), el=document.querySelector('.qrv');
+  var v=qrView, q=v.list[v.i], r=findRes(q.res)||ckTitleObj(q.res), el=document.querySelector('.qrv');
   if(!el){ el=document.createElement('div'); el.className='qrv'; el.setAttribute('role','dialog'); document.body.appendChild(el); }
   el.innerHTML='<div class="qrv-top"><div><div class="qrv-t">'+esc(r?r.title:'QR')+'</div><div class="qrv-n">'+(v.list.length>1?(v.i+1)+' / '+v.list.length:'')+'</div></div><button class="qrv-x" data-act="qr-close" aria-label="닫기">×</button></div>'+
     '<div class="qrv-img"><img src="'+qrUrl(q)+'" alt="QR 이미지"></div>'+
@@ -1132,9 +1143,9 @@ function renderSpend(){
   }
 
   var preAll=all.filter(function(x){return !x.date;}), preT=spSum(preAll);
-  var preDay=preAll.length?'<details class="sp-dayd"><summary><span>여행 전 결제</span><b>'+esc(spSumText(preT))+'</b>'+(preT.jpy?'<small>'+esc(krwShort(preT.total))+'</small>':'')+'</summary>'+preAll.map(function(x){return entryRow(x,false);}).join('')+'</details>':'';
+  var preDay=preAll.length?'<details class="sp-dayd"><summary><span>여행 전 결제</span><small>'+esc(spSumText(preT))+'</small><b>'+esc(krwShort(preT.total))+'</b></summary>'+preAll.map(function(x){return entryRow(x,false);}).join('')+'</details>':'';
   var dayHtml=preDay+state.days.map(function(d){ var l=spForDay(d.date), t=spSum(l);
-    return '<details class="sp-dayd"'+(d.date===todayJST()?' open':'')+'><summary><span>'+esc(mdw(d.date))+'</span><b>'+(t.total?esc(spSumText(t)):'<span class="muted">0</span>')+'</b>'+(t.jpy?'<small>'+esc(krwShort(t.total))+'</small>':'')+'</summary>'+(l.length?l.map(function(x){return entryRow(x,false);}).join(''):'<div class="sp-empty">기록 없음</div>')+'</details>'; }).join('');
+    return '<details class="sp-dayd"'+(d.date===todayJST()?' open':'')+'><summary><span>'+esc(mdw(d.date))+'</span>'+(t.total?'<small>'+esc(spSumText(t))+'</small><b>'+esc(krwShort(t.total))+'</b>':'<b><span class="muted">0</span></b>')+'</summary>'+(l.length?l.map(function(x){return entryRow(x,false);}).join(''):'<div class="sp-empty">기록 없음</div>')+'</details>'; }).join('');
   var pre=all.filter(function(x){return !x.date;}), pt=spSum(pre);
   return '<header class="page-head"><h1>경비</h1><p>쓴 돈 기록은 이 휴대폰에만 저장돼요. 백업을 가져와도 지워지지 않아요.</p></header>'+
     '<div class="sp-total"><span>여행 전체</span><b>'+esc(krwShort(s.total))+'</b><small>'+esc(spSumText(s))+'</small><button class="sp-rate" data-act="sp-rate">100엔 = '+esc(Math.round((+SP.rate||0)*1000)/10)+'원 기준</button></div>'+
@@ -1268,6 +1279,7 @@ document.addEventListener('click',function(e){
     case 'ev-add-today': ui.day=+el.getAttribute('data-i'); evForm(null); break;
     case 'qr-open': var ql=QR[id]||[]; qrOpen(ql,+el.getAttribute('data-i')||0); break;
     case 'qr-all': qrOpen(qrAllList(),0); break;
+    case 'ck-photo': qrOpen(QR['ck:'+id]||[],0); break;
     case 'qr-close': qrClose(); break;
     case 'qr-prev': if(qrView&&qrView.i>0){qrView.i--;qrView.armed=false;qrDraw();} break;
     case 'qr-next': if(qrView&&qrView.i<qrView.list.length-1){qrView.i++;qrView.armed=false;qrDraw();} break;
@@ -1311,7 +1323,8 @@ document.addEventListener('click',function(e){
   }
 });
 document.addEventListener('change',function(e){
-  var inp=e.target; if(inp.matches&&inp.matches('[data-import="qr"]')){ var fs=inp.files; qrAdd(inp.getAttribute('data-id'),fs); inp.value=''; return; }
+  var inp=e.target; if(inp.matches&&inp.matches('[data-import="ckphoto"]')){ var cf=inp.files; qrAdd('ck:'+inp.getAttribute('data-id'),cf); inp.value=''; return; }
+  if(inp.matches&&inp.matches('[data-import="qr"]')){ var fs=inp.files; qrAdd(inp.getAttribute('data-id'),fs); inp.value=''; return; }
   if(!inp.matches||!inp.matches('[data-import="backup"]')) return;
   var f=inp.files&&inp.files[0]; inp.value=''; if(!f) return;
   var rd=new FileReader(); rd.onload=function(){ readBackup(String(rd.result||'')); }; rd.onerror=function(){ toast('파일을 읽지 못했어요'); }; rd.readAsText(f);
