@@ -14,7 +14,7 @@ self.addEventListener('install', (e) => {
 self.addEventListener('activate', (e) => {
   e.waitUntil(
     caches.keys()
-      .then((keys) => Promise.all(keys.filter((k) => k.startsWith('kyosaka-') && k !== CACHE && k !== 'kyosaka-fonts' && k !== 'kyosaka-photos').map((k) => caches.delete(k))))
+      .then((keys) => Promise.all(keys.filter((k) => k.startsWith('kyosaka-') && k !== CACHE && k !== 'kyosaka-fonts' && k !== 'kyosaka-photos' && k !== 'kyosaka-map').map((k) => caches.delete(k))))
       .then(() => self.clients.claim())
   );
 });
@@ -33,6 +33,13 @@ self.addEventListener('fetch', (e) => {
   // 관광지 사진: 한 번 받은 건 저장해 두고 오프라인에서도 보여줌
   if (url.hostname === 'upload.wikimedia.org') {
     e.respondWith(caches.open('kyosaka-photos').then((c) => c.match(req).then((hit) =>
+      hit || fetch(req).then((res) => { if (res.ok || res.type === 'opaque') c.put(req, res.clone()); return res; })
+    )));
+    return;
+  }
+  // 지도 라이브러리와 지도 그림: 한 번 받은 건 저장해 두고 다시 씀
+  if (url.hostname === 'cdnjs.cloudflare.com' || url.hostname === 'tile.openstreetmap.org') {
+    e.respondWith(caches.open('kyosaka-map').then((c) => c.match(req).then((hit) =>
       hit || fetch(req).then((res) => { if (res.ok || res.type === 'opaque') c.put(req, res.clone()); return res; })
     )));
     return;
