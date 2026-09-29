@@ -503,6 +503,46 @@ ul.tev-memo{font-size:14px;color:var(--muted)}
 .ck-cam svg{width:17px;height:17px}
 .chip--photo{color:var(--osaka)}
 .chip--photo svg{width:14px;height:14px}
+/* v5 day view: separate cards, time + kind header, type colors */
+.tev--sight,.ev--sight{--ty:#3E6A48}.tev--food,.ev--food{--ty:#B1501D}.tev--move,.ev--move{--ty:#2E4E97}.tev--stay,.ev--stay{--ty:#6B4FA0}.tev--free,.ev--free{--ty:#A8336B}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]) .tev--sight,:root:not([data-theme="light"]) .ev--sight{--ty:#8FC29A}:root:not([data-theme="light"]) .tev--food,:root:not([data-theme="light"]) .ev--food{--ty:#F2A981}:root:not([data-theme="light"]) .tev--move,:root:not([data-theme="light"]) .ev--move{--ty:#A4BBF2}:root:not([data-theme="light"]) .tev--stay,:root:not([data-theme="light"]) .ev--stay{--ty:#C6B2EC}:root:not([data-theme="light"]) .tev--free,:root:not([data-theme="light"]) .ev--free{--ty:#F0A3C8}}
+:root[data-theme="dark"] .tev--sight,:root[data-theme="dark"] .ev--sight{--ty:#8FC29A}:root[data-theme="dark"] .tev--food,:root[data-theme="dark"] .ev--food{--ty:#F2A981}:root[data-theme="dark"] .tev--move,:root[data-theme="dark"] .ev--move{--ty:#A4BBF2}:root[data-theme="dark"] .tev--stay,:root[data-theme="dark"] .ev--stay{--ty:#C6B2EC}:root[data-theme="dark"] .tev--free,:root[data-theme="dark"] .ev--free{--ty:#F0A3C8}
+.tlist{background:none;border:0;border-radius:0;overflow:visible;margin:0 16px}
+.tlist .tev{display:block;background:var(--surface);border:1px solid var(--line);border-left:4px solid var(--ty);border-radius:16px;padding:14px 16px 14px 14px;margin-top:10px}
+.tlist .tev:first-child{margin-top:0}
+.tev-head{display:flex;align-items:center;flex-wrap:wrap;gap:6px 10px}
+.tlist .tev-time{font-size:17px;font-weight:800;color:var(--ink);text-align:left;padding:0;font-variant-numeric:tabular-nums;letter-spacing:-.01em}
+.tev-kind{display:inline-flex;align-items:center;gap:4px;font-size:13px;font-weight:700;color:var(--ty)}
+.tev-kind svg,.ev-kind svg{width:15px;height:15px}
+.pill{font-size:12px;font-weight:700;border-radius:999px;padding:2px 9px}
+.pill--now{background:var(--accent);color:#fff}
+.pill--next{background:var(--rt-bg);color:var(--rt-fg)}
+.tev-done{font-size:12px;color:var(--muted);margin-left:auto}
+.tlist .tev h3{margin:6px 0 0;font-size:20px;font-weight:800;line-height:1.3;letter-spacing:-.01em}
+.tev-place{margin:4px 0 0;font-size:14px;color:var(--muted)}
+.tlist .tev-memo{margin-top:8px;font-size:15px;line-height:1.55;color:var(--ink);opacity:.82}
+.tlist .tev-acts{margin-top:12px;padding-top:10px;border-top:1px dashed var(--line);gap:4px 16px}
+.act,.tev-acts .chip{display:inline-flex;align-items:center;gap:4px;font:inherit;font-size:13px;font-weight:600;color:var(--muted);background:none;border:0;padding:2px 0;text-decoration:none;cursor:pointer}
+.act svg{width:14px;height:14px}
+.act--story{color:var(--osaka)}
+.tev-acts .chip--spent{color:var(--kyoto)}
+.tlist .tev.is-cur{border-color:var(--accent);border-left-color:var(--accent);box-shadow:0 0 0 3px color-mix(in srgb,var(--accent) 18%,transparent)}
+.tlist .tev.is-past{opacity:1;background:var(--soft);border-left-color:var(--line);padding-top:10px;padding-bottom:10px;cursor:pointer}
+.tlist .tev.is-past h3{font-size:15px;font-weight:600;color:var(--muted);margin-top:2px}
+.tlist .tev.is-past .tev-time{font-size:14px;color:var(--muted)}
+.tlist .tev.is-past .tev-kind{color:var(--muted)}
+.tlist .tev.is-past:not(.open) .tev-more{display:none}
+.tlist .tev-route{background:none;border:0;padding:6px 0 0 22px;margin:0}
+.tlist .tev-route.is-past{display:none}
+.tlist .tev-route .rt2{padding:0}
+.tlist .tev-route .rt-how{font-size:14px}
+.tlist .tev-route+.tev{margin-top:6px}
+/* plan cards */
+.ev-body{border-left:4px solid var(--ty)}
+.ev-kind{display:flex;align-items:center;gap:4px;font-size:12.5px;font-weight:700;color:var(--ty);margin-bottom:2px}
+.ev-title{font-size:18px;font-weight:800}
+.ev--move .ev-body{border-left-style:solid}
+.tev-head .pill{border:0}
 </style>
 </head>
 <body>
@@ -621,6 +661,13 @@ function memoHtml(t,cls){
   if(l.length===1) return '<p class="'+cls+'">'+esc(l[0])+'</p>';
   return '<ul class="'+cls+' memo-ul">'+l.map(function(x){return '<li>'+esc(x)+'</li>';}).join('')+'</ul>';
 }
+var TYICON={
+  sight:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 8h18M5 8l1-3h12l1 3M6 8v11M18 8v11M4 19h16M10 19v-5h4v5"/></svg>',
+  food:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12h18a9 9 0 0 1-18 0zM8 8c0-2 2-2 2-4M13 8c0-2 2-2 2-4"/></svg>',
+  move:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="3" width="14" height="14" rx="3"/><path d="M5 11h14M9 21l1.5-4M15 21l-1.5-4"/></svg>',
+  stay:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 18V7M3 14h18v4M21 14v-2a3 3 0 0 0-3-3h-7v5"/><circle cx="7" cy="11" r="2"/></svg>',
+  free:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 8h12l-1 12H7zM9 8a3 3 0 0 1 6 0"/></svg>'
+};
 function confirmCodes(c){return confirmParts(c).map(function(p){return p.code;}).join(', ');}
 function resRange(r){
   if(!r.date) return '날짜 없음';
@@ -700,7 +747,7 @@ function renderPlan(){
     var q=ev.map||ev.place, hotel=null;
     if(!ev.map && ev.place) state.reservations.forEach(function(r){ if(r.cat==='hotel' && r.title===ev.place) hotel=r; });
     if(hotel) q=hotel.address||'';
-    var body='<h3 class="ev-title">'+esc(ev.title)+'</h3>'+
+    var body='<div class="ev-kind">'+(TYICON[ev.type||'sight']||'')+esc(TYPE[ev.type||'sight']||'')+'</div><h3 class="ev-title">'+esc(ev.title)+'</h3>'+
       memoHtml(ev.memo,'ev-memo')+
       ((q||aboutOf(ev))?'<div class="ev-acts">'+(q?'<a class="maplink" href="'+esc(mapUrl(q))+'" target="_blank" rel="noopener">'+ICON.pin+esc(showPlace(ev)?ev.place:'지도')+'</a>':'')+(aboutOf(ev)?'<button class="maplink about-link" data-act="about" data-id="'+ev.id+'">'+ICON.book+'이곳 이야기</button>':'')+'</div>':'');
     return routeRow(d,ev)+'<li class="ev ev--'+esc(ev.type||'sight')+'"><div class="ev-time">'+esc(ev.time||'')+'</div><div class="ev-rail"><span class="ev-dot"></span></div>'+
@@ -790,7 +837,7 @@ function renderInfo(){
       '<button class="row" data-act="backup-export"><div class="row-main"><div class="row-title">가족에게 보내기</div><div class="row-sub">일정과 예약을 파일 하나로 만들어 보내요. 받은 사람은 파일을 누르기만 하면 볼 수 있어요</div></div>'+ICON.chev+'</button>'+
       '<label class="row" style="cursor:pointer"><div class="row-main"><div class="row-title">받은 파일 넣기</div><div class="row-sub">받은 일정 파일을 넣으면 이 앱에서도 똑같이 볼 수 있어요</div></div>'+ICON.chev+'<input type="file" accept=".html,.htm,text/html,.json,application/json,text/plain" data-import="backup" hidden></label>'+
 
-    '</div><p class="foot">QR 이미지는 이 휴대폰에 따로 저장돼서 백업을 가져와도 지워지지 않아요. 가족에게는 QR 화면의 보내기로 나눠 주세요.</p><p class="foot">모든 내용은 이 휴대폰 안에만 저장돼요. 인터넷 없이도 열리지만, 지도와 길찾기는 인터넷이 필요해요.</p><p class="foot">앱 버전 23</p>'+
+    '</div><p class="foot">QR 이미지는 이 휴대폰에 따로 저장돼서 백업을 가져와도 지워지지 않아요. 가족에게는 QR 화면의 보내기로 나눠 주세요.</p><p class="foot">모든 내용은 이 휴대폰 안에만 저장돼요. 인터넷 없이도 열리지만, 지도와 길찾기는 인터넷이 필요해요.</p><p class="foot">앱 버전 24</p>'+
     '';
 }
 
@@ -896,14 +943,17 @@ function renderToday(){
   }).join('')+'</div>':'';
 
   var items=d.items.map(function(ev){
-    var q=evQuery(ev), past=isLive&&ev.time&&cur&&ev.time<cur.time, isCur=cur===ev;
-    return (routeOf(ev)?'<li class="tev-route'+(past?' is-past':'')+'">'+routeCard(d,ev,'today',isLive&&(ev===next||isCur))+'</li>':'')+'<li class="tev'+(past?' is-past':'')+(isCur?' is-cur':'')+'"><div class="tev-time">'+esc(ev.time||'')+'</div><div class="tev-body">'+
-      ((isCur||(isLive&&ev===next))?'<div class="tev-type">'+(isCur?'<b>지금</b>':'')+(isLive&&ev===next?'<b class="nx">다음, '+esc(inHow(now,next.time))+'</b>':'')+'</div>':'')+
-      '<h3>'+esc(ev.title)+'</h3>'+(showPlace(ev)?'<p class="tev-place">'+esc(ev.place)+'</p>':'')+
-      memoHtml(ev.memo,'tev-memo')+
-      ((q||aboutOf(ev))?'<div class="tev-acts">'+(q?'<a class="chip" href="'+esc(mapUrl(q))+'" target="_blank" rel="noopener">'+ICON.pin+'지도</a>':'')+
-        (aboutOf(ev)?'<button class="chip chip--story" data-act="about" data-id="'+ev.id+'">'+ICON.book+'이곳 이야기</button>':'')+spChip(ev,d.date)+'</div>':'<div class="tev-acts">'+spChip(ev,d.date)+'</div>')+
-      '</div></li>';
+    var q=evQuery(ev), past=isLive&&ev.time&&cur&&ev.time<cur.time, isCur=cur===ev, isNext=isLive&&ev===next, ty=ev.type||'sight';
+    var acts=(q?'<a class="act" href="'+esc(mapUrl(q))+'" target="_blank" rel="noopener">'+ICON.pin+'지도</a>':'')+
+      (aboutOf(ev)?'<button class="act act--story" data-act="about" data-id="'+ev.id+'">'+ICON.book+'이곳 이야기</button>':'')+
+      (typeof spChip==='function'?spChip(ev,d.date):'');
+    return (routeOf(ev)?'<li class="tev-route'+(past?' is-past':'')+'">'+routeCard(d,ev,'today',isLive&&(isNext||isCur))+'</li>':'')+
+      '<li class="tev tev--'+esc(ty)+(past?' is-past':'')+(isCur?' is-cur':'')+'"'+(past?' data-act="tev-toggle"':'')+'>'+
+      '<div class="tev-head"><span class="tev-time">'+esc(ev.time||'시간 미정')+'</span><span class="tev-kind">'+(TYICON[ty]||'')+esc(TYPE[ty]||'')+'</span>'+
+        (isCur?'<b class="pill pill--now">지금</b>':'')+(isNext?'<b class="pill pill--next">다음, '+esc(inHow(now,next.time))+'</b>':'')+(past?'<span class="tev-done">지난 일정</span>':'')+'</div>'+
+      '<h3>'+esc(ev.title)+'</h3>'+
+      '<div class="tev-more">'+(showPlace(ev)?'<p class="tev-place">'+esc(ev.place)+'</p>':'')+memoHtml(ev.memo,'tev-memo')+
+      (acts?'<div class="tev-acts">'+acts+'</div>':'')+'</div></li>';
   }).join('');
 
   return head+spDayLine(d.date)+
@@ -1300,6 +1350,7 @@ document.addEventListener('click',function(e){
     case 'res-add': resForm(null); break;
     case 'note-edit': noteForm(); break;
     case 'about': aboutSheet(id); break;
+    case 'tev-toggle': el.classList.toggle('open'); break;
     case 'sp-open': spSheet(id,el.getAttribute('data-d')||''); break;
     case 'sp-rate': spRateSheet(); break;
     case 'sp-del': SP.items=SP.items.filter(function(x){return x.id!==id;}); spSave(); render(); var evd=el.getAttribute('data-ev'); if(evd) spSheet(evd); toast('지웠어요'); break;
