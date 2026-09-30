@@ -577,6 +577,12 @@ ul.tev-memo{font-size:14px;color:var(--muted)}
 .ck-list.is-dragging .ck-editrow{transition:transform .15s ease}
 .ck-editrow.dragging{position:relative;z-index:5;background:var(--surface);box-shadow:0 8px 24px rgba(0,0,0,.18);border-radius:12px;transition:none!important;cursor:grabbing}
 .ck-editrow.dragging .ck-drag{color:var(--osaka)}
+/* memo hidden until asked */
+.tev .tev-memo,.ev .ev-memo{display:none}
+.tev.memo-open .tev-memo,.ev.memo-open .ev-memo{display:block}
+.memo-open .act--memo{color:var(--ink)}
+.act--memo svg{width:14px;height:14px}
+.tlist .tev.memo-open .tev-memo{margin-top:10px}
 </style>
 </head>
 <body>
@@ -702,6 +708,7 @@ var TYICON={
   stay:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 18V7M3 14h18v4M21 14v-2a3 3 0 0 0-3-3h-7v5"/><circle cx="7" cy="11" r="2"/></svg>',
   free:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 8h12l-1 12H7zM9 8a3 3 0 0 1 6 0"/></svg>'
 };
+function evName(ev){ return String(ev.place||ev.title||'').trim()||'일정'; }
 function confirmCodes(c){return confirmParts(c).map(function(p){return p.code;}).join(', ');}
 function resRange(r){
   if(!r.date) return '날짜 없음';
@@ -738,6 +745,7 @@ var ICON = {
   up:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M6 14l6-6 6 6"/></svg>',
   down:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M6 10l6 6 6-6"/></svg>',
   grip:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M5 8h14M5 12h14M5 16h14"/></svg>',
+  note:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 3h9l4 4v14H6z"/><path d="M9 11h7M9 15h7M9 7h4"/></svg>',
   tick:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round"><path d="M5.5 12.5l4 4 9-9.5"/></svg>'
 };
 
@@ -784,9 +792,9 @@ function renderPlan(){
     var q=ev.map||ev.place, hotel=null;
     if(!ev.map && ev.place) state.reservations.forEach(function(r){ if(r.cat==='hotel' && r.title===ev.place) hotel=r; });
     if(hotel) q=hotel.address||'';
-    var body='<div class="ev-kind">'+(TYICON[ev.type||'sight']||'')+esc(TYPE[ev.type||'sight']||'')+'</div><h3 class="ev-title">'+esc(ev.title)+'</h3>'+
+    var body='<div class="ev-kind">'+(TYICON[ev.type||'sight']||'')+esc(TYPE[ev.type||'sight']||'')+'</div><h3 class="ev-title">'+esc(evName(ev))+'</h3>'+
       memoHtml(ev.memo,'ev-memo')+
-      ((q||aboutOf(ev))?'<div class="ev-acts">'+(q?'<a class="maplink" href="'+esc(mapUrl(q))+'" target="_blank" rel="noopener">'+ICON.pin+esc(showPlace(ev)?ev.place:'지도')+'</a>':'')+(aboutOf(ev)?'<button class="maplink about-link" data-act="about" data-id="'+ev.id+'">'+ICON.book+'이곳 이야기</button>':'')+'</div>':'');
+      ((q||aboutOf(ev)||ev.memo)?'<div class="ev-acts">'+(ev.memo?'<button class="maplink act--memo" data-act="memo-toggle">'+ICON.note+'<span>메모</span></button>':'')+(q?'<a class="maplink" href="'+esc(mapUrl(q))+'" target="_blank" rel="noopener">'+ICON.pin+'지도'+'</a>':'')+(aboutOf(ev)?'<button class="maplink about-link" data-act="about" data-id="'+ev.id+'">'+ICON.book+'이곳 이야기</button>':'')+'</div>':'');
     return routeRow(d,ev)+'<li class="ev ev--'+esc(ev.type||'sight')+'"><div class="ev-time">'+esc(ev.time||'')+'</div><div class="ev-rail"><span class="ev-dot"></span></div>'+
       '<div class="ev-body"'+(canEdit()?' data-act="ev-edit" data-id="'+ev.id+'" role="button" tabindex="0" aria-label="'+esc(ev.title)+' 고치기"':'')+'>'+body+'</div></li>';
   }).join('');
@@ -875,7 +883,7 @@ function renderInfo(){
       '<button class="row" data-act="backup-export"><div class="row-main"><div class="row-title">가족에게 보내기</div><div class="row-sub">일정과 예약을 파일 하나로 만들어 보내요. 받은 사람은 파일을 누르기만 하면 볼 수 있어요</div></div>'+ICON.chev+'</button>'+
       '<label class="row" style="cursor:pointer"><div class="row-main"><div class="row-title">받은 파일 넣기</div><div class="row-sub">받은 일정 파일을 넣으면 이 앱에서도 똑같이 볼 수 있어요</div></div>'+ICON.chev+'<input type="file" accept=".html,.htm,text/html,.json,application/json,text/plain" data-import="backup" hidden></label>'+
 
-    '</div><p class="foot">QR 이미지는 이 휴대폰에 따로 저장돼서 백업을 가져와도 지워지지 않아요. 가족에게는 QR 화면의 보내기로 나눠 주세요.</p><p class="foot">모든 내용은 이 휴대폰 안에만 저장돼요. 인터넷 없이도 열리지만, 지도와 길찾기는 인터넷이 필요해요.</p><p class="foot">앱 버전 28</p>'+
+    '</div><p class="foot">QR 이미지는 이 휴대폰에 따로 저장돼서 백업을 가져와도 지워지지 않아요. 가족에게는 QR 화면의 보내기로 나눠 주세요.</p><p class="foot">모든 내용은 이 휴대폰 안에만 저장돼요. 인터넷 없이도 열리지만, 지도와 길찾기는 인터넷이 필요해요.</p><p class="foot">앱 버전 29</p>'+
     '';
 }
 
@@ -985,15 +993,15 @@ function renderToday(){
 
   var items=d.items.map(function(ev){
     var q=evQuery(ev), past=isLive&&ev.time&&cur&&ev.time<cur.time, isCur=cur===ev, isNext=isLive&&ev===next, ty=ev.type||'sight';
-    var acts=(q?'<a class="act" href="'+esc(mapUrl(q))+'" target="_blank" rel="noopener">'+ICON.pin+'지도</a>':'')+
+    var acts=(ev.memo?'<button class="act act--memo" data-act="memo-toggle">'+ICON.note+'<span>메모</span></button>':'')+(q?'<a class="act" href="'+esc(mapUrl(q))+'" target="_blank" rel="noopener">'+ICON.pin+'지도</a>':'')+
       (aboutOf(ev)?'<button class="act act--story" data-act="about" data-id="'+ev.id+'">'+ICON.book+'이곳 이야기</button>':'')+
       (typeof spChip==='function'?spChip(ev,d.date):'');
     return (routeOf(ev)?'<li class="tev-route'+(past?' is-past':'')+'">'+routeCard(d,ev,'today',isLive&&(isNext||isCur))+'</li>':'')+
       '<li class="tev tev--'+esc(ty)+(past?' is-past':'')+(isCur?' is-cur':'')+'"'+(past?' data-act="tev-toggle"':'')+'>'+
       '<div class="tev-head"><span class="tev-time">'+esc(ev.time||'시간 미정')+'</span><span class="tev-kind">'+(TYICON[ty]||'')+esc(TYPE[ty]||'')+'</span>'+
         (isCur?'<b class="pill pill--now">지금</b>':'')+(isNext?'<b class="pill pill--next">다음, '+esc(inHow(now,next.time))+'</b>':'')+(past?'<span class="tev-done">지난 일정</span>':'')+'</div>'+
-      '<h3>'+esc(ev.title)+'</h3>'+
-      '<div class="tev-more">'+(showPlace(ev)?'<p class="tev-place">'+esc(ev.place)+'</p>':'')+memoHtml(ev.memo,'tev-memo')+
+      '<h3>'+esc(evName(ev))+'</h3>'+
+      '<div class="tev-more">'+memoHtml(ev.memo,'tev-memo')+
       (acts?'<div class="tev-acts">'+acts+'</div>':'')+'</div></li>';
   }).join('');
 
@@ -1014,8 +1022,8 @@ function familyHtml(){
         var r=routeOf(ev), a=aboutOf(ev);
         var steps=r&&r.detail?String(r.detail).split(/\s*(?:→|->)\s*/).filter(Boolean):[];
         return (r?'<div class="rt"><b>가는 길 · '+H(HOW[r.how]||'이동')+(r.min?' 약 '+H(r.min)+'분':'')+(r.cost?' · '+H(r.cost):'')+'</b>'+(steps.length>1?'<ol>'+steps.map(function(x){return '<li>'+H(x)+'</li>';}).join('')+'</ol>':(r.detail?'<p>'+H(r.detail)+'</p>':''))+'</div>':'')+
-          '<div class="ev"><div class="tm">'+H(ev.time||'')+'</div><div class="bd"><div class="tt">'+H(ev.title)+'</div>'+
-          (ev.place&&ev.place!==ev.title?'<div class="pl">'+H(ev.place)+'</div>':'')+(ev.memo?(memoLines(ev.memo).length>1?'<ul class="mm">'+memoLines(ev.memo).map(function(x){return '<li>'+H(x)+'</li>';}).join('')+'</ul>':'<div class="mm">'+H(memoLines(ev.memo)[0]||'')+'</div>'):'')+
+          '<div class="ev"><div class="tm">'+H(ev.time||'')+'</div><div class="bd"><div class="tt">'+H(evName(ev))+'</div>'+
+          ''+(ev.memo?(memoLines(ev.memo).length>1?'<ul class="mm">'+memoLines(ev.memo).map(function(x){return '<li>'+H(x)+'</li>';}).join('')+'</ul>':'<div class="mm">'+H(memoLines(ev.memo)[0]||'')+'</div>'):'')+
           (a?'<details><summary>이곳 이야기</summary>'+(a.intro?'<p>'+H(a.intro)+'</p>':'')+String(a.history||'').split(/\n+/).filter(Boolean).map(function(p){return '<p>'+H(p)+'</p>';}).join('')+
             ((a.highlights||[]).length?'<p><b>꼭 볼 것</b></p><ul>'+a.highlights.map(function(x){return '<li>'+H(x)+'</li>';}).join('')+'</ul>':'')+
             ((a.facts||[]).length?'<p><b>재밌는 이야기</b></p><ul>'+a.facts.map(function(x){return '<li>'+H(x)+'</li>';}).join('')+'</ul>':'')+
@@ -1381,9 +1389,8 @@ function evForm(id){
   var dayIdx=f?f.day:ui.day, rt=ev.route||{};
   openSheet('<form data-form="ev" data-id="'+(id||'')+'"><h2>'+(id?'일정 고치기':'일정 추가')+'</h2>'+
     '<div class="two">'+selectField('날짜','day',String(dayIdx),state.days.map(function(d,i){return [String(i),mdw(d.date)];}))+field('시간','time',ev.time,'time')+'</div>'+
-    field('할 일','title',ev.title,'text',' required placeholder="예: 킨카쿠지 구경"')+
+    field('장소','place',ev.place||ev.title,'text',' required placeholder="예: 킨카쿠지"')+
     selectField('종류','type',ev.type||'sight',Object.keys(TYPE).map(function(k){return [k,TYPE[k]];}))+
-    field('장소 이름','place',ev.place,'text',' placeholder="화면에 보이는 이름"')+
     '<label class="field"><span>지도 검색어</span><input name="map" value="'+esc(ev.map||'')+'" placeholder="예: Kinkaku-ji"><small>영어나 일본어로 적으면 구글 지도가 더 정확하게 찾아요. 비워두면 장소 이름으로 찾아요.</small></label>'+
     areaField('메모','memo',ev.memo)+
     '<fieldset class="rt-fields"><legend>가는 길 (앞 일정 장소에서)</legend>'+
@@ -1501,6 +1508,7 @@ document.addEventListener('click',function(e){
     case 'res-add': resForm(null); break;
     case 'note-edit': noteForm(); break;
     case 'about': aboutSheet(id); break;
+    case 'memo-toggle': var li=el.closest('li'); if(li) li.classList.toggle('memo-open'); break;
     case 'tev-toggle': el.classList.toggle('open'); break;
     case 'sp-open': spSheet(id,el.getAttribute('data-d')||''); break;
     case 'sp-rate': spRateSheet(); break;
@@ -1599,11 +1607,11 @@ document.addEventListener('submit',function(e){
   if(kind==='check'){ if(!v.text) return; commit(function(s){s.checklist.push({id:uid('c'),text:v.text,done:false});}); return; }
   if(kind==='note'){ closeSheet(); commit(function(s){s.notes=v.notes;}); return; }
   if(kind==='ev'){
-    if(!v.title) return;
+    if(!v.place) return;
     var dayIdx=+v.day; closeSheet(); ui.day=dayIdx;
     commit(function(s){
       var old=id?findEv(id):null, item=old?JSON.parse(JSON.stringify(old.ev)):{id:uid('e')};
-      item.time=v.time; item.type=v.type; item.title=v.title; item.place=v.place; item.map=v.map; item.memo=v.memo;
+      item.time=v.time; item.type=v.type; item.title=v.place; item.place=v.place; item.map=v.map; item.memo=v.memo;
       item.route=(v.rhow||v.rmin||v.rdetail||v.rcost)?{how:v.rhow,min:v.rmin,detail:v.rdetail,cost:v.rcost}:null;
       s.days.forEach(function(d){d.items=d.items.filter(function(x){return x.id!==item.id;});});
       var target=s.days[dayIdx];
