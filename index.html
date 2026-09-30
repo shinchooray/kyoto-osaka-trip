@@ -560,6 +560,23 @@ ul.tev-memo{font-size:14px;color:var(--muted)}
 .mk-pop .mk-d{font-size:12px;color:#666;margin-bottom:4px}
 .mk-pop a{font-weight:600;color:#2E4E97}
 .leaflet-container{font:inherit}
+/* checklist edit mode */
+.ck-list{margin-top:18px}
+.ck-hint{margin:14px 20px 0;font-size:13px;color:var(--muted)}
+.ck-editrow{gap:10px}
+.ck-move{display:flex;flex-direction:column;gap:2px;flex:none}
+.ck-mv{width:32px;height:24px;border:1px solid var(--line);background:var(--bg);color:var(--ink);border-radius:7px;display:grid;place-items:center;cursor:pointer;padding:0}
+.ck-mv svg{width:16px;height:16px}
+.ck-mv[disabled]{opacity:.3}
+.ck-name{background:none;border:0;text-align:left;padding:0;cursor:pointer;font:inherit;color:inherit}
+.ck-name .row-sub{font-size:12px}
+/* drag handle */
+.ck-drag{flex:none;width:38px;height:38px;margin-left:-6px;display:grid;place-items:center;color:var(--muted);touch-action:none;cursor:grab;border-radius:10px;-webkit-user-select:none;user-select:none}
+.ck-drag svg{width:20px;height:20px}
+.ck-list.is-dragging{overflow:visible}
+.ck-list.is-dragging .ck-editrow{transition:transform .15s ease}
+.ck-editrow.dragging{position:relative;z-index:5;background:var(--surface);box-shadow:0 8px 24px rgba(0,0,0,.18);border-radius:12px;transition:none!important;cursor:grabbing}
+.ck-editrow.dragging .ck-drag{color:var(--osaka)}
 </style>
 </head>
 <body>
@@ -718,6 +735,9 @@ var ICON = {
   cam:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"><path d="M4 8h3l1.5-2h7L17 8h3v11H4z"/><circle cx="12" cy="13" r="3.4"/></svg>',
   mail:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"><rect x="3.5" y="5.5" width="17" height="13" rx="2"/><path d="M4 7l8 6 8-6"/></svg>',
   book:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="M4 5.5A1.5 1.5 0 0 1 5.5 4H11v15H5.5A1.5 1.5 0 0 1 4 17.5zM20 5.5A1.5 1.5 0 0 0 18.5 4H13v15h5.5a1.5 1.5 0 0 0 1.5-1.5z"/></svg>',
+  up:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M6 14l6-6 6 6"/></svg>',
+  down:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M6 10l6 6 6-6"/></svg>',
+  grip:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M5 8h14M5 12h14M5 16h14"/></svg>',
   tick:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round"><path d="M5.5 12.5l4 4 9-9.5"/></svg>'
 };
 
@@ -855,7 +875,7 @@ function renderInfo(){
       '<button class="row" data-act="backup-export"><div class="row-main"><div class="row-title">가족에게 보내기</div><div class="row-sub">일정과 예약을 파일 하나로 만들어 보내요. 받은 사람은 파일을 누르기만 하면 볼 수 있어요</div></div>'+ICON.chev+'</button>'+
       '<label class="row" style="cursor:pointer"><div class="row-main"><div class="row-title">받은 파일 넣기</div><div class="row-sub">받은 일정 파일을 넣으면 이 앱에서도 똑같이 볼 수 있어요</div></div>'+ICON.chev+'<input type="file" accept=".html,.htm,text/html,.json,application/json,text/plain" data-import="backup" hidden></label>'+
 
-    '</div><p class="foot">QR 이미지는 이 휴대폰에 따로 저장돼서 백업을 가져와도 지워지지 않아요. 가족에게는 QR 화면의 보내기로 나눠 주세요.</p><p class="foot">모든 내용은 이 휴대폰 안에만 저장돼요. 인터넷 없이도 열리지만, 지도와 길찾기는 인터넷이 필요해요.</p><p class="foot">앱 버전 26</p>'+
+    '</div><p class="foot">QR 이미지는 이 휴대폰에 따로 저장돼서 백업을 가져와도 지워지지 않아요. 가족에게는 QR 화면의 보내기로 나눠 주세요.</p><p class="foot">모든 내용은 이 휴대폰 안에만 저장돼요. 인터넷 없이도 열리지만, 지도와 길찾기는 인터넷이 필요해요.</p><p class="foot">앱 버전 28</p>'+
     '';
 }
 
@@ -876,18 +896,21 @@ function tipsHtml(){
 function renderCheck(){
   var list=state.checklist, done=list.filter(isDone).length;
   var pct=list.length?Math.round(done/list.length*100):0;
-  var rows=list.map(function(c){
+  var rows=list.map(function(c,i){
     var d=isDone(c);
+    if(ui.ckEdit&&canEdit()) return '<div class="row ck-editrow" data-ckid="'+c.id+'"><span class="ck-drag" data-drag="'+c.id+'" aria-label="끌어서 순서 바꾸기">'+ICON.grip+'</span>'+
+      '<button class="row-main ck-name" data-act="ck-rename" data-id="'+c.id+'"><div class="row-title">'+esc(c.text)+'</div><div class="row-sub">눌러서 고치기</div></button>'+
+      '<button class="x" data-act="check-del" data-id="'+c.id+'" aria-label="'+esc(c.text)+' 지우기">×</button></div>';
     return '<div class="row'+(d?' is-done':'')+'"><button class="ck" data-act="check" data-id="'+c.id+'" role="checkbox" aria-checked="'+d+'" aria-label="'+esc(c.text)+'">'+ICON.tick+'</button>'+
       '<div class="row-main" data-act="check" data-id="'+c.id+'" style="cursor:pointer"><div class="row-title">'+esc(c.text)+'</div></div>'+
       (qrCount('ck:'+c.id)?'<button class="chip chip--photo" data-act="ck-photo" data-id="'+c.id+'">'+ICON.cam+qrCount('ck:'+c.id)+'</button>':'')+
       '<label class="ck-cam" aria-label="'+esc(c.text)+' 사진 추가">'+(qrCount('ck:'+c.id)?'+':ICON.cam)+'<input type="file" accept="image/*" multiple data-import="ckphoto" data-id="'+c.id+'" hidden></label>'+
       (ui.ckEdit&&canEdit()?'<button class="x" data-act="check-del" data-id="'+c.id+'" aria-label="'+esc(c.text)+' 지우기">×</button>':'')+'</div>';
   }).join('');
-  return '<header class="page-head"><div class="head-row"><h1>준비물</h1>'+(canEdit()?'<button class="link-btn" data-act="ck-edit">'+(ui.ckEdit?'완료':'정리')+'</button>':'')+'</div>'+
+  return '<header class="page-head"><div class="head-row"><h1>준비물</h1>'+(canEdit()?'<button class="link-btn" data-act="ck-edit">'+(ui.ckEdit?'완료':'편집')+'</button>':'')+'</div>'+
     '<p>'+list.length+'개 중 '+done+'개 챙겼어요'+(mode==='readonly'?' (이 기기에만 저장돼요)':'')+'</p></header>'+
     '<div class="progress" aria-hidden="true"><span style="width:'+pct+'%"></span></div>'+
-    '<h2 class="group-label">출발 전에</h2><div class="list">'+(rows||'<div class="text-block empty">준비물을 추가해 보세요</div>')+'</div>'+
+    (ui.ckEdit&&canEdit()?'<p class="ck-hint">왼쪽 ≡ 을 잡고 끌어서 순서를 바꾸고, 이름을 눌러 고칠 수 있어요</p>':'')+'<div class="list ck-list">'+(rows||'<div class="text-block empty">준비물을 추가해 보세요</div>')+'</div>'+
     (canEdit()?'<form class="add-row" data-form="check"><input name="text" placeholder="준비물 추가" autocomplete="off" enterkeyhint="done"><button class="mini" type="submit">추가</button></form>':'')+
     tipsHtml();
 }
@@ -1037,6 +1060,13 @@ function exportData(){
   }catch(e){ toast('이 휴대폰에서는 보내기를 쓸 수 없어요'); }
 }
 var pendingBackup=null;
+function mergeChecklist(local,incoming){
+  var del=[]; try{ del=JSON.parse(localStorage.getItem('kyosaka:ckDeleted')||'[]'); }catch(e){}
+  var out=(local||[]).map(function(x){return x;}), ids={}, texts={};
+  out.forEach(function(x){ ids[x.id]=1; texts[String(x.text).replace(/\s+/g,'')]=1; });
+  (incoming||[]).forEach(function(x){ if(!x||ids[x.id]||del.indexOf(x.id)>=0||texts[String(x.text).replace(/\s+/g,'')]) return; out.push(x); });
+  return out;
+}
 function readBackup(text){
   try{
     text=String(text||'').trim();
@@ -1463,7 +1493,7 @@ document.addEventListener('click',function(e){
         navigator.clipboard.readText().then(function(t){ if(t&&t.indexOf('"days"')>=0) readBackup(t); else pasteBackup(); },function(){ pasteBackup(); });
       } else pasteBackup();
       break;
-    case 'backup-apply': if(pendingBackup){ var nb=pendingBackup; pendingBackup=null; closeSheet(); commit(function(){ state=nb; },true); ssSet('kyosaka:toast','백업을 가져왔어요'); stashUI(); setTimeout(function(){ location.reload(); },150); } break;
+    case 'backup-apply': if(pendingBackup){ var nb=pendingBackup; pendingBackup=null; closeSheet(); nb.checklist=mergeChecklist(state.checklist,nb.checklist); commit(function(){ state=nb; },true); ssSet('kyosaka:toast','백업을 가져왔어요'); stashUI(); setTimeout(function(){ location.reload(); },150); } break;
     case 'ev-edit': evForm(id); break;
     case 'ev-add': evForm(null); break;
     case 'res-open': resDetail(id); break;
@@ -1485,7 +1515,16 @@ document.addEventListener('click',function(e){
       if(mode==='readonly'){var p=personalChecks();p[id]=!isDone(c);lsSet(LS_CHECK,JSON.stringify(p));render();}
       else commit(function(s){s.checklist.forEach(function(x){if(x.id===id) x.done=!x.done;});},true);
       break;
-    case 'check-del': commit(function(s){s.checklist=s.checklist.filter(function(x){return x.id!==id;});}); break;
+    case 'check-del': try{ var dl=JSON.parse(localStorage.getItem('kyosaka:ckDeleted')||'[]'); dl.push(id); localStorage.setItem('kyosaka:ckDeleted',JSON.stringify(dl)); }catch(e){} commit(function(s){s.checklist=s.checklist.filter(function(x){return x.id!==id;});}); break;
+    case 'ck-up': case 'ck-down':
+      if(el.disabled) break;
+      commit(function(s){ var i=-1; s.checklist.forEach(function(x,k){ if(x.id===id) i=k; }); var j=act==='ck-up'?i-1:i+1; if(i<0||j<0||j>=s.checklist.length) return; var t=s.checklist[i]; s.checklist[i]=s.checklist[j]; s.checklist[j]=t; },true); break;
+    case 'ck-rename':
+      var cc=state.checklist.filter(function(x){return x.id===id;})[0]; if(!cc) break;
+      openSheet('<form data-form="ck-rename" data-id="'+esc(id)+'"><h2>준비물 고치기</h2>'+field('이름','text',cc.text,'text',' required autocomplete="off"')+
+        '<div class="actions"><button type="button" class="btn btn-ghost" data-act="sheet-close">취소</button><button type="submit" class="btn btn-primary">저장</button></div></form>');
+      var ci=document.querySelector('.sheet input[name=text]'); if(ci) setTimeout(function(){ci.focus();ci.select();},250);
+      break;
     case 'del-ev': case 'del-res':
       if(armed!==id){armed=id;el.textContent='한 번 더 누르면 삭제';return;}
       armed=null; closeSheet();
@@ -1505,6 +1544,38 @@ var qrTouch=null;
 document.addEventListener('touchstart',function(e){ if(qrView&&e.target.closest('.qrv-img')) qrTouch=e.touches[0].clientX; },{passive:true});
 document.addEventListener('touchend',function(e){ if(qrTouch==null||!qrView) return; var dx=e.changedTouches[0].clientX-qrTouch; qrTouch=null;
   if(dx<-50&&qrView.i<qrView.list.length-1){qrView.i++;qrView.armed=false;qrDraw();} else if(dx>50&&qrView.i>0){qrView.i--;qrView.armed=false;qrDraw();} },{passive:true});
+/* drag to reorder checklist (touch + mouse) */
+var DRAG=null;
+document.addEventListener('pointerdown',function(e){
+  var h=e.target.closest&&e.target.closest('[data-drag]'); if(!h) return;
+  var list=h.closest('.ck-list'); if(!list) return;
+  e.preventDefault();
+  var rows=Array.prototype.slice.call(list.querySelectorAll('.ck-editrow')), row=h.closest('.ck-editrow');
+  var sy=window.scrollY||0;
+  DRAG={id:h.getAttribute('data-drag'),row:row,rows:rows,from:rows.indexOf(row),to:rows.indexOf(row),startY:e.clientY+sy,
+    mids:rows.map(function(r){ var b=r.getBoundingClientRect(); return b.top+sy+b.height/2; }),h:row.getBoundingClientRect().height,pid:e.pointerId};
+  row.classList.add('dragging'); list.classList.add('is-dragging');
+  try{ h.setPointerCapture(e.pointerId); }catch(_){}
+});
+document.addEventListener('pointermove',function(e){
+  if(!DRAG||e.pointerId!==DRAG.pid) return;
+  e.preventDefault();
+  if(e.clientY<90) window.scrollBy(0,-10); else if(e.clientY>window.innerHeight-130) window.scrollBy(0,10);
+  var y=e.clientY+(window.scrollY||0), dy=y-DRAG.startY, mid=DRAG.mids[DRAG.from]+dy, to=DRAG.from;
+  DRAG.mids.forEach(function(m,i){ if(i<DRAG.from&&mid<m) to=Math.min(to,i); if(i>DRAG.from&&mid>m) to=Math.max(to,i); });
+  DRAG.to=to;
+  DRAG.row.style.transform='translateY('+dy+'px)';
+  DRAG.rows.forEach(function(r,i){ if(r===DRAG.row) return; var sh=0; if(DRAG.from<to&&i>DRAG.from&&i<=to) sh=-DRAG.h; if(DRAG.from>to&&i<DRAG.from&&i>=to) sh=DRAG.h; r.style.transform=sh?'translateY('+sh+'px)':''; });
+},{passive:false});
+function endDrag(e){
+  if(!DRAG||(e&&e.pointerId!==DRAG.pid)) return;
+  var d=DRAG; DRAG=null;
+  d.rows.forEach(function(r){ r.style.transform=''; r.classList.remove('dragging'); });
+  var list=d.row.closest('.ck-list'); if(list) list.classList.remove('is-dragging');
+  if(d.to===d.from) return;
+  commit(function(s){ var i=-1; s.checklist.forEach(function(x,k){ if(x.id===d.id) i=k; }); if(i<0) return; var it=s.checklist.splice(i,1)[0]; s.checklist.splice(d.to,0,it); },true);
+}
+document.addEventListener('pointerup',endDrag); document.addEventListener('pointercancel',endDrag);
 document.addEventListener('keydown',function(e){
   if((e.key==='Enter'||e.key===' ')&&e.target.matches&&e.target.matches('[role="button"][data-act]')){e.preventDefault();e.target.click();}
   if(e.key==='Escape'&&qrView){qrClose();return;}
@@ -1524,6 +1595,7 @@ document.addEventListener('submit',function(e){
     spSave(); closeSheet(); render(); toast('기록했어요 '+money(amt,cur)); return;
   }
   if(kind==='sp-rate'){ var r=parseFloat(String(v.rate100||'').replace(/[^0-9.]/g,'')); if(r>0){ SP.rate=r/100; spSave(); } closeSheet(); render(); return; }
+  if(kind==='ck-rename'){ var rid=f.getAttribute('data-id'); if(!v.text) return; closeSheet(); commit(function(s){ s.checklist.forEach(function(x){ if(x.id===rid) x.text=v.text; }); }); return; }
   if(kind==='check'){ if(!v.text) return; commit(function(s){s.checklist.push({id:uid('c'),text:v.text,done:false});}); return; }
   if(kind==='note'){ closeSheet(); commit(function(s){s.notes=v.notes;}); return; }
   if(kind==='ev'){
