@@ -583,6 +583,13 @@ ul.tev-memo{font-size:14px;color:var(--muted)}
 .memo-open .act--memo{color:var(--ink)}
 .act--memo svg{width:14px;height:14px}
 .tlist .tev.memo-open .tev-memo{margin-top:10px}
+/* ③ send changes */
+.sync-btn{position:relative}
+.sync-btn.has-dirty{border-color:var(--accent)}
+.sync-btn.has-dirty .sync-n{background:var(--accent)}
+.dirty-n{position:absolute;top:10px;right:12px;font-style:normal;font-size:12px;font-weight:700;color:#fff;background:var(--accent);border-radius:999px;padding:1px 8px}
+.warn{margin-top:12px;padding:10px 12px;border-radius:10px;background:color-mix(in srgb,var(--accent) 12%,var(--surface));color:var(--ink);font-size:14px;line-height:1.5}
+.btn-link{display:grid;place-items:center;text-decoration:none}
 </style>
 </head>
 <body>
@@ -858,10 +865,54 @@ function renderRes(){
 
 var CLAUDE_APP='https://claude.ai/artifact/CGoEBzj2g45Sw2EvaXSzCD';
 var CAPTURE_CHAT='https://claude.ai/chat/ec9479d8-755a-45e1-addd-c43876c2b2b4';
+var LS_DIRTY='kyosaka:dirty';
+function dirtyList(){ try{ return JSON.parse(localStorage.getItem(LS_DIRTY)||'[]'); }catch(e){ return []; } }
+function markDirty(kind,id,op,snap){
+  var l=dirtyList().filter(function(x){ return !(x.kind===kind&&x.id===id); });
+  l.push({kind:kind,id:id,op:op,at:Date.now(),snap:snap||null});
+  try{ localStorage.setItem(LS_DIRTY,JSON.stringify(l)); }catch(e){}
+}
+function clearDirty(){ try{ localStorage.removeItem(LS_DIRTY); localStorage.removeItem('kyosaka:dirtyCopiedAt'); }catch(e){} }
+function dirtyUnsent(){ var l=dirtyList(); if(!l.length) return 0; var c=0; try{ c=+localStorage.getItem('kyosaka:dirtyCopiedAt')||0; }catch(e){} return l.filter(function(x){return x.at>c;}).length; }
+function changesText(){
+  var ch=[];
+  dirtyList().forEach(function(d){
+    if(d.kind==='event'){
+      if(d.op==='delete'){ ch.push({kind:'event',op:'delete',id:d.id,was:d.snap}); return; }
+      var f=findEv(d.id); if(f) ch.push({kind:'event',op:'upsert',date:state.days[f.day].date,item:f.ev});
+    } else if(d.kind==='reservation'){
+      if(d.op==='delete'){ ch.push({kind:'reservation',op:'delete',id:d.id,was:d.snap}); return; }
+      var r=findRes(d.id); if(r) ch.push({kind:'reservation',op:'upsert',item:r});
+    }
+  });
+  var payload={app:'kyosaka',type:'offline-changes',exportedAt:new Date().toISOString(),changes:ch,checklist:state.checklist};
+  return '오프라인 앱에서 직접 고친 내용이야. 아래 JSON을 여행 앱 데이터에 반영해줘.\n'+
+    '- changes: upsert는 같은 id가 있으면 그 항목을 이 내용으로 바꾸고(event는 date의 날짜로 옮기고 시간순 정렬), 없으면 새로 추가해. delete는 그 id를 지워.\n'+
+    '- checklist: 이 목록(순서, 이름, 체크 상태)으로 통째로 바꿔.\n'+
+    '- 다른 내용은 건드리지 마. 반영한 뒤 무엇을 바꿨는지 짧게 알려주고, 끝에 백업 코드 블록을 붙여줘.\n\n'+
+    JSON.stringify(payload);
+}
+function sendChanges(){
+  var t=changesText(), n=dirtyList().length;
+  var ok=quietCopyText(t);
+  try{ localStorage.setItem('kyosaka:dirtyCopiedAt',String(Date.now())); }catch(e){}
+  openSheet('<h2>'+(ok?'복사했어요':'직접 복사해 주세요')+'</h2><p class="sub">'+(n?'고친 일정·예약 '+n+'건과 준비물 목록이 담겨 있어요. ':'준비물 목록이 담겨 있어요. ')+'전용 채팅에 붙여넣고 보내면, Claude가 반영한 뒤 백업을 보내줘요. 그 백업을 ②로 가져오면 끝이에요.</p>'+
+    (ok?'':'<label class="field"><span>보낼 내용</span><textarea readonly class="bk-area">'+esc(t)+'</textarea></label>')+
+    '<div class="actions"><button class="btn btn-ghost" data-act="sheet-close">닫기</button><a class="btn btn-primary btn-link" href="'+CAPTURE_CHAT+'" target="_blank" rel="noopener">전용 채팅 열기</a></div>');
+  if(!ok){ var ta=document.querySelector('.bk-area'); if(ta){ ta.focus(); ta.select(); } }
+  render();
+}
+function quietCopyText(v){
+  var ok=false;
+  try{ var ta=document.createElement('textarea'); ta.value=v; ta.setAttribute('readonly',''); ta.style.position='fixed'; ta.style.opacity='0'; document.body.appendChild(ta); ta.select(); ta.setSelectionRange(0,v.length); ok=document.execCommand('copy'); ta.remove(); }catch(e){}
+  if(!ok&&navigator.clipboard&&navigator.clipboard.writeText){ navigator.clipboard.writeText(v).catch(function(){}); ok=true; }
+  return ok;
+}
 function syncBar(){
   return '<div class="sync">'+
     '<a class="sync-btn" href="'+CAPTURE_CHAT+'" target="_blank" rel="noopener"><span class="sync-n">1</span><span><b>Claude에게 추가·수정 부탁하기</b><small>전용 채팅이 열려요. 예약 캡처를 올리거나 바꾸고 싶은 일정을 말하면 돼요. 답장 끝의 백업을 복사해 주세요</small></span></a>'+
     '<button class="sync-btn" data-act="backup-paste"><span class="sync-n">2</span><span><b>복사한 백업 붙여넣기</b><small>돌아와서 누르면 바뀐 내용이 이 앱에 바로 반영돼요</small></span></button>'+
+    (function(){ var n=dirtyList().length; return '<button class="sync-btn'+(n?' has-dirty':'')+'" data-act="send-changes"><span class="sync-n">3</span><span><b>이 앱에서 고친 내용 보내기</b><small>'+(n?'이 앱에서 직접 고친 일정·예약 '+n+'건을 복사해요. 전용 채팅에 붙여넣으면 반영돼요':'이 앱에서 직접 고친 일정이나 예약이 생기면 여기로 Claude에게 보내요')+'</small></span>'+(n?'<em class="dirty-n">'+n+'</em>':'')+'</button>'; })()+
   '</div>';
 }
 function renderInfo(){
@@ -883,7 +934,7 @@ function renderInfo(){
       '<button class="row" data-act="backup-export"><div class="row-main"><div class="row-title">가족에게 보내기</div><div class="row-sub">일정과 예약을 파일 하나로 만들어 보내요. 받은 사람은 파일을 누르기만 하면 볼 수 있어요</div></div>'+ICON.chev+'</button>'+
       '<label class="row" style="cursor:pointer"><div class="row-main"><div class="row-title">받은 파일 넣기</div><div class="row-sub">받은 일정 파일을 넣으면 이 앱에서도 똑같이 볼 수 있어요</div></div>'+ICON.chev+'<input type="file" accept=".html,.htm,text/html,.json,application/json,text/plain" data-import="backup" hidden></label>'+
 
-    '</div><p class="foot">QR 이미지는 이 휴대폰에 따로 저장돼서 백업을 가져와도 지워지지 않아요. 가족에게는 QR 화면의 보내기로 나눠 주세요.</p><p class="foot">모든 내용은 이 휴대폰 안에만 저장돼요. 인터넷 없이도 열리지만, 지도와 길찾기는 인터넷이 필요해요.</p><p class="foot">앱 버전 29</p>'+
+    '</div><p class="foot">QR 이미지는 이 휴대폰에 따로 저장돼서 백업을 가져와도 지워지지 않아요. 가족에게는 QR 화면의 보내기로 나눠 주세요.</p><p class="foot">모든 내용은 이 휴대폰 안에만 저장돼요. 인터넷 없이도 열리지만, 지도와 길찾기는 인터넷이 필요해요.</p><p class="foot">앱 버전 30</p>'+
     '';
 }
 
@@ -1086,6 +1137,7 @@ function readBackup(text){
     var filled=s.reservations.filter(function(r){return !isMissing(r);}).length;
     openSheet('<h2>백업을 가져올까요?</h2><p class="sub">'+(o.exportedAt?esc(o.exportedAt.slice(0,10))+'에 만든 백업이에요. ':'')+'예약 '+s.reservations.length+'개 (정보 입력 '+filled+'개), 준비물 '+s.checklist.length+'개가 들어 있어요.</p>'+
       '<p class="sub">가져오면 이 휴대폰에 있던 내용은 백업 내용으로 바뀌어요.</p>'+
+      (dirtyUnsent()?'<div class="warn">이 앱에서 고친 내용 '+dirtyList().length+'건을 아직 Claude에게 보내지 않았어요. 가져오면 사라져요. 먼저 <b>③ 이 앱에서 고친 내용 보내기</b>를 해주세요.</div>':'')+
       '<div class="actions"><button class="btn btn-ghost" data-act="sheet-close">취소</button><button class="btn btn-primary" data-act="backup-apply">가져오기</button></div>');
   }catch(e){ toast('이 파일은 여행 앱 백업이 아니에요'); }
 }
@@ -1493,6 +1545,7 @@ document.addEventListener('click',function(e){
     case 'qr-next': if(qrView&&qrView.i<qrView.list.length-1){qrView.i++;qrView.armed=false;qrDraw();} break;
     case 'qr-share': qrShare(); break;
     case 'qr-del': if(!qrView) break; if(!qrView.armed){qrView.armed=true;qrDraw();} else qrDelete(qrView.list[qrView.i]); break;
+    case 'send-changes': sendChanges(); break;
     case 'hint-off': hintOff=true; try{localStorage.setItem('kyosaka:hint','off');}catch(e){} render(); break;
     case 'backup-export': exportData(); break;
     case 'backup-paste':
@@ -1500,7 +1553,7 @@ document.addEventListener('click',function(e){
         navigator.clipboard.readText().then(function(t){ if(t&&t.indexOf('"days"')>=0) readBackup(t); else pasteBackup(); },function(){ pasteBackup(); });
       } else pasteBackup();
       break;
-    case 'backup-apply': if(pendingBackup){ var nb=pendingBackup; pendingBackup=null; closeSheet(); nb.checklist=mergeChecklist(state.checklist,nb.checklist); commit(function(){ state=nb; },true); ssSet('kyosaka:toast','백업을 가져왔어요'); stashUI(); setTimeout(function(){ location.reload(); },150); } break;
+    case 'backup-apply': if(pendingBackup){ var nb=pendingBackup; pendingBackup=null; closeSheet(); nb.checklist=mergeChecklist(state.checklist,nb.checklist); clearDirty(); commit(function(){ state=nb; },true); ssSet('kyosaka:toast','백업을 가져왔어요'); stashUI(); setTimeout(function(){ location.reload(); },150); } break;
     case 'ev-edit': evForm(id); break;
     case 'ev-add': evForm(null); break;
     case 'res-open': resDetail(id); break;
@@ -1536,8 +1589,8 @@ document.addEventListener('click',function(e){
     case 'del-ev': case 'del-res':
       if(armed!==id){armed=id;el.textContent='한 번 더 누르면 삭제';return;}
       armed=null; closeSheet();
-      if(act==='del-ev') commit(function(s){s.days.forEach(function(d){d.items=d.items.filter(function(x){return x.id!==id;});});});
-      else commit(function(s){s.reservations=s.reservations.filter(function(x){return x.id!==id;});});
+      if(act==='del-ev'){ var fe=findEv(id); if(fe) markDirty('event',id,'delete',{date:state.days[fe.day].date,title:evName(fe.ev)}); commit(function(s){s.days.forEach(function(d){d.items=d.items.filter(function(x){return x.id!==id;});});}); }
+      else { var fr=findRes(id); if(fr) markDirty('reservation',id,'delete',{title:fr.title,date:fr.date}); commit(function(s){s.reservations=s.reservations.filter(function(x){return x.id!==id;});}); }
       break;
   }
 });
@@ -1608,15 +1661,16 @@ document.addEventListener('submit',function(e){
   if(kind==='note'){ closeSheet(); commit(function(s){s.notes=v.notes;}); return; }
   if(kind==='ev'){
     if(!v.place) return;
-    var dayIdx=+v.day; closeSheet(); ui.day=dayIdx;
+    var dayIdx=+v.day; closeSheet(); ui.day=dayIdx; var savedEv=null;
     commit(function(s){
       var old=id?findEv(id):null, item=old?JSON.parse(JSON.stringify(old.ev)):{id:uid('e')};
       item.time=v.time; item.type=v.type; item.title=v.place; item.place=v.place; item.map=v.map; item.memo=v.memo;
       item.route=(v.rhow||v.rmin||v.rdetail||v.rcost)?{how:v.rhow,min:v.rmin,detail:v.rdetail,cost:v.rcost}:null;
       s.days.forEach(function(d){d.items=d.items.filter(function(x){return x.id!==item.id;});});
       var target=s.days[dayIdx];
-      target.items.push(item); target.items=sortItems(target.items);
+      target.items.push(item); target.items=sortItems(target.items); savedEv=item.id;
     });
+    if(savedEv) markDirty('event',savedEv,'upsert');
     return;
   }
   if(kind==='res'){
@@ -1624,9 +1678,11 @@ document.addEventListener('submit',function(e){
     if(v.endDate && v.date && v.endDate<v.date) v.endDate='';
     closeSheet();
     commit(function(s){
-      var r={id:id||uid('r'),cat:v.cat,title:v.title,date:v.date,time:v.time,endDate:v.endDate,confirm:v.confirm,app:v.app,address:v.address,addressJa:v.addressJa,phone:v.phone,link:v.link,memo:v.memo};
+      var prev=id?findRes(id):null;
+      var r=Object.assign({},prev||{},{id:id||uid('r'),cat:v.cat,title:v.title,date:v.date,time:v.time,endDate:v.endDate,confirm:v.confirm,app:v.app,address:v.address,addressJa:v.addressJa,phone:v.phone,link:v.link,memo:v.memo});
       var i=-1; s.reservations.forEach(function(x,j){if(x.id===r.id) i=j;});
       if(i>=0) s.reservations[i]=r; else s.reservations.push(r);
+      markDirty('reservation',r.id,'upsert');
     });
   }
 });
