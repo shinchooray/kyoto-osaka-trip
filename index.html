@@ -630,6 +630,18 @@ ul.tev-memo{font-size:14px;color:var(--muted)}
 .rd-opt-h small{font-weight:600;color:var(--muted);font-size:12px}
 .rd-opt .rd{margin-top:6px}
 .rt-span,.rt-min{white-space:nowrap}.rd li{padding-left:26px}
+/* hotel on top of today */
+.htop{margin:14px 16px 12px;padding:12px 14px;border-radius:16px;background:var(--surface);border:1px solid var(--line);border-left:4px solid #6B4FA0;display:flex;flex-direction:column;gap:10px}
+.htop-main{display:flex;flex-direction:column;gap:2px;min-width:0}
+.htop-k{display:inline-flex;align-items:center;gap:5px;font-size:12.5px;font-weight:700;color:#6B4FA0}
+.htop-k svg{width:15px;height:15px}
+.htop b{font-size:17px;line-height:1.3}
+.htop small{font-size:13px;color:var(--muted);line-height:1.4}
+.htop-out{margin-top:2px}
+.htop-btns{display:flex;gap:8px;flex-wrap:wrap}
+.tlist .tev--start{padding-top:10px;padding-bottom:10px}
+.tlist .tev--start h3{font-size:17px}
+.ev--start .ev-body{padding-top:8px;padding-bottom:8px}
 </style>
 </head>
 <body>
@@ -687,7 +699,7 @@ function appLink(r){
   return {url:'https://www.google.com/search?q='+encodeURIComponent(r.app+' 예약 조회'),kind:'search'};
 }
 var HOW={flight:'비행기',train:'전철',bus:'버스',walk:'도보',taxi:'택시',etc:'이동'};
-function routeOf(ev){ var r=ev&&ev.route; if(!r||!(r.how||r.min||r.detail)) return null; if(String(r.min)==='0'||/이동\s*없음/.test(r.detail||'')) return null; return r; }
+function routeOf(ev){ var r=ev&&ev.route; if(!r||!(r.how||r.min||r.detail)) return null; if(String(r.min)==='0'||/이동\s*없음/.test(r.detail||'')) return null; if(r.how==='walk'&&!(+r.min>0)) return null; return r; }
 function routeLine(r){ var p=[]; p.push(HOW[r.how]||r.how||'이동'); if(r.min) p.push('약 '+r.min+'분'); if(r.cost) p.push(r.cost); return p.join(', '); }
 function prevQuery(d,ev){
   var i=d.items.indexOf(ev);
@@ -775,7 +787,28 @@ function nameParts(n){
   if(n.indexOf('→')>0) return {main:n,from:n.split('→')[0].trim(),to:n.split('→').pop().trim()};
   return {main:n,from:'',to:''};
 }
+function isHotelEv(ev){ return state.reservations.some(function(r){ return r.cat==='hotel'&&((ev.place&&r.title===ev.place)||(ev.placeOrig&&r.nameOrig===ev.placeOrig)); }); }
+function hotelTop(d){
+  var h=hotelTonight(d.date), out=null; state.reservations.forEach(function(r){ if(r.cat==='hotel'&&r.endDate===d.date) out=r; });
+  var x=h||out; if(!x) return '';
+  var q=x.address||x.addressJa, label=h?(h.date===d.date?'오늘 밤 숙소 · 체크인':'오늘 밤 숙소'):'오늘 체크아웃';
+  return '<div class="htop"><div class="htop-main"><span class="htop-k">'+TYICON.stay+esc(label)+'</span><b>'+esc(x.title)+'</b>'+(x.address||x.addressJa?'<small>'+esc(x.address||x.addressJa)+'</small>':'')+
+    (h&&out&&out.id!==h.id?'<small class="htop-out">오늘 체크아웃 · '+esc(out.title)+'</small>':'')+'</div>'+
+    '<div class="htop-btns">'+(q?'<a class="mini" href="'+esc(dirUrl(q))+'" target="_blank" rel="noopener">'+ICON.nav+'길찾기</a>':'')+(x.addressJa?'<button class="mini" data-act="taxi" data-id="'+x.id+'">택시</button>':'')+'<button class="mini" data-act="res-open" data-id="'+x.id+'">예약</button></div></div>';
+}
+function startNode(d,mode){
+  var di=state.days.indexOf(d); if(di<=0) return '';
+  var first=d.items[0]; if(first&&isHotelEv(first)) return '';
+  var h=null; state.reservations.forEach(function(r){ if(r.cat==='hotel'&&r.date&&r.endDate&&r.date<d.date&&d.date<=r.endDate) h=r; });
+  if(!h) return '';
+  var q=h.address||h.addressJa, map=q?'<a class="act" href="'+esc(mapUrl(q))+'" target="_blank" rel="noopener">'+ICON.pin+'지도</a>':'';
+  var t='', fr=first&&first.route;
+  if(first&&first.time&&fr&&+fr.min>0){ var m=mins(first.time)-(+fr.min); if(m>=0){ m=Math.floor(m/5)*5; t=('0'+Math.floor(m/60)).slice(-2)+':'+('0'+(m%60)).slice(-2); } }
+  if(mode==='today') return '<li class="tev tev--stay tev--start"><div class="tev-head">'+(t?'<span class="tev-time">'+t+'</span>':'')+'<span class="tev-kind">'+TYICON.stay+'출발</span></div><h3>숙소</h3></li>';
+  return '<li class="ev ev--stay ev--start"><div class="ev-time">'+t+'</div><div class="ev-rail"><span class="ev-dot"></span></div><div class="ev-body"><div class="ev-kind">'+TYICON.stay+'출발</div><h3 class="ev-title">숙소</h3></div></li>';
+}
 function headHtml(ev,tag,cls){
+  if(isHotelEv(ev)) return '<'+tag+(cls?' class="'+cls+'"':'')+'>숙소</'+tag+'>';
   var p=nameParts(evName(ev));
   var h='<'+tag+(cls?' class="'+cls+'"':'')+'>'+esc(p.main)+'</'+tag+'>';
   if(p.from&&p.to&&p.main!==evName(ev)) h+='<div class="mv-line"><span>'+esc(p.from)+'</span><b class="mv-arr">→</b><span>'+esc(p.to)+'</span></div>';
@@ -885,7 +918,7 @@ function renderPlan(){
     '<section class="day day--'+d.city+'">'+
     '<div class="day-head"><div class="view-toggle"><div class="seg seg--sm"><label><input type="radio" name="pview" data-act="pview" data-v="list"'+(ui.pview==='map'?'':' checked')+'><span>목록</span></label><label><input type="radio" name="pview" data-act="pview" data-v="map"'+(ui.pview==='map'?' checked':'')+'><span>지도</span></label></div></div>'+
       '<p class="day-date">'+esc(md(d.date)+' '+wd(d.date)+'요일, '+cityName)+'</p><h2>'+esc(d.title)+'</h2></div>'+
-    (ui.pview==='map'?renderMapView():resHtml+'<ol class="timeline">'+items+'</ol>'+
+    (ui.pview==='map'?renderMapView():resHtml+'<ol class="timeline">'+startNode(d,'plan')+items+'</ol>'+
     (canEdit()?'<button class="add" data-act="ev-add">일정 추가</button>':''))+
     '</section>';
 }
@@ -1006,7 +1039,7 @@ function renderInfo(){
       '<button class="row" data-act="backup-export"><div class="row-main"><div class="row-title">가족에게 보내기</div><div class="row-sub">일정과 예약을 파일 하나로 만들어 보내요. 받은 사람은 파일을 누르기만 하면 볼 수 있어요</div></div>'+ICON.chev+'</button>'+
       '<label class="row" style="cursor:pointer"><div class="row-main"><div class="row-title">받은 파일 넣기</div><div class="row-sub">받은 일정 파일을 넣으면 이 앱에서도 똑같이 볼 수 있어요</div></div>'+ICON.chev+'<input type="file" accept=".html,.htm,text/html,.json,application/json,text/plain" data-import="backup" hidden></label>'+
 
-    '</div><p class="foot">QR 이미지는 이 휴대폰에 따로 저장돼서 백업을 가져와도 지워지지 않아요. 가족에게는 QR 화면의 보내기로 나눠 주세요.</p><p class="foot">모든 내용은 이 휴대폰 안에만 저장돼요. 인터넷 없이도 열리지만, 지도와 길찾기는 인터넷이 필요해요.</p><p class="foot">앱 버전 33</p>'+
+    '</div><p class="foot">QR 이미지는 이 휴대폰에 따로 저장돼서 백업을 가져와도 지워지지 않아요. 가족에게는 QR 화면의 보내기로 나눠 주세요.</p><p class="foot">모든 내용은 이 휴대폰 안에만 저장돼요. 인터넷 없이도 열리지만, 지도와 길찾기는 인터넷이 필요해요.</p><p class="foot">앱 버전 35</p>'+
     '';
 }
 
@@ -1128,9 +1161,8 @@ function renderToday(){
       (acts?'<div class="tev-acts">'+acts+'</div>':'')+'</div></li>';
   }).join('');
 
-  return head+spDayLine(d.date)+
-    '<h2 class="group-label">하루 일정 자세히</h2><ol class="tlist day--'+d.city+'">'+items+'</ol>'+
-    (stay||resHtml?'<h2 class="group-label">숙소와 예약</h2>':'')+stay+resHtml;
+  return head+(typeof spDayLine==='function'?spDayLine(d.date):'')+hotelTop(d)+
+    '<ol class="tlist day--'+d.city+'">'+startNode(d,'today')+items+'</ol>';
 }
 
 /* ---------- backup ---------- */
