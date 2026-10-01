@@ -610,6 +610,26 @@ ul.tev-memo{font-size:14px;color:var(--muted)}
 .rt--flight .rt-ic,.rt2 .rt-ic{background:var(--rt-fg)}
 .rt2 .rt-head{display:block}.rt2 .rt-head .rt-cost{margin-left:4px}
 .ev--move .ev-body{background:var(--surface);border-style:solid}
+/* route head on one line, diagram body */
+.rt-min{margin-left:6px;font-size:13px;font-weight:600;color:var(--muted)}
+.rt-cost2{margin-left:6px;font-size:12.5px;color:var(--muted)}
+.rt-cost2::before{content:"· "}
+.rt2 .rt-head{display:none}
+.rt2--walk .rt-to{font-weight:700;color:var(--muted)}
+.rt2--walk{padding:2px 0}
+.rd{list-style:none;margin:8px 0 2px;padding:0;position:relative}
+.rd li{position:relative;padding-left:22px;font-size:14px;line-height:1.4}
+.rd-stop{padding-top:3px;padding-bottom:3px;font-weight:700;color:var(--ink)}
+.rd-stop i{position:absolute;left:3px;top:7px;width:11px;height:11px;border-radius:50%;background:var(--surface);border:3px solid var(--rt-fg)}
+.rd-ride,.rd-walk{padding-top:8px;padding-bottom:8px;color:var(--muted);font-size:13px}
+.rd-ride::before{content:"";position:absolute;left:7px;top:0;bottom:0;width:5px;border-radius:3px;background:var(--rt-fg)}
+.rd-walk::before{content:"";position:absolute;left:8px;top:2px;bottom:2px;border-left:3px dotted var(--muted)}
+.rd-ride b{color:var(--rt-fg);font-weight:700}
+.rd-opt{margin-top:8px;padding:10px 12px;border-radius:12px;background:var(--surface);border:1px solid var(--line)}
+.rd-opt-h{font-size:13px;font-weight:800;color:var(--ink)}
+.rd-opt-h small{font-weight:600;color:var(--muted);font-size:12px}
+.rd-opt .rd{margin-top:6px}
+.rt-span,.rt-min{white-space:nowrap}.rd li{padding-left:26px}
 </style>
 </head>
 <body>
@@ -688,17 +708,29 @@ function routeSteps(detail){
   if(parts.length<2) return detail?'<p class="rt-d">'+esc(detail)+'</p>':'';
   return '<ol class="rt-steps">'+parts.map(function(p){ var m=p.match(/^(\d{1,2}:\d{2})\s*(.*)$/); return '<li>'+(m?'<b>'+esc(m[1])+'</b> '+esc(m[2]):esc(p))+'</li>'; }).join('')+'</ol>';
 }
+function routeDiagram(steps){
+  return '<ol class="rd">'+(steps||[]).map(function(st){
+    if(typeof st==='string') return '<li class="rd-stop"><i></i><span>'+esc(st)+'</span></li>';
+    if(st&&st.walk!=null) return '<li class="rd-walk"><span>도보 '+esc(st.walk)+'분'+(st.note?' · '+esc(st.note):'')+'</span></li>';
+    if(st&&st.ride) return '<li class="rd-ride"><span><b>'+esc(st.ride)+'</b>'+(st.min?' '+esc(st.min)+'분':'')+(st.note?' · '+esc(st.note):'')+'</span></li>';
+    return '';
+  }).join('')+'</ol>';
+}
 function routeCard(d,ev,kind,openIt){
   var r=routeOf(ev); if(!r) return '';
-  var to=evQuery(ev), from=prevQuery(d,ev);
-  var parts=String(r.detail||'').split(/\s*(?:→|->)\s*/).map(function(x){return x.trim();}).filter(Boolean);
-  var body=(parts.length>1?routeSteps(r.detail):(r.detail?'<p class="rt-d">'+esc(r.detail)+'</p>':''))+
-    (to?'<a class="rt-map" href="'+esc(routeUrl(from,to,r.how))+'" target="_blank" rel="noopener">'+ICON.nav+'구글 지도로 경로 보기</a>':'');
+  var to=evQuery(ev), from=prevQuery(d,ev), walk=r.how==='walk', opts=Array.isArray(r.opts)?r.opts.filter(function(o){return o&&o.steps&&o.steps.length;}):[];
+  var cost=(r.cost&&r.cost!=='무료')?r.cost:'';
   var head='<div class="rt-ft">'+(kind!=='row'?'<span class="rt-ic sm">'+(HOW_ICON[r.how]||HOW_ICON.train)+'</span>':'')+
-    '<span class="rt-ft-t"><b class="rt-to">'+esc(r.name||HOW[r.how]||r.how||'이동')+'</b>'+(r.span?'<span class="rt-span">'+esc(r.span)+'</span>':'')+'</span></div>'+
-    '<div class="rt-head"><span class="rt-how">'+(r.name?esc(HOW[r.how]||'이동')+' ':'')+(r.min?'약 '+esc(r.min)+'분':'')+'</span>'+(r.cost?'<span class="rt-cost">'+esc(r.cost)+'</span>':'')+'</div>';
+    '<span class="rt-ft-t"><b class="rt-to">'+esc(r.name||HOW[r.how]||r.how||'이동')+'</b>'+(r.span?'<span class="rt-span">'+esc(r.span)+'</span>':'')+
+    (r.min?'<span class="rt-min">(약 '+esc(r.min)+'분)</span>':'')+(cost?'<span class="rt-cost2">'+esc(cost)+'</span>':'')+'</span></div>';
+  if(walk) return '<div class="rt2 rt2--'+kind+' rt2--walk">'+head+'</div>';
+  var body='';
+  if(opts.length>1) body=opts.map(function(o,k){ return '<div class="rd-opt"><div class="rd-opt-h">방법 '+(k+1)+(o.label?' · '+esc(o.label):'')+(o.min?' <small>(약 '+esc(o.min)+'분)</small>':'')+(o.cost?' <small>'+esc(o.cost)+'</small>':'')+'</div>'+routeDiagram(o.steps)+'</div>'; }).join('');
+  else if(opts.length===1) body=routeDiagram(opts[0].steps);
+  else { var parts=String(r.detail||'').split(/\s*(?:→|->)\s*/).filter(Boolean); body=parts.length>1?routeSteps(r.detail):(r.detail?'<p class="rt-d">'+esc(r.detail)+'</p>':''); }
+  if(to&&r.how!=='flight') body+='<a class="rt-map" href="'+esc(routeUrl(from,to,r.how))+'" target="_blank" rel="noopener">'+ICON.nav+'구글 지도로 경로 보기</a>';
   if(!body) return '<div class="rt2 rt2--'+kind+'">'+head+'</div>';
-  return '<div class="rt2 rt2--'+kind+'">'+head+'<details class="rt-more"'+(kind==='box'||openIt?' open':'')+'><summary>'+(parts.length>1?'경로 '+parts.length+'단계 보기':'경로 보기')+'</summary>'+body+'</details></div>';
+  return '<div class="rt2 rt2--'+kind+'">'+head+'<details class="rt-more"'+(kind==='box'||openIt?' open':'')+'><summary>'+(opts.length>1?'방법 '+opts.length+'가지 보기':'경로 보기')+'</summary>'+body+'</details></div>';
 }
 function routeRow(d,ev){
   var r=routeOf(ev); if(!r) return '';
@@ -974,7 +1006,7 @@ function renderInfo(){
       '<button class="row" data-act="backup-export"><div class="row-main"><div class="row-title">가족에게 보내기</div><div class="row-sub">일정과 예약을 파일 하나로 만들어 보내요. 받은 사람은 파일을 누르기만 하면 볼 수 있어요</div></div>'+ICON.chev+'</button>'+
       '<label class="row" style="cursor:pointer"><div class="row-main"><div class="row-title">받은 파일 넣기</div><div class="row-sub">받은 일정 파일을 넣으면 이 앱에서도 똑같이 볼 수 있어요</div></div>'+ICON.chev+'<input type="file" accept=".html,.htm,text/html,.json,application/json,text/plain" data-import="backup" hidden></label>'+
 
-    '</div><p class="foot">QR 이미지는 이 휴대폰에 따로 저장돼서 백업을 가져와도 지워지지 않아요. 가족에게는 QR 화면의 보내기로 나눠 주세요.</p><p class="foot">모든 내용은 이 휴대폰 안에만 저장돼요. 인터넷 없이도 열리지만, 지도와 길찾기는 인터넷이 필요해요.</p><p class="foot">앱 버전 32</p>'+
+    '</div><p class="foot">QR 이미지는 이 휴대폰에 따로 저장돼서 백업을 가져와도 지워지지 않아요. 가족에게는 QR 화면의 보내기로 나눠 주세요.</p><p class="foot">모든 내용은 이 휴대폰 안에만 저장돼요. 인터넷 없이도 열리지만, 지도와 길찾기는 인터넷이 필요해요.</p><p class="foot">앱 버전 33</p>'+
     '';
 }
 
@@ -1112,6 +1144,7 @@ function familyHtml(){
       d.items.map(function(ev){
         var r=routeOf(ev), a=aboutOf(ev);
         var steps=r&&r.detail?String(r.detail).split(/\s*(?:→|->)\s*/).filter(Boolean):[];
+        if(r&&Array.isArray(r.opts)&&r.opts.length){ steps=r.opts.map(function(o,k){ return (r.opts.length>1?'방법 '+(k+1)+(o.label?' '+o.label:'')+': ':'')+(o.steps||[]).map(function(st){ return typeof st==='string'?st:(st.walk!=null?'도보 '+st.walk+'분':(st.ride+(st.min?' '+st.min+'분':''))); }).join(' → '); }); if(steps.length===1) steps=steps[0].split(' → '); }
         return (r?'<div class="rt"><b>'+(r.name?H(r.name)+(r.span?' ('+H(r.span)+')':'')+' · ':'가는 길 · ')+H(HOW[r.how]||'이동')+(r.min?' 약 '+H(r.min)+'분':'')+(r.cost?' · '+H(r.cost):'')+'</b>'+(steps.length>1?'<ol>'+steps.map(function(x){return '<li>'+H(x)+'</li>';}).join('')+'</ol>':(r.detail?'<p>'+H(r.detail)+'</p>':''))+'</div>':'')+
           '<div class="ev"><div class="tm">'+H(ev.time||'')+'</div><div class="bd"><div class="tt">'+H(evName(ev))+'</div>'+
           ''+(ev.memo?(memoLines(ev.memo).length>1?'<ul class="mm">'+memoLines(ev.memo).map(function(x){return '<li>'+H(x)+'</li>';}).join('')+'</ul>':'<div class="mm">'+H(memoLines(ev.memo)[0]||'')+'</div>'):'')+
