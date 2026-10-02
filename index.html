@@ -1085,10 +1085,12 @@ function renderInfo(){
     }).join('')+'</div>'+
     '<div class="head-row group-label" style="margin-right:20px"><span>가족 메모</span>'+(canEdit()?'<button class="link-btn" data-act="note-edit">고치기</button>':'')+'</div>'+
     '<div class="list"><div class="text-block'+(state.notes?'':' empty')+'">'+esc(state.notes||'공동 경비 담당, 모이는 장소, 부모님 복용약처럼 다 같이 알아야 할 것을 적어두세요.')+'</div></div>'+
+    '<h2 class="group-label">지도</h2><div class="list">'+
+      '<button class="row" data-act="gkey-edit"><div class="row-main"><div class="row-title">구글 위치 찾기 '+(lsGet(LS_GKEY)?'켜짐':'꺼짐')+'</div><div class="row-sub">'+(lsGet(LS_GKEY)?'일정 탭 지도가 구글 지도처럼 한글 이름으로도 위치를 찾아요':'구글 API 키를 넣으면 일정 탭 지도 위치가 구글 지도와 같아져요')+'</div></div>'+ICON.chev+'</button></div>'+
     '<h2 class="group-label">가족과 나누기</h2><div class="list">'+
       (function(){ var at=lsGet(LS_PUBAT); return '<button class="row" data-act="share-prep"><div class="row-main"><div class="row-title">가족 앱에 공유하기</div><div class="row-sub">'+(at?'마지막 공유 '+esc(whenText(at))+'. 바꾼 내용이 있으면 다시 눌러 주세요':'오늘·일정·경비·예약을 예약번호, 주소 같은 정보는 빼고 가족 앱에 보내요')+'</div></div>'+ICON.chev+'</button>'; })()+
       '<button class="row" data-act="share-link"><div class="row-main"><div class="row-title">가족용 주소 보내기</div><div class="row-sub">가족이 이 주소로 열고 홈 화면에 추가하면, 공유한 내용이 자동으로 보여요</div></div>'+ICON.chev+'</button>'+
-    '</div><p class="foot">QR 이미지는 이 휴대폰에 따로 저장돼서 백업을 가져와도 지워지지 않아요. 가족에게는 QR 화면의 보내기로 나눠 주세요.</p><p class="foot">모든 내용은 이 휴대폰 안에만 저장돼요. 인터넷 없이도 열리지만, 지도와 길찾기는 인터넷이 필요해요.</p><p class="foot">앱 버전 42</p>'+
+    '</div><p class="foot">QR 이미지는 이 휴대폰에 따로 저장돼서 백업을 가져와도 지워지지 않아요. 가족에게는 QR 화면의 보내기로 나눠 주세요.</p><p class="foot">모든 내용은 이 휴대폰 안에만 저장돼요. 인터넷 없이도 열리지만, 지도와 길찾기는 인터넷이 필요해요.</p><p class="foot">앱 버전 43</p>'+
     '';
 }
 
@@ -1256,6 +1258,7 @@ function shareData(){
     return {date:d.date,city:d.city,title:d.title,items:d.items.map(function(ev){
       var stay=ev.type==='stay'||isHotelEv(ev);
       var it=pick(ev,stay?['id','time','type','title','place','placeOrig']:['id','time','type','title','place','placeOrig','map','memo','lat','lng']);
+      var gv=stay?null:ggCached(gQuery(ev)); if(gv){ it.lat=gv.lat; it.lng=gv.lng; }
       if(ev.route) it.route=pick(ev.route,['how','name','span','min','cost','detail','opts']);
       if(!stay&&aboutOf(ev)) it.about=pick(ev.about,['intro','history','highlights','facts','tip']);
       return it;
@@ -1304,6 +1307,16 @@ function tokenSheet(){
     (has?'<button type="button" class="link-btn small" data-act="token-del">저장된 토큰 지우기</button>':'')+
     '<div class="actions"><button type="button" class="btn btn-ghost" data-act="sheet-close">취소</button><button type="submit" class="btn btn-primary">저장</button></div></form>');
 }
+function gkeySheet(){
+  var has=!!lsGet(LS_GKEY);
+  openSheet('<form data-form="gkey"><h2>구글 위치 찾기</h2><p class="sub">키는 이 휴대폰에만 저장되고, 앱 코드나 백업에는 들어가지 않아요. 가족 앱은 내가 공유한 위치를 그대로 받아요.</p>'+
+    '<ol class="tk-steps"><li>아래 버튼으로 Google Cloud를 열고, 새 프로젝트를 만들어 결제 계정(카드)을 연결해요</li><li><b>Places API (New)</b>를 사용 설정해요</li><li>사용자 인증 정보 → <b>API 키 만들기</b></li><li>키 제한: 애플리케이션 제한 <b>웹사이트</b> → <code>https://shinchooray.github.io/*</code>, API 제한 <b>Places API (New)</b>만</li><li>만든 키를 복사해 아래에 붙여넣어요</li></ol>'+
+    '<a class="btn btn-ghost btn-link" href="https://console.cloud.google.com/apis/library/places.googleapis.com" target="_blank" rel="noopener">Google Cloud 열기</a>'+
+    '<label class="field"><span>API 키</span><input name="key" type="password" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="AIza..." required></label>'+
+    (has?'<button type="button" class="link-btn small" data-act="gkey-reset">찾아둔 위치 모두 다시 찾기</button><br><button type="button" class="link-btn small" data-act="gkey-del">키 지우기 (구글 위치 찾기 끄기)</button>':'')+
+    '<div class="actions"><button type="button" class="btn btn-ghost" data-act="sheet-close">취소</button><button type="submit" class="btn btn-primary">저장</button></div></form>');
+}
+function ggClear(){ try{ Object.keys(localStorage).forEach(function(k){ if(k.indexOf(GG_KEY)===0) localStorage.removeItem(k); }); }catch(e){} ggWarned=false; }
 function gh(path,opt,tok){
   opt=opt||{}; opt.cache='no-store';
   opt.headers={'Accept':'application/vnd.github+json','Authorization':'Bearer '+tok,'X-GitHub-Api-Version':'2022-11-28'};
@@ -1586,9 +1599,40 @@ function pinFresh(ev){
   if(!rec||rec.lat!==now.lat||rec.lng!==now.lng){ try{ localStorage.setItem(k,JSON.stringify(now)); }catch(e){} return true; }
   return rec.map===now.map;
 }
+/* Google place search: key lives only on the owner's phone; found pins go to family through the share */
+var LS_GKEY='kyosaka:gkey', GG_KEY='kyosaka:gg:', ggWarned=false;
+function gKey(){ return FAMILY?'':(lsGet(LS_GKEY)||''); }
+function gQuery(ev){
+  var hotel=null; state.reservations.forEach(function(r){ if(r.cat==='hotel'&&r.title===ev.place) hotel=r; });
+  if(ev.map) return ev.map;
+  if(hotel) return hotel.addressJa||hotel.address||hotel.title;
+  return ev.placeOrig||ev.place||'';
+}
+function ggCached(q){ try{ var v=localStorage.getItem(GG_KEY+q); return v?JSON.parse(v):undefined; }catch(e){ return undefined; } }
+function ggLookup(q){
+  var c=ggCached(q); if(c!==undefined) return Promise.resolve(c);
+  if(!navigator.onLine||!q) return Promise.resolve(undefined);
+  return fetch('https://places.googleapis.com/v1/places:searchText',{method:'POST',
+    headers:{'Content-Type':'application/json','X-Goog-Api-Key':gKey(),'X-Goog-FieldMask':'places.location'},
+    body:JSON.stringify({textQuery:q,languageCode:'ko',regionCode:'JP',pageSize:1,locationBias:{rectangle:{low:{latitude:33.4,longitude:134.0},high:{latitude:36.3,longitude:137.0}}}})})
+    .then(function(r){ if(!r.ok) throw r; return r.json(); })
+    .then(function(j){
+      var l=j&&j.places&&j.places[0]&&j.places[0].location, v=l?{lat:+l.latitude,lng:+l.longitude}:null;
+      if(v&&!inArea(v)) v=null;
+      try{ localStorage.setItem(GG_KEY+q,JSON.stringify(v)); }catch(e){}
+      return v;
+    }).catch(function(e){
+      if(!ggWarned&&e&&e.status){ ggWarned=true; toast('구글 위치 찾기가 안 돼요 ('+e.status+'). 정보 탭에서 키를 확인해 주세요',true); }
+      return undefined;
+    });
+}
 function evCoord(ev){
   var m=String(ev.map||'').match(/^\s*(-?\d{1,2}\.\d+)\s*,\s*(-?\d{2,3}\.\d+)\s*$/);
   if(m) return Promise.resolve({lat:+m[1],lng:+m[2],via:'map'});
+  if(gKey()) return ggLookup(gQuery(ev)).then(function(v){ return v?{lat:v.lat,lng:v.lng,via:ev.map?'map':'name'}:evCoordFree(ev); });
+  return evCoordFree(ev);
+}
+function evCoordFree(ev){
   if(isFinite(+ev.lat)&&isFinite(+ev.lng)&&ev.lat!==''&&ev.lng!=null&&ev.lat!=null&&pinFresh(ev)) return Promise.resolve({lat:+ev.lat,lng:+ev.lng});
   var qs=geoQueries(ev), i=0;
   return new Promise(function(res){
@@ -1618,6 +1662,7 @@ function drawMap(){
     MAP=L.map('tripmap',{zoomControl:true,attributionControl:true}).setView([34.95,135.65],10);
     L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19,attribution:'© OpenStreetMap'}).addTo(MAP);
     MAPLAYER=L.layerGroup().addTo(MAP);
+    MAP.on('popupopen',function(pe){ var a=pe.popup.getElement().querySelector('[data-pop-edit]'); if(a) a.onclick=function(ev){ ev.preventDefault(); evForm(a.getAttribute('data-pop-edit')); }; });
     var days=ui.mapAll?state.days.map(function(_,i){return i;}):[ui.day];
     var pts=mapPoints(days), found=[], miss=[], done=0, run=++MAPRUN;
     if(st) st.textContent=pts.length?'위치 찾는 중… 0/'+pts.length:'';
@@ -1643,7 +1688,8 @@ function placeMarkers(L,found,miss){
     var label=ui.mapAll?(parts(f.p.date)[2]+'·'+n):String(n);
     var icon=L.divIcon({className:'mk-wrap',html:'<div class="mk mk--'+ty+'">'+esc(label)+'</div>',iconSize:[30,30],iconAnchor:[15,15]});
     var q=evQuery(ev);
-    var html='<div class="mk-pop"><b>'+esc((ev.time||'')+' '+ev.title)+'</b>'+(ui.mapAll?'<div class="mk-d">'+esc(mdw(f.p.date))+'</div>':'')+(q?'<a href="'+esc(mapUrl(q))+'" target="_blank" rel="noopener">구글 지도에서 열기</a>':'')+'</div>';
+    var html='<div class="mk-pop"><b>'+esc((ev.time||'')+' '+ev.title)+'</b>'+(ui.mapAll?'<div class="mk-d">'+esc(mdw(f.p.date))+'</div>':'')+(q?'<a href="'+esc(mapUrl(q))+'" target="_blank" rel="noopener">구글 지도에서 열기</a>':'')+
+      (canEdit()?'<br><a href="#" data-pop-edit="'+esc(ev.id)+'">위치가 틀렸으면 고치기</a>':'')+'</div>';
     L.marker([f.c.lat,f.c.lng],{icon:icon}).bindPopup(html).addTo(MAPLAYER);
     (byDay[f.p.day]=byDay[f.p.day]||[]).push([f.c.lat,f.c.lng]); bounds.push([f.c.lat,f.c.lng]);
   });
@@ -1797,6 +1843,9 @@ document.addEventListener('click',function(e){
     case 'share-link': shareLink(); break;
     case 'share-go': shareGo(el); break;
     case 'token-edit': tokenSheet(); break;
+    case 'gkey-edit': gkeySheet(); break;
+    case 'gkey-reset': ggClear(); closeSheet(); toast('일정 탭 지도를 열면 위치를 다시 찾아요'); break;
+    case 'gkey-del': try{ localStorage.removeItem(LS_GKEY); }catch(e){} ggClear(); closeSheet(); render(); toast('구글 위치 찾기를 껐어요'); break;
     case 'token-del': try{ localStorage.removeItem(LS_GHTOKEN); }catch(e){} closeSheet(); toast('토큰을 지웠어요'); break;
     case 'tab': ui.tab=el.getAttribute('data-v'); ui.ckEdit=false; render(); window.scrollTo(0,0); break;
     case 'day': ui.day=+el.getAttribute('data-i'); render(); break;
@@ -1913,6 +1962,7 @@ document.addEventListener('submit',function(e){
   var kind=f.getAttribute('data-form'), id=f.getAttribute('data-id');
   var v={}; Array.prototype.forEach.call(f.elements,function(x){if(x.name) v[x.name]=x.value.trim();});
   if(!canEdit()) return;
+  if(kind==='gkey'){ var gk=String(v.key||'').replace(/\s+/g,''); if(!gk) return; lsSet(LS_GKEY,gk); ggClear(); closeSheet(); render(); toast('저장했어요. 일정 탭 지도를 열어 보세요'); return; }
   if(kind==='gh-token'){ var tk=String(v.token||'').replace(/\s+/g,''); if(!tk) return; lsSet(LS_GHTOKEN,tk); closeSheet(); sharePrep(); return; }
   if(kind==='backup-text'){ if(!v.text) return; readBackup(v.text); return; }
   if(kind==='spend'){
