@@ -642,6 +642,16 @@ ul.tev-memo{font-size:14px;color:var(--muted)}
 .tlist .tev--start{padding-top:10px;padding-bottom:10px}
 .tlist .tev--start h3{font-size:17px}
 .ev--start .ev-body{padding-top:8px;padding-bottom:8px}
+/* family share */
+.banner--fam{font-size:13px;color:var(--muted);padding:7px 14px}
+.pv{max-height:46vh;overflow:auto;margin:12px 0;padding:10px 12px;border:1px solid var(--line);border-radius:12px;background:var(--surface);font-size:13.5px;line-height:1.45}
+.pv div{padding:2px 0;overflow-wrap:anywhere}
+.pv .pv-h{margin-top:10px;font-weight:800;color:var(--ink)}
+.pv .pv-h:first-child{margin-top:0}
+.pv .pv-s{padding-left:12px;color:var(--muted)}
+.pv .pv-w{background:#FFF1B8;color:#5A4500;border-radius:4px;padding:2px 6px}
+.tk-steps{margin:0 0 12px;padding-left:20px;font-size:14px;line-height:1.55}
+.tk-steps b{font-weight:700}
 </style>
 </head>
 <body>
@@ -657,6 +667,21 @@ var SEED = JSON.parse($('#trip-data').textContent);
 var state = (function(){ try{ var s=localStorage.getItem(LS_STATE); if(s){ var o=JSON.parse(s); if(o&&Array.isArray(o.days)) return o; } }catch(e){} return JSON.parse(JSON.stringify(SEED)); })();
 var mode = 'local';
 var LS_CHECK = 'kyosaka:checks', SS_UI = 'kyosaka:ui';
+/* family view: read-only copy of what the owner shared (?family link, remembered on this phone) */
+var LS_SHARED='kyosaka:shared', SHARED=null;
+var FAMILY=(function(){
+  var q=location.search;
+  try{ if(/[?&]owner\b/.test(q)) localStorage.removeItem('kyosaka:role'); else if(/[?&]family\b/.test(q)) localStorage.setItem('kyosaka:role','family'); return localStorage.getItem('kyosaka:role')==='family'; }
+  catch(e){ return /[?&]family\b/.test(q); }
+})();
+if(FAMILY){
+  mode='readonly';
+  try{ SHARED=JSON.parse(localStorage.getItem(LS_SHARED)||'null'); }catch(e){}
+  state=(SHARED&&SHARED.state&&Array.isArray(SHARED.state.days))?SHARED.state:JSON.parse(JSON.stringify(SEED));
+  if(!SHARED){ state.reservations=[]; state.days.forEach(function(d){ d.items=[]; }); }
+  state.checklist=[];
+  try{ document.querySelector('link[rel=manifest]').setAttribute('href','family.webmanifest'); }catch(e){}
+}
 
 function lsGet(k){try{return localStorage.getItem(k);}catch(e){return null;}}
 function lsSet(k,v){try{localStorage.setItem(k,v);return true;}catch(e){return false;}}
@@ -682,7 +707,7 @@ function todayJST(){
 }
 function canEdit(){return mode!=='readonly';}
 function mapUrl(q){return 'https://www.google.com/maps/search/?api=1&query='+encodeURIComponent(q);}
-function isMissing(r){return !r.confirm && !r.app;}
+function isMissing(r){return mode!=='readonly' && !r.confirm && !r.app;}
 function confirmParts(c){
   return String(c||'').split(/\n|\s\/\s/).map(function(x){return x.trim();}).filter(Boolean).map(function(line){
     var m=line.match(/^([A-Za-z0-9][A-Za-z0-9\-]*)\s*(?:\((.*?)\))?\s*(.*)$/);
@@ -862,8 +887,10 @@ var ICON = {
 };
 
 function render(){
+  if(FAMILY&&['today','plan','spend','res'].indexOf(ui.tab)<0) ui.tab='today';
   var html = ui.tab==='res'?renderRes():ui.tab==='info'?renderInfo():ui.tab==='check'?renderCheck():ui.tab==='plan'?renderPlan():ui.tab==='spend'?renderSpend():renderToday();
   var tabs=[['today','오늘'],['plan','일정'],['spend','경비'],['res','예약'],['check','준비물'],['info','정보']];
+  if(FAMILY) tabs=tabs.slice(0,4);
   setTimeout(function(){ if(ui.tab==='spend') fitLines(); if(ui.tab==='plan'&&ui.pview==='map') drawMap(); else if(MAP){ try{MAP.remove();}catch(e){} MAP=null; } },0);
   $('#app').innerHTML = '<main class="main">'+banner()+html+'</main>'+
     '<nav class="tabs" aria-label="메뉴"><div class="tabs-in" role="tablist">'+
@@ -875,7 +902,9 @@ function isStandalone(){ try{ return window.navigator.standalone===true || windo
 var hintOff=false; try{ hintOff=localStorage.getItem('kyosaka:hint')==='off'; }catch(e){}
 function banner(){
   if(!navigator.onLine) return '<div class="banner">인터넷이 없어요. 저장된 내용을 보여주고 있어요.</div>';
+  if(FAMILY&&!SHARED) return '<div class="banner">아직 받은 일정이 없어요. 인터넷에 연결된 상태로 다시 열어 주세요.</div>';
   if(!isStandalone() && !hintOff) return '<div class="banner"><span>홈 화면에 추가해서 쓰면 인터넷 없이도 열려요. 추가한 뒤에는 홈 화면 아이콘으로만 여세요.</span><button class="x" data-act="hint-off" aria-label="닫기">×</button></div>';
+  if(FAMILY) return '<div class="banner banner--fam"><span>가족 보기 · '+esc(whenText(SHARED.publishedAt))+' 공유된 일정이에요</span></div>';
   return '';
 }
 window.addEventListener('online',function(){render();}); window.addEventListener('offline',function(){render();});
@@ -1036,10 +1065,12 @@ function renderInfo(){
     '<div class="head-row group-label" style="margin-right:20px"><span>가족 메모</span>'+(canEdit()?'<button class="link-btn" data-act="note-edit">고치기</button>':'')+'</div>'+
     '<div class="list"><div class="text-block'+(state.notes?'':' empty')+'">'+esc(state.notes||'공동 경비 담당, 모이는 장소, 부모님 복용약처럼 다 같이 알아야 할 것을 적어두세요.')+'</div></div>'+
     '<h2 class="group-label">가족과 나누기</h2><div class="list">'+
+      (function(){ var at=lsGet(LS_PUBAT); return '<button class="row" data-act="share-prep"><div class="row-main"><div class="row-title">가족 앱에 공유하기</div><div class="row-sub">'+(at?'마지막 공유 '+esc(whenText(at))+'. 바꾼 내용이 있으면 다시 눌러 주세요':'오늘·일정·경비·예약을 예약번호, 주소 같은 정보는 빼고 가족 앱에 보내요')+'</div></div>'+ICON.chev+'</button>'; })()+
+      '<button class="row" data-act="share-link"><div class="row-main"><div class="row-title">가족용 주소 보내기</div><div class="row-sub">가족이 이 주소로 열고 홈 화면에 추가하면, 공유한 내용이 자동으로 보여요</div></div>'+ICON.chev+'</button>'+
       '<button class="row" data-act="backup-export"><div class="row-main"><div class="row-title">가족에게 보내기</div><div class="row-sub">일정과 예약을 파일 하나로 만들어 보내요. 받은 사람은 파일을 누르기만 하면 볼 수 있어요</div></div>'+ICON.chev+'</button>'+
       '<label class="row" style="cursor:pointer"><div class="row-main"><div class="row-title">받은 파일 넣기</div><div class="row-sub">받은 일정 파일을 넣으면 이 앱에서도 똑같이 볼 수 있어요</div></div>'+ICON.chev+'<input type="file" accept=".html,.htm,text/html,.json,application/json,text/plain" data-import="backup" hidden></label>'+
 
-    '</div><p class="foot">QR 이미지는 이 휴대폰에 따로 저장돼서 백업을 가져와도 지워지지 않아요. 가족에게는 QR 화면의 보내기로 나눠 주세요.</p><p class="foot">모든 내용은 이 휴대폰 안에만 저장돼요. 인터넷 없이도 열리지만, 지도와 길찾기는 인터넷이 필요해요.</p><p class="foot">앱 버전 36</p>'+
+    '</div><p class="foot">QR 이미지는 이 휴대폰에 따로 저장돼서 백업을 가져와도 지워지지 않아요. 가족에게는 QR 화면의 보내기로 나눠 주세요.</p><p class="foot">모든 내용은 이 휴대폰 안에만 저장돼요. 인터넷 없이도 열리지만, 지도와 길찾기는 인터넷이 필요해요.</p><p class="foot">앱 버전 37</p>'+
     '';
 }
 
@@ -1251,6 +1282,118 @@ function pasteBackup(){
     '<div class="actions"><button type="button" class="btn btn-ghost" data-act="sheet-close">취소</button><button type="submit" class="btn btn-primary">확인</button></div></form>');
 }
 
+/* ---------- family share (owner uploads a stripped copy to GitHub; family phones read it) ---------- */
+var GH_REPO='shinchooray/kyoto-osaka-trip', GH_BRANCH='family', GH_FILE='shared.json';
+var LS_GHTOKEN='kyosaka:ghtoken', LS_PUBAT='kyosaka:sharedAt', pendingShare=null;
+function whenText(iso){ var d=new Date(iso); if(isNaN(d)) return ''; return (d.getMonth()+1)+'/'+d.getDate()+' '+('0'+d.getHours()).slice(-2)+':'+('0'+d.getMinutes()).slice(-2); }
+function pick(o,keys){ var r={}; keys.forEach(function(k){ var v=o&&o[k]; if(v!=null&&v!=='') r[k]=JSON.parse(JSON.stringify(v)); }); return r; }
+// only fields listed here leave this phone; anything new stays private by default
+function shareData(){
+  var days=state.days.map(function(d){
+    return {date:d.date,city:d.city,title:d.title,items:d.items.map(function(ev){
+      var stay=ev.type==='stay'||isHotelEv(ev);
+      var it=pick(ev,stay?['id','time','type','title','place','placeOrig']:['id','time','type','title','place','placeOrig','map','memo','lat','lng']);
+      if(ev.route) it.route=pick(ev.route,['how','name','span','min','cost','detail','opts']);
+      if(!stay&&aboutOf(ev)) it.about=pick(ev.about,['intro','history','highlights','facts','tip']);
+      return it;
+    })};
+  });
+  var res=state.reservations.map(function(r){ return pick(r,['id','cat','title','nameOrig','date','time','endDate','cost']); });
+  var sp={rate:SP.rate,items:SP.items.map(function(x){ return pick(x,['id','date','ev','cat','amount','cur','memo']); })};
+  return {app:'kyosaka',type:'family-share',publishedAt:new Date().toISOString(),
+    state:{v:state.v,trip:pick(state.trip,['title','start','end','members']),days:days,reservations:res,checklist:[],notes:''},spend:sp};
+}
+var SENS=/[A-Z0-9]{6,}|[A-Z]{2,}\s+[A-Z]{2,}|\d{2,4}-\d{2,4}-\d{3,4}|〒|丁目|番地|@|예약\s*번호|여권|주소|호실|비밀번호|\b\d{1,4}-\d{1,4}-\d{1,4}\b/;
+function shareLines(o){
+  var L=[];
+  function add(t,cls){ t=String(t||'').trim(); if(t) L.push({t:t,c:cls||'',w:SENS.test(t)}); }
+  o.state.days.forEach(function(d){
+    add(mdw(d.date)+' · '+d.title,'pv-h');
+    d.items.forEach(function(ev){
+      add((ev.time?ev.time+' ':'')+evName(ev)+(ev.place&&ev.title&&ev.title!==ev.place?' ('+ev.title+')':''));
+      if(ev.placeOrig) add(ev.placeOrig,'pv-s');
+      memoLines(ev.memo).forEach(function(m){ add(m,'pv-s'); });
+      if(ev.route){ add([ev.route.name,ev.route.span,ev.route.detail].filter(Boolean).join(' · '),'pv-s'); }
+    });
+  });
+  add('예약','pv-h');
+  o.state.reservations.forEach(function(r){ add((r.date?mdw(r.date)+' ':'')+r.title+(r.nameOrig?' ('+r.nameOrig+')':'')); });
+  if(o.spend.items.length){ add('경비','pv-h'); o.spend.items.forEach(function(x){ add(money(x.amount,x.cur)+(x.memo?' '+x.memo:'')); }); }
+  return L;
+}
+function sharePrep(){
+  if(!lsGet(LS_GHTOKEN)){ tokenSheet(); return; }
+  var o=pendingShare=shareData(), L=shareLines(o), warn=L.filter(function(x){return x.w;}).length;
+  var n=0; o.state.days.forEach(function(d){ n+=d.items.length; });
+  openSheet('<h2>가족에게 공유할 내용</h2><p class="sub">일정 '+n+'개, 예약 '+o.state.reservations.length+'개, 경비 '+o.spend.items.length+'건이에요. 예약번호, 주소, 전화, 예약 메모, 숙소 위치, 준비물, 정보 탭은 빠져요.</p>'+
+    (warn?'<div class="warn">예약번호나 주소처럼 보이는 줄이 '+warn+'개 있어요. 노란 줄을 확인하고, 문제가 있으면 취소한 뒤 그 메모를 고쳐 주세요.</div>':'')+
+    '<div class="pv">'+L.map(function(x){ return '<div class="'+x.c+(x.w?' pv-w':'')+'">'+esc(x.t)+'</div>'; }).join('')+'</div>'+
+    '<p class="sub">올린 내용은 가족용 주소를 아는 사람이면 누구나 볼 수 있어요.</p>'+
+    '<div class="actions"><button class="btn btn-ghost" data-act="sheet-close">취소</button><button class="btn btn-primary" data-act="share-go">올리기</button></div>'+
+    '<button class="link-btn small" data-act="token-edit">토큰 바꾸기</button>');
+}
+function tokenSheet(){
+  var has=!!lsGet(LS_GHTOKEN);
+  openSheet('<form data-form="gh-token"><h2>공유용 토큰 넣기</h2><p class="sub">처음 한 번만 넣으면 돼요. 이 휴대폰에만 저장되고, 백업에도 들어가지 않아요.</p>'+
+    '<ol class="tk-steps"><li>아래 버튼으로 GitHub 토큰 만들기 화면을 열어요</li><li><b>Expiration</b>: 여행이 끝난 뒤 날짜로</li><li><b>Repository access</b>: Only select repositories → kyoto-osaka-trip</li><li><b>Permissions</b> → Contents: Read and write</li><li>Generate token을 누르고, 나온 토큰을 복사해 아래에 붙여넣어요</li></ol>'+
+    '<a class="btn btn-ghost btn-link" href="https://github.com/settings/personal-access-tokens/new" target="_blank" rel="noopener">GitHub에서 토큰 만들기</a>'+
+    '<label class="field"><span>토큰</span><input name="token" type="password" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="github_pat_..." required></label>'+
+    (has?'<button type="button" class="link-btn small" data-act="token-del">저장된 토큰 지우기</button>':'')+
+    '<div class="actions"><button type="button" class="btn btn-ghost" data-act="sheet-close">취소</button><button type="submit" class="btn btn-primary">저장</button></div></form>');
+}
+function gh(path,opt,tok){
+  opt=opt||{}; opt.cache='no-store';
+  opt.headers={'Accept':'application/vnd.github+json','Authorization':'Bearer '+tok,'X-GitHub-Api-Version':'2022-11-28'};
+  return fetch('https://api.github.com/repos/'+GH_REPO+path,opt).then(function(r){ if(!r.ok&&r.status!==404) throw r; return r; });
+}
+function b64(s){ var b=new TextEncoder().encode(s), out=''; for(var i=0;i<b.length;i+=0x8000) out+=String.fromCharCode.apply(null,b.subarray(i,i+0x8000)); return btoa(out); }
+function shareGo(btn){
+  var tok=lsGet(LS_GHTOKEN), o=pendingShare; if(!tok){ tokenSheet(); return; } if(!o) return;
+  if(btn){ btn.disabled=true; btn.textContent='올리는 중…'; }
+  gh('/git/ref/heads/'+GH_BRANCH,{},tok).then(function(r){
+    if(r.ok) return;
+    // first time: make the share branch from main
+    return gh('/git/ref/heads/main',{},tok).then(function(m){ if(!m.ok) throw m; return m.json(); }).then(function(j){
+      return gh('/git/refs',{method:'POST',body:JSON.stringify({ref:'refs/heads/'+GH_BRANCH,sha:j.object.sha})},tok);
+    });
+  }).then(function(){ return gh('/contents/'+GH_FILE+'?ref='+GH_BRANCH,{},tok); })
+  .then(function(r){ return r.ok?r.json():null; })
+  .then(function(cur){
+    var body={message:'가족 공유 업데이트',content:b64(JSON.stringify(o)),branch:GH_BRANCH}; if(cur&&cur.sha) body.sha=cur.sha;
+    return gh('/contents/'+GH_FILE,{method:'PUT',body:JSON.stringify(body)},tok);
+  }).then(function(r){
+    if(!r.ok) throw r;
+    lsSet(LS_PUBAT,o.publishedAt); pendingShare=null; closeSheet(); render(); toast('가족 앱에 공유했어요. 가족이 앱을 다시 열면 보여요',true);
+  }).catch(function(e){
+    var s=e&&e.status;
+    if(btn){ btn.disabled=false; btn.textContent='다시 올리기'; }
+    toast(!navigator.onLine?'인터넷 연결을 확인해 주세요':s===401?'토큰이 맞지 않거나 만료됐어요. 토큰 바꾸기를 눌러 주세요':(s===403||s===404)?'토큰에 이 저장소 쓰기 권한이 없어요 (Contents: Read and write)':'올리지 못했어요'+(s?' ('+s+')':''),true);
+  });
+}
+function shareLink(){
+  var url=APP_URL+'?family', text='교토·오사카 여행 일정이에요. 열어서 홈 화면에 추가해 두면 인터넷 없이도 볼 수 있어요.';
+  if(navigator.share){ navigator.share({title:'교토·오사카 가족여행',text:text,url:url}).catch(function(){}); return; }
+  toast(quietCopyText(url)?'가족용 주소를 복사했어요':url,true);
+}
+// family phones: fetch the latest shared copy (no login needed)
+function fetchShared(){
+  function chk(r){ if(!r.ok) throw r; return r.text(); }
+  return fetch('https://api.github.com/repos/'+GH_REPO+'/contents/'+GH_FILE+'?ref='+GH_BRANCH+'&t='+Date.now(),{cache:'no-store',headers:{'Accept':'application/vnd.github.raw+json'}}).then(chk)
+    .catch(function(){ return fetch('https://raw.githubusercontent.com/'+GH_REPO+'/'+GH_BRANCH+'/'+GH_FILE+'?t='+Date.now(),{cache:'no-store'}).then(chk); })
+    .then(function(t){ var o=JSON.parse(t); if(!o||o.type!=='family-share'||!o.state||!Array.isArray(o.state.days)) throw 0; return o; });
+}
+var famLast=0;
+function famRefresh(){
+  if(!FAMILY||!navigator.onLine||Date.now()-famLast<20000) return; famLast=Date.now();
+  fetchShared().then(function(o){
+    if(SHARED&&SHARED.publishedAt===o.publishedAt) return;
+    var first=!SHARED; SHARED=o; lsSet(LS_SHARED,JSON.stringify(o));
+    state=o.state; state.checklist=[]; SP=spLoad();
+    if(first) ui.day=defaultDay(); else if(ui.day>=state.days.length) ui.day=0;
+    render(); toast(first?'공유된 일정을 받았어요':'바뀐 일정을 받았어요');
+  }).catch(function(){});
+}
+
 /* ---------- QR images (kept only on this phone, in IndexedDB) ---------- */
 var QR={}, qrUrls={}, qrDbP=null, qrView=null;
 function qrDb(){
@@ -1327,9 +1470,9 @@ var SPNAME={}; SPCAT.forEach(function(c){SPNAME[c[0]]=c[1];});
 var RES2SP={flight:'flight',hotel:'hotel',rail:'transit',food:'food',ticket:'sight',etc:'etc'};
 var EV2SP={food:'food',move:'transit',sight:'sight',stay:'hotel',free:'shop'};
 var LS_SPEND='kyosaka:spend';
-function spLoad(){ try{ var o=JSON.parse(localStorage.getItem(LS_SPEND)||'null'); if(o&&Array.isArray(o.items)) return o; }catch(e){} return {rate:8.7,items:[]}; }
+function spLoad(){ if(FAMILY) return (SHARED&&SHARED.spend&&Array.isArray(SHARED.spend.items))?SHARED.spend:{rate:8.7,items:[]}; try{ var o=JSON.parse(localStorage.getItem(LS_SPEND)||'null'); if(o&&Array.isArray(o.items)) return o; }catch(e){} return {rate:8.7,items:[]}; }
 var SP=spLoad();
-function spSave(){ try{ localStorage.setItem(LS_SPEND,JSON.stringify(SP)); return true; }catch(e){ toast('저장 공간이 부족해요'); return false; } }
+function spSave(){ if(FAMILY) return true; try{ localStorage.setItem(LS_SPEND,JSON.stringify(SP)); return true; }catch(e){ toast('저장 공간이 부족해요'); return false; } }
 function money(a,cur){ var n=Math.round(+a||0).toLocaleString('ko-KR'); return cur==='KRW'?n+'원':'¥'+n; }
 function toKRW(a,cur){ return cur==='KRW'?(+a||0):(+a||0)*(+SP.rate||0); }
 function krwShort(n){ n=Math.round(n); if(n>=10000){ var m=Math.round(n/1000)/10; return '약 '+(m%1===0?m.toFixed(0):m.toFixed(1))+'만 원'; } return '약 '+n.toLocaleString('ko-KR')+'원'; }
@@ -1356,6 +1499,7 @@ document.addEventListener('toggle',function(e){ if(e.target&&e.target.querySelec
 window.addEventListener('resize',function(){ if(ui.tab==='spend') fitLines(); });
 function spChip(ev,date){
   var l=spForEv(ev.id);
+  if(!canEdit()) return l.length?'<span class="chip chip--spent">'+esc(spSumText(spSum(l)))+'</span>':'';
   if(!l.length) return '<button class="chip chip--spend" data-act="sp-open" data-id="'+ev.id+'" data-d="'+date+'">+ 쓴 돈</button>';
   var s=spSum(l); return '<button class="chip chip--spent" data-act="sp-open" data-id="'+ev.id+'" data-d="'+date+'">'+esc(spSumText(s))+'</button>';
 }
@@ -1401,7 +1545,7 @@ function renderSpend(){
     return '<div class="sp-row sp-one">'+(withDate?'':'<span class="cat cat--'+x.cat+'">'+esc(SPNAME[x.cat]||'기타')+'</span>')+
       '<span class="sp-fit"><i class="sp-dot"></i>'+(when?'<small class="sp-wh">'+esc(when)+'</small>':'')+esc(one)+'</span>'+
       (x.auto?'<small class="sp-auto">예약</small>':'')+
-      '<b>'+esc(money(x.amount,x.cur))+'</b>'+(x.auto?'':'<button class="x" data-act="sp-del" data-id="'+x.id+'" aria-label="지우기">×</button>')+'</div>';
+      '<b>'+esc(money(x.amount,x.cur))+'</b>'+(x.auto||!canEdit()?'':'<button class="x" data-act="sp-del" data-id="'+x.id+'" aria-label="지우기">×</button>')+'</div>';
   }
 
   var preAll=all.filter(function(x){return !x.date;}), preT=spSum(preAll);
@@ -1409,9 +1553,10 @@ function renderSpend(){
   var dayHtml=preDay+state.days.map(function(d){ var l=spForDay(d.date), t=spSum(l);
     return '<details class="sp-dayd"'+(d.date===todayJST()?' open':'')+'><summary><span>'+esc(mdw(d.date))+'</span>'+(t.total?'<small>'+esc(spSumText(t))+'</small><b>'+esc(krwShort(t.total))+'</b>':'<b><span class="muted">0</span></b>')+'</summary>'+(l.length?l.map(function(x){return entryRow(x,false);}).join(''):'<div class="sp-empty">기록 없음</div>')+'</details>'; }).join('');
   var pre=all.filter(function(x){return !x.date;}), pt=spSum(pre);
-  return '<header class="page-head"><h1>경비</h1><p>쓴 돈 기록은 이 휴대폰에만 저장돼요. 백업을 가져와도 지워지지 않아요.</p></header>'+
-    '<div class="sp-total"><span>여행 전체</span><b>'+esc(krwShort(s.total))+'</b><small>'+esc(spSumText(s))+'</small><button class="sp-rate" data-act="sp-rate">100엔 = '+esc(Math.round((+SP.rate||0)*1000)/10)+'원 기준</button></div>'+
-    '<div class="pad"><button class="add wide" data-act="sp-open" data-id="" data-d="">+ 쓴 돈 추가</button></div>'+
+  var rateTxt='100엔 = '+esc(Math.round((+SP.rate||0)*1000)/10)+'원 기준';
+  return '<header class="page-head"><h1>경비</h1><p>'+(canEdit()?'쓴 돈 기록은 이 휴대폰에만 저장돼요. 백업을 가져와도 지워지지 않아요.':'공유받은 경비 기록이에요. 보기만 할 수 있어요.')+'</p></header>'+
+    '<div class="sp-total"><span>여행 전체</span><b>'+esc(krwShort(s.total))+'</b><small>'+esc(spSumText(s))+'</small>'+(canEdit()?'<button class="sp-rate" data-act="sp-rate">'+rateTxt+'</button>':'<span class="sp-rate">'+rateTxt+'</span>')+'</div>'+
+    (canEdit()?'<div class="pad"><button class="add wide" data-act="sp-open" data-id="" data-d="">+ 쓴 돈 추가</button></div>':'')+
     '<h2 class="group-label">분류별</h2>'+catHtml+
     '<h2 class="group-label">날짜별</h2><div class="list sp-days">'+dayHtml+'</div>'+
     '<h2 class="group-label">여행 전에 결제</h2><div class="list">'+(pre.length?pre.map(function(x){return preRow(x);}).join('')+'<div class="sp-row sp-sub"><span>합계</span><b>'+esc(spSumText(pt))+'</b></div>':'<div class="text-block empty">예약에 결제 금액이 들어 있으면 여기에 자동으로 모여요</div>')+'</div>';
@@ -1565,6 +1710,12 @@ function evForm(id){
 function resDetail(id){
   var r=findRes(id); if(!r) return;
   function kv(k,v,btn,big){return '<div class="kv"><div class="kv-main"><div class="kv-k">'+k+'</div><div class="kv-v'+(v?'':' empty')+(big&&v?' big':'')+'">'+esc(v||'아직 없음')+'</div></div>'+(v&&btn?btn:'')+'</div>';}
+  if(!canEdit()){
+    openSheet('<h2>'+esc(r.title)+'</h2><p class="sub">'+catBadge(r.cat)+' '+esc(resRange(r))+'</p>'+(r.nameOrig?kv('현지 이름',r.nameOrig):'')+
+      (costText(r)?kv('결제 금액',costText(r)):'')+qrSection(r)+
+      '<p class="sub">예약번호와 주소는 공유되지 않아요.</p><div class="actions"><button class="btn btn-primary" data-act="sheet-close">닫기</button></div>');
+    return;
+  }
   var html='<h2>'+esc(r.title)+'</h2><p class="sub">'+catBadge(r.cat)+' '+esc(resRange(r))+'</p>'+
     (r.nameOrig?kv('현지 이름',r.nameOrig):'')+
     (function(){var ps=confirmParts(r.confirm); if(!ps.length) return kv('예약번호','');
@@ -1612,7 +1763,7 @@ function showTaxi(id){
 }
 
 /* ---------- saving (this phone only) ---------- */
-function saveLocal(){ try{ localStorage.setItem(LS_STATE, JSON.stringify(state)); return true; }catch(e){ return false; } }
+function saveLocal(){ if(FAMILY) return true; try{ localStorage.setItem(LS_STATE, JSON.stringify(state)); return true; }catch(e){ return false; } }
 function commit(mutate, quiet){
   mutate(state); render();
   if(!saveLocal()) toast('저장 공간이 부족해서 저장하지 못했어요');
@@ -1641,7 +1792,13 @@ document.addEventListener('click',function(e){
   var el=e.target.closest('[data-act]'); if(!el) return;
   var act=el.getAttribute('data-act'), id=el.getAttribute('data-id');
   if(act!=='del-ev'&&act!=='del-res') armed=null;
+  if(!canEdit()&&/^(ev-|res-edit|res-add|sp-open|sp-rate|sp-del|note-edit|del-|backup-|send-changes|share-|token-|check|ck-)/.test(act)) return;
   switch(act){
+    case 'share-prep': sharePrep(); break;
+    case 'share-link': shareLink(); break;
+    case 'share-go': shareGo(el); break;
+    case 'token-edit': tokenSheet(); break;
+    case 'token-del': try{ localStorage.removeItem(LS_GHTOKEN); }catch(e){} closeSheet(); toast('토큰을 지웠어요'); break;
     case 'tab': ui.tab=el.getAttribute('data-v'); ui.ckEdit=false; render(); window.scrollTo(0,0); break;
     case 'day': ui.day=+el.getAttribute('data-i'); render(); break;
     case 'pview': ui.pview=el.getAttribute('data-v'); render(); break;
@@ -1758,6 +1915,8 @@ document.addEventListener('submit',function(e){
   e.preventDefault();
   var kind=f.getAttribute('data-form'), id=f.getAttribute('data-id');
   var v={}; Array.prototype.forEach.call(f.elements,function(x){if(x.name) v[x.name]=x.value.trim();});
+  if(!canEdit()) return;
+  if(kind==='gh-token'){ var tk=String(v.token||'').replace(/\s+/g,''); if(!tk) return; lsSet(LS_GHTOKEN,tk); closeSheet(); sharePrep(); return; }
   if(kind==='backup-text'){ if(!v.text) return; readBackup(v.text); return; }
   if(kind==='spend'){
     var amt=parseFloat(String(v.amount||'').replace(/[^0-9.]/g,'')); if(!(amt>0)){ toast('금액을 넣어 주세요'); return; }
@@ -1800,6 +1959,7 @@ document.addEventListener('submit',function(e){
 
 render();
 (function(){ var t=ssGet('kyosaka:toast'); if(t){ ssDel('kyosaka:toast'); setTimeout(function(){ toast(t); },300); } })();
+if(FAMILY){ famRefresh(); window.addEventListener('online',famRefresh); document.addEventListener('visibilitychange',function(){ if(document.visibilityState==='visible') famRefresh(); }); }
 setInterval(function(){ if(ui.tab==='today' && !$('#sheet-root').classList.contains('open') && !document.querySelector('.taxi')) render(); },60000);
 if('serviceWorker' in navigator){
   var hadCtl=!!navigator.serviceWorker.controller, reloaded=false;
