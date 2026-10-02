@@ -1051,7 +1051,7 @@ function sendChanges(){
   try{ localStorage.setItem('kyosaka:dirtyCopiedAt',String(Date.now())); }catch(e){}
   openSheet('<h2>'+(ok?'복사했어요':'직접 복사해 주세요')+'</h2><p class="sub">'+(n?'고친 일정·예약 '+n+'건과 준비물 목록이 담겨 있어요. ':'준비물 목록이 담겨 있어요. ')+'전용 채팅에 붙여넣고 보내면, Claude가 반영한 뒤 백업을 보내줘요. 그 백업을 ②로 가져오면 끝이에요.</p>'+
     (ok?'':'<label class="field"><span>보낼 내용</span><textarea readonly class="bk-area">'+esc(t)+'</textarea></label>')+
-    '<div class="actions"><button class="btn btn-ghost" data-act="sheet-close">닫기</button><a class="btn btn-primary btn-link" href="'+CAPTURE_CHAT+'" target="_blank" rel="noopener">전용 채팅 열기</a></div>');
+    '<div class="actions"><button class="btn btn-ghost" data-act="sheet-close">닫기</button><a class="btn btn-primary btn-link" data-close-sheet href="'+CAPTURE_CHAT+'" target="_blank" rel="noopener">전용 채팅 열기</a></div>');
   if(!ok){ var ta=document.querySelector('.bk-area'); if(ta){ ta.focus(); ta.select(); } }
   render();
 }
@@ -1086,7 +1086,7 @@ function renderInfo(){
     '<h2 class="group-label">가족과 나누기</h2><div class="list">'+
       (function(){ var at=lsGet(LS_PUBAT); return '<button class="row" data-act="share-prep"><div class="row-main"><div class="row-title">가족 앱에 공유하기</div><div class="row-sub">'+(at?'마지막 공유 '+esc(whenText(at))+'. 바꾼 내용이 있으면 다시 눌러 주세요':'오늘·일정·경비·예약을 예약번호, 주소 같은 정보는 빼고 가족 앱에 보내요')+'</div></div>'+ICON.chev+'</button>'; })()+
       '<button class="row" data-act="share-link"><div class="row-main"><div class="row-title">가족용 주소 보내기</div><div class="row-sub">가족이 이 주소로 열고 홈 화면에 추가하면, 공유한 내용이 자동으로 보여요</div></div>'+ICON.chev+'</button>'+
-    '</div><p class="foot">QR 이미지는 이 휴대폰에 따로 저장돼서 백업을 가져와도 지워지지 않아요. 가족에게는 QR 화면의 보내기로 나눠 주세요.</p><p class="foot">모든 내용은 이 휴대폰 안에만 저장돼요. 인터넷 없이도 열리지만, 지도와 길찾기는 인터넷이 필요해요.</p><p class="foot">앱 버전 39</p>'+
+    '</div><p class="foot">QR 이미지는 이 휴대폰에 따로 저장돼서 백업을 가져와도 지워지지 않아요. 가족에게는 QR 화면의 보내기로 나눠 주세요.</p><p class="foot">모든 내용은 이 휴대폰 안에만 저장돼요. 인터넷 없이도 열리지만, 지도와 길찾기는 인터넷이 필요해요.</p><p class="foot">앱 버전 40</p>'+
     '';
 }
 
@@ -1766,7 +1766,8 @@ function sortItems(items){
 /* ---------- events ---------- */
 var armed=null;
 document.addEventListener('click',function(e){
-  if(e.target.closest('a')) return;
+  // leaving for the chat: close the sheet so ② is tappable right away when coming back
+  var lk=e.target.closest('a'); if(lk){ if(lk.hasAttribute('data-close-sheet')) setTimeout(closeSheet,300); return; }
   var el=e.target.closest('[data-act]'); if(!el) return;
   var act=el.getAttribute('data-act'), id=el.getAttribute('data-id');
   if(act!=='del-ev'&&act!=='del-res') armed=null;
@@ -1937,6 +1938,7 @@ document.addEventListener('submit',function(e){
 
 render();
 (function(){ var t=ssGet('kyosaka:toast'); if(t){ ssDel('kyosaka:toast'); setTimeout(function(){ toast(t); },300); } })();
+document.addEventListener('visibilitychange',function(){ if(document.visibilityState==='visible'&&document.querySelector('.sheet [data-close-sheet]')) closeSheet(); });
 if(FAMILY){ famRefresh(); window.addEventListener('online',famRefresh); document.addEventListener('visibilitychange',function(){ if(document.visibilityState==='visible') famRefresh(); }); }
 setInterval(function(){ if(ui.tab==='today' && !$('#sheet-root').classList.contains('open') && !document.querySelector('.taxi')) render(); },60000);
 if('serviceWorker' in navigator){
