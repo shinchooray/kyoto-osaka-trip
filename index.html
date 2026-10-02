@@ -654,7 +654,12 @@ ul.tev-memo{font-size:14px;color:var(--muted)}
 .tk-steps b{font-weight:700}
 .alt-pill{display:inline-block;padding:1px 8px;border-radius:999px;background:color-mix(in srgb,var(--ty) 14%,var(--surface));color:var(--ty);font-size:12px;font-weight:700}
 .ev-kind .alt-pill{margin-left:6px}
-.alt-add{margin-left:auto;padding:2px 10px;border:1px solid color-mix(in srgb,var(--ty) 40%,var(--line));border-radius:999px;background:var(--surface);color:var(--ty);font:inherit;font-size:12px;font-weight:700;cursor:pointer}
+.alt-ctl{margin-left:auto;display:inline-flex;align-items:center;gap:6px}
+.alt-mv{display:inline-grid;place-items:center;width:28px;height:24px;padding:0;border:1px solid color-mix(in srgb,var(--ty) 40%,var(--line));border-radius:999px;background:var(--surface);color:var(--ty);cursor:pointer}
+.alt-mv svg{width:14px;height:14px}
+.alt-route{margin-top:6px}
+.alt-route .rt2{padding:4px 0 0}
+.alt-add{padding:2px 10px;border:1px solid color-mix(in srgb,var(--ty) 40%,var(--line));border-radius:999px;background:var(--surface);color:var(--ty);font:inherit;font-size:12px;font-weight:700;cursor:pointer}
 .day-title-btn{background:none;border:0;padding:0;font:inherit;color:inherit;text-align:left;cursor:pointer}
 .day-title-btn svg{width:16px;height:16px;margin-left:6px;vertical-align:-1px;color:var(--muted)}
 </style>
@@ -859,6 +864,15 @@ function altInfo(d,ev){
   var a=i,b=i; while(a>0&&sameAlt(it[a-1],ev)) a--; while(b<it.length-1&&sameAlt(it[b+1],ev)) b++;
   return b>a?{k:i-a+1,n:b-a+1}:null;
 }
+// first candidate (or a lone meal/cafe) gets "+ 후보"; candidates get ▲▼ to change their order
+function altCtl(ev,alt){
+  if(!canEdit()||!(ev.type==='food'||ev.type==='cafe')) return '';
+  var h='';
+  if(alt&&alt.k>1) h+='<button class="alt-mv" data-act="alt-move" data-dir="-1" data-id="'+ev.id+'" aria-label="앞 후보와 순서 바꾸기">'+ICON.up+'</button>';
+  if(alt&&alt.k<alt.n) h+='<button class="alt-mv" data-act="alt-move" data-dir="1" data-id="'+ev.id+'" aria-label="뒤 후보와 순서 바꾸기">'+ICON.down+'</button>';
+  if(!alt||alt.k===1) h+='<button class="alt-add" data-act="alt-add" data-id="'+ev.id+'" aria-label="같은 시간에 다른 후보 추가">+ 후보</button>';
+  return '<span class="alt-ctl">'+h+'</span>';
+}
 function altPill(d,ev){ var a=altInfo(d,ev); return a?'<span class="alt-pill">후보 '+a.k+'/'+a.n+'</span>':''; }
 function prevIdx(d,ev){ var i=d.items.indexOf(ev)-1; while(i>=0&&sameAlt(d.items[i],ev)) i--; return i; }
 function confirmCodes(c){return confirmParts(c).map(function(p){return p.code;}).join(', ');}
@@ -949,11 +963,12 @@ function renderPlan(){
     var q=ev.map||ev.place, hotel=null;
     if(!ev.map && ev.place) state.reservations.forEach(function(r){ if(r.cat==='hotel' && r.title===ev.place) hotel=r; });
     if(hotel) q=hotel.address||'';
-    var body='<div class="ev-kind">'+(TYICON[ev.type||'sight']||'')+esc(TYPE[ev.type||'sight']||'')+altPill(d,ev)+
-      (canEdit()&&(ev.type==='food'||ev.type==='cafe')?'<button class="alt-add" data-act="alt-add" data-id="'+ev.id+'" aria-label="같은 시간에 다른 후보 추가">+ 후보</button>':'')+'</div>'+headHtml(ev,'h3','ev-title')+
+    var alt=altInfo(d,ev);
+    var body='<div class="ev-kind">'+(TYICON[ev.type||'sight']||'')+esc(TYPE[ev.type||'sight']||'')+altPill(d,ev)+altCtl(ev,alt)+'</div>'+headHtml(ev,'h3','ev-title')+
+      (alt&&routeOf(ev)?'<div class="alt-route">'+routeCard(d,ev,'today')+'</div>':'')+
       (ev.placeOrig?'<p class="ev-memo ev-orig">현지 이름: '+esc(ev.placeOrig)+'</p>':'')+memoHtml(ev.memo,'ev-memo')+
       ((q||aboutOf(ev)||ev.memo||ev.placeOrig)?'<div class="ev-acts">'+((ev.memo||ev.placeOrig)?'<button class="maplink act--memo" data-act="memo-toggle">'+ICON.note+'<span>메모</span></button>':'')+(q?'<a class="maplink" href="'+esc(mapUrl(q))+'" target="_blank" rel="noopener">'+ICON.pin+'지도'+'</a>':'')+(aboutOf(ev)?'<button class="maplink about-link" data-act="about" data-id="'+ev.id+'">'+ICON.book+'이곳 이야기</button>':'')+'</div>':'');
-    return routeRow(d,ev)+'<li class="ev ev--'+esc(ev.type||'sight')+'"><div class="ev-time">'+esc(ev.time||'')+'</div><div class="ev-rail"><span class="ev-dot"></span></div>'+
+    return (alt?'':routeRow(d,ev))+'<li class="ev ev--'+esc(ev.type||'sight')+'"><div class="ev-time">'+esc(ev.time||'')+'</div><div class="ev-rail"><span class="ev-dot"></span></div>'+
       '<div class="ev-body"'+(canEdit()?' data-act="ev-edit" data-id="'+ev.id+'" role="button" tabindex="0" aria-label="'+esc(ev.title)+' 고치기"':'')+'>'+body+'</div></li>';
   }).join('');
   return '<header class="top"><h1>'+esc(state.trip.title)+'</h1>'+
@@ -1038,11 +1053,14 @@ function changesText(){
       state.days.forEach(function(x){ if(x.date===d.id) ch.push({kind:'day',op:'upsert',date:x.date,title:x.title}); });
     }
   });
+  // keep events in on-screen order so candidate order survives the round trip
+  function pos(c){ if(c.kind!=='event'||c.op!=='upsert') return 1e9; var f=findEv(c.item.id); return f?f.day*1000+f.idx:1e9; }
+  ch=ch.map(function(c,i){return {c:c,i:i,p:pos(c)};}).sort(function(a,b){return a.p-b.p||a.i-b.i;}).map(function(x){return x.c;});
   var payload={app:'kyosaka',type:'offline-changes',exportedAt:new Date().toISOString(),changes:ch,checklist:state.checklist};
   return '오프라인 앱에서 직접 고친 내용이야. 아래 JSON을 여행 앱 데이터에 반영해줘.\n'+
     '- changes: upsert는 같은 id가 있으면 그 항목을 이 내용으로 바꾸고(event는 date의 날짜로 옮기고 시간순 정렬), 없으면 새로 추가해. delete는 그 id를 지워. kind가 day면 그 날짜의 제목(title)만 바꿔.\n'+
     '- event에 lat/lng가 없으면 원래 있던 lat/lng도 지워. 지도 검색어(map)로 위치를 다시 찾게 하려는 거야.\n'+
-    '- type이 cafe인 일정은 카페야. 같은 시간에 있는 식사·카페 일정 여러 개는 그중 하나를 고르는 후보이니 그대로 둬.\n'+
+    '- type이 cafe인 일정은 카페야. 같은 시간에 있는 식사·카페 일정 여러 개는 그중 하나를 고르는 후보이니 그대로 두고, 후보끼리의 순서는 changes에 나온 순서를 따라줘.\n'+
     '- checklist: 이 목록(순서, 이름, 체크 상태)으로 통째로 바꿔.\n'+
     '- 다른 내용은 건드리지 마. 반영한 뒤 무엇을 바꿨는지 짧게 알려주고, 끝에 백업 코드 블록을 붙여줘.\n\n'+
     JSON.stringify(payload);
@@ -1090,7 +1108,7 @@ function renderInfo(){
     '<h2 class="group-label">가족과 나누기</h2><div class="list">'+
       (function(){ var at=lsGet(LS_PUBAT); return '<button class="row" data-act="share-prep"><div class="row-main"><div class="row-title">가족 앱에 공유하기</div><div class="row-sub">'+(at?'마지막 공유 '+esc(whenText(at))+'. 바꾼 내용이 있으면 다시 눌러 주세요':'오늘·일정·경비·예약을 예약번호, 주소 같은 정보는 빼고 가족 앱에 보내요')+'</div></div>'+ICON.chev+'</button>'; })()+
       '<button class="row" data-act="share-link"><div class="row-main"><div class="row-title">가족용 주소 보내기</div><div class="row-sub">가족이 이 주소로 열고 홈 화면에 추가하면, 공유한 내용이 자동으로 보여요</div></div>'+ICON.chev+'</button>'+
-    '</div><p class="foot">QR 이미지는 이 휴대폰에 따로 저장돼서 백업을 가져와도 지워지지 않아요. 가족에게는 QR 화면의 보내기로 나눠 주세요.</p><p class="foot">모든 내용은 이 휴대폰 안에만 저장돼요. 인터넷 없이도 열리지만, 지도와 길찾기는 인터넷이 필요해요.</p><p class="foot">앱 버전 43</p>'+
+    '</div><p class="foot">QR 이미지는 이 휴대폰에 따로 저장돼서 백업을 가져와도 지워지지 않아요. 가족에게는 QR 화면의 보내기로 나눠 주세요.</p><p class="foot">모든 내용은 이 휴대폰 안에만 저장돼요. 인터넷 없이도 열리지만, 지도와 길찾기는 인터넷이 필요해요.</p><p class="foot">앱 버전 44</p>'+
     '';
 }
 
@@ -1203,11 +1221,12 @@ function renderToday(){
     var acts=((ev.memo||ev.placeOrig)?'<button class="act act--memo" data-act="memo-toggle">'+ICON.note+'<span>메모</span></button>':'')+(q?'<a class="act" href="'+esc(mapUrl(q))+'" target="_blank" rel="noopener">'+ICON.pin+'지도</a>':'')+
       (aboutOf(ev)?'<button class="act act--story" data-act="about" data-id="'+ev.id+'">'+ICON.book+'이곳 이야기</button>':'')+
       (typeof spChip==='function'?spChip(ev,d.date):'');
-    return (routeOf(ev)?'<li class="tev-route'+(past?' is-past':'')+'">'+routeCard(d,ev,'today',isLive&&(isNext||isCur))+'</li>':'')+
+    var alt=altInfo(d,ev);
+    return (routeOf(ev)&&!alt?'<li class="tev-route'+(past?' is-past':'')+'">'+routeCard(d,ev,'today',isLive&&(isNext||isCur))+'</li>':'')+
       '<li class="tev tev--'+esc(ty)+(past?' is-past':'')+(isCur?' is-cur':'')+'"'+(past?' data-act="tev-toggle"':'')+'>'+
       '<div class="tev-head"><span class="tev-time">'+esc(ev.time||'시간 미정')+'</span><span class="tev-kind">'+(TYICON[ty]||'')+esc(TYPE[ty]||'')+'</span>'+altPill(d,ev)+
         (isCur?'<b class="pill pill--now">지금</b>':'')+(isNext?'<b class="pill pill--next">다음, '+esc(inHow(now,next.time))+'</b>':'')+(past?'<span class="tev-done">지난 일정</span>':'')+'</div>'+
-      headHtml(ev,'h3','')+
+      headHtml(ev,'h3','')+(alt&&routeOf(ev)?'<div class="alt-route">'+routeCard(d,ev,'today')+'</div>':'')+
       '<div class="tev-more">'+(ev.placeOrig?'<p class="tev-memo tev-orig">현지 이름: '+esc(ev.placeOrig)+'</p>':'')+memoHtml(ev.memo,'tev-memo')+
       (acts?'<div class="tev-acts">'+acts+'</div>':'')+'</div></li>';
   }).join('');
@@ -1836,6 +1855,7 @@ document.addEventListener('click',function(e){
   var lk=e.target.closest('a'); if(lk){ if(lk.hasAttribute('data-close-sheet')) setTimeout(closeSheet,300); return; }
   var el=e.target.closest('[data-act]'); if(!el) return;
   var act=el.getAttribute('data-act'), id=el.getAttribute('data-id');
+  if(act==='ev-edit'&&e.target.closest('.alt-route')) return; // route inside a candidate card opens/closes on its own
   if(act!=='del-ev'&&act!=='del-res') armed=null;
   if(!canEdit()&&/^(ev-|res-edit|res-add|sp-open|sp-rate|sp-del|note-edit|del-|backup-|send-changes|share-|token-|check|ck-)/.test(act)) return;
   switch(act){
@@ -1871,6 +1891,13 @@ document.addEventListener('click',function(e){
     case 'backup-apply': if(pendingBackup){ var nb=pendingBackup; pendingBackup=null; closeSheet(); nb.checklist=mergeChecklist(state.checklist,nb.checklist); clearDirty(); commit(function(){ state=nb; },true); ssSet('kyosaka:toast','백업을 가져왔어요'); stashUI(); setTimeout(function(){ location.reload(); },150); } break;
     case 'ev-edit': evForm(id); break;
     case 'ev-add': evForm(null); break;
+    case 'alt-move':
+      var mf=findEv(id), dir=+el.getAttribute('data-dir'); if(!mf) break;
+      var mit=state.days[mf.day].items, j=mf.idx+dir; if(!sameAlt(mit[j],mf.ev)) break;
+      var other=mit[j].id;
+      commit(function(){ var t=mit[mf.idx]; mit[mf.idx]=mit[j]; mit[j]=t; },true);
+      markDirty('event',id,'upsert'); markDirty('event',other,'upsert');
+      break;
     case 'alt-add': var af=findEv(id); if(af){ ui.day=af.day; evForm(null,{time:af.ev.time,type:af.ev.type}); } break;
     case 'res-open': resDetail(id); break;
     case 'res-edit': resForm(id); break;
