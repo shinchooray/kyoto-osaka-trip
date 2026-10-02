@@ -1067,10 +1067,7 @@ function renderInfo(){
     '<h2 class="group-label">가족과 나누기</h2><div class="list">'+
       (function(){ var at=lsGet(LS_PUBAT); return '<button class="row" data-act="share-prep"><div class="row-main"><div class="row-title">가족 앱에 공유하기</div><div class="row-sub">'+(at?'마지막 공유 '+esc(whenText(at))+'. 바꾼 내용이 있으면 다시 눌러 주세요':'오늘·일정·경비·예약을 예약번호, 주소 같은 정보는 빼고 가족 앱에 보내요')+'</div></div>'+ICON.chev+'</button>'; })()+
       '<button class="row" data-act="share-link"><div class="row-main"><div class="row-title">가족용 주소 보내기</div><div class="row-sub">가족이 이 주소로 열고 홈 화면에 추가하면, 공유한 내용이 자동으로 보여요</div></div>'+ICON.chev+'</button>'+
-      '<button class="row" data-act="backup-export"><div class="row-main"><div class="row-title">가족에게 보내기</div><div class="row-sub">일정과 예약을 파일 하나로 만들어 보내요. 받은 사람은 파일을 누르기만 하면 볼 수 있어요</div></div>'+ICON.chev+'</button>'+
-      '<label class="row" style="cursor:pointer"><div class="row-main"><div class="row-title">받은 파일 넣기</div><div class="row-sub">받은 일정 파일을 넣으면 이 앱에서도 똑같이 볼 수 있어요</div></div>'+ICON.chev+'<input type="file" accept=".html,.htm,text/html,.json,application/json,text/plain" data-import="backup" hidden></label>'+
-
-    '</div><p class="foot">QR 이미지는 이 휴대폰에 따로 저장돼서 백업을 가져와도 지워지지 않아요. 가족에게는 QR 화면의 보내기로 나눠 주세요.</p><p class="foot">모든 내용은 이 휴대폰 안에만 저장돼요. 인터넷 없이도 열리지만, 지도와 길찾기는 인터넷이 필요해요.</p><p class="foot">앱 버전 37</p>'+
+    '</div><p class="foot">QR 이미지는 이 휴대폰에 따로 저장돼서 백업을 가져와도 지워지지 않아요. 가족에게는 QR 화면의 보내기로 나눠 주세요.</p><p class="foot">모든 내용은 이 휴대폰 안에만 저장돼요. 인터넷 없이도 열리지만, 지도와 길찾기는 인터넷이 필요해요.</p><p class="foot">앱 버전 38</p>'+
     '';
 }
 
@@ -1199,61 +1196,6 @@ function renderToday(){
 /* ---------- backup ---------- */
 function backupJson(){return JSON.stringify({app:'kyosaka',exportedAt:new Date().toISOString(),state:state});}
 var APP_URL='https://shinchooray.github.io/kyoto-osaka-trip/';
-function familyHtml(){
-  var H=function(x){return esc(x==null?'':x);};
-  var dayHtml=state.days.map(function(d){
-    var city={kyoto:'교토',osaka:'오사카',move:'교토 → 오사카'}[d.city]||'';
-    return '<section class="day"><h2>'+H(md(d.date)+' ('+wd(d.date)+')')+' <small>'+H(city)+'</small></h2><p class="dt">'+H(d.title)+'</p>'+
-      d.items.map(function(ev){
-        var r=routeOf(ev), a=aboutOf(ev);
-        var steps=r&&r.detail?String(r.detail).split(/\s*(?:→|->)\s*/).filter(Boolean):[];
-        if(r&&Array.isArray(r.opts)&&r.opts.length){ steps=r.opts.map(function(o,k){ return (r.opts.length>1?'방법 '+(k+1)+(o.label?' '+o.label:'')+': ':'')+(o.steps||[]).map(function(st){ return typeof st==='string'?st:(st.walk!=null?'도보 '+st.walk+'분':(st.ride+(st.min?' '+st.min+'분':''))); }).join(' → '); }); if(steps.length===1) steps=steps[0].split(' → '); }
-        return (r?'<div class="rt"><b>'+(r.name?H(r.name)+(r.span?' ('+H(r.span)+')':'')+' · ':'가는 길 · ')+H(HOW[r.how]||'이동')+(r.min?' 약 '+H(r.min)+'분':'')+(r.cost?' · '+H(r.cost):'')+'</b>'+(steps.length>1?'<ol>'+steps.map(function(x){return '<li>'+H(x)+'</li>';}).join('')+'</ol>':(r.detail?'<p>'+H(r.detail)+'</p>':''))+'</div>':'')+
-          '<div class="ev"><div class="tm">'+H(ev.time||'')+'</div><div class="bd"><div class="tt">'+H(evName(ev))+'</div>'+
-          ''+(ev.memo?(memoLines(ev.memo).length>1?'<ul class="mm">'+memoLines(ev.memo).map(function(x){return '<li>'+H(x)+'</li>';}).join('')+'</ul>':'<div class="mm">'+H(memoLines(ev.memo)[0]||'')+'</div>'):'')+
-          (a?'<details><summary>이곳 이야기</summary>'+(a.intro?'<p>'+H(a.intro)+'</p>':'')+String(a.history||'').split(/\n+/).filter(Boolean).map(function(p){return '<p>'+H(p)+'</p>';}).join('')+
-            ((a.highlights||[]).length?'<p><b>꼭 볼 것</b></p><ul>'+a.highlights.map(function(x){return '<li>'+H(x)+'</li>';}).join('')+'</ul>':'')+
-            ((a.facts||[]).length?'<p><b>재밌는 이야기</b></p><ul>'+a.facts.map(function(x){return '<li>'+H(x)+'</li>';}).join('')+'</ul>':'')+
-            (a.tip?'<p><b>팁</b> '+H(a.tip)+'</p>':'')+'</details>':'')+
-          '</div></div>';
-      }).join('')+'</section>';
-  }).join('');
-  var resHtml=sortedRes().map(function(r){
-    var cps=confirmParts(r.confirm);
-    return '<div class="res"><div class="rk"><span class="cat">'+H(CAT[r.cat]||'기타')+'</span> '+H(r.date?resRange(r):'')+'</div><div class="tt">'+H(r.title)+'</div>'+
-      (cps.length?'<div class="cf">'+cps.map(function(p){return '<div><b>'+H(p.code)+'</b>'+(p.note?' <span>'+H(noteFmt(p.note))+'</span>':'')+'</div>';}).join('')+'</div>':'')+
-      (r.app?'<div class="kv">예약한 곳: '+H(r.app)+'</div>':'')+(r.address?'<div class="kv">주소: '+H(r.address)+'</div>':'')+
-      (r.addressJa?'<div class="kv">일본어 주소: '+H(r.addressJa)+'</div>':'')+(r.phone?'<div class="kv">전화: '+H(r.phone)+'</div>':'')+
-      (r.memo?'<div class="mm">'+H(r.memo)+'</div>':'')+'</div>';
-  }).join('');
-  var data=backupJson().replace(/</g,'\\u003c');
-  var css='body{margin:0;background:#EDEFEA;color:#1A211E;font:16px/1.55 -apple-system,"Apple SD Gothic Neo","Malgun Gothic","Noto Sans KR",sans-serif}'+
-    '.w{max-width:640px;margin:0 auto;padding:20px 16px 40px}h1{font-size:28px;margin:0}.sub{color:#5E6A64;margin:4px 0 16px}'+
-    '.note{background:#fff;border:1px solid #D3D9D2;border-radius:12px;padding:12px 14px;font-size:14px;margin-bottom:18px}.note a{color:#2E4E97;font-weight:600}'+
-    'h2{font-size:20px;margin:26px 0 2px}h2 small{font-size:14px;color:#5E6A64;font-weight:500}.dt{margin:0 0 10px;color:#5E6A64}'+
-    '.ev{display:flex;gap:12px;background:#fff;border:1px solid #D3D9D2;border-radius:12px;padding:12px 14px;margin:8px 0}.tm{flex:none;width:48px;font-weight:700;color:#3E6A48}'+
-    '.bd{flex:1;min-width:0}.tt{font-weight:700}.pl{font-size:14px;color:#3E6A48}.mm{font-size:14px;color:#5E6A64;white-space:pre-wrap;margin-top:2px}ul.mm{white-space:normal;margin:4px 0 0;padding-left:18px}'+
-    '.rt{margin:6px 0 6px 20px;background:#E7EDFA;border-left:4px solid #244A9E;border-radius:10px;padding:8px 12px;font-size:14px}.rt b{color:#244A9E}.rt ol{margin:4px 0 0;padding-left:18px}.rt p{margin:4px 0 0}'+
-    'details{margin-top:8px;font-size:14px}summary{color:#2E4E97;font-weight:600;cursor:pointer}details p{margin:6px 0}details ul{margin:4px 0;padding-left:18px}'+
-    '.res{background:#fff;border:1px solid #D3D9D2;border-radius:12px;padding:12px 14px;margin:8px 0}.rk{font-size:13px;color:#5E6A64}.cat{display:inline-block;font-weight:700;color:#2E4E97;background:#E2E8F6;border-radius:6px;padding:1px 8px}'+
-    '.cf{margin:6px 0;font-size:15px}.cf b{letter-spacing:.02em}.cf span{color:#5E6A64;font-size:14px}.kv{font-size:14px;margin-top:2px}';
-  return '<!DOCTYPE html><html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>교토·오사카 가족여행 일정</title><style>'+css+'</style></head><body><div class="w">'+
-    '<h1>교토·오사카 가족여행</h1><p class="sub">'+H(md(state.trip.start)+' – '+md(state.trip.end))+'</p>'+
-    '<div class="note">이 파일은 그냥 열어서 보면 돼요. 인터넷 없이도 보이는 앱으로 쓰고 싶으면 <a href="'+APP_URL+'">여기서 앱을 설치</a>하고, 앱의 정보 탭에서 \'받은 파일 넣기\'로 이 파일을 넣어 주세요.</div>'+
-    '<h2 style="margin-top:8px">일정</h2>'+dayHtml+'<h2>예약</h2>'+resHtml+
-    '<script type="application/json" id="kyosaka-backup">'+data+'</scr'+'ipt></div></body></html>';
-}
-function exportData(){
-  var html=familyHtml(), name='교토오사카_여행일정_'+todayJST().slice(5).replace('-','')+'.html';
-  try{
-    var file=new File([html],name,{type:'text/html'});
-    if(navigator.canShare&&navigator.canShare({files:[file]})){ navigator.share({files:[file],title:'교토·오사카 여행 일정'}).catch(function(){}); return; }
-  }catch(e){}
-  try{
-    var a=document.createElement('a'); a.href=URL.createObjectURL(new Blob([html],{type:'text/html'})); a.download=name;
-    document.body.appendChild(a); a.click(); setTimeout(function(){URL.revokeObjectURL(a.href);a.remove();},1500);
-  }catch(e){ toast('이 휴대폰에서는 보내기를 쓸 수 없어요'); }
-}
 var pendingBackup=null;
 function mergeChecklist(local,incoming){
   var del=[]; try{ del=JSON.parse(localStorage.getItem('kyosaka:ckDeleted')||'[]'); }catch(e){}
@@ -1578,8 +1520,8 @@ function loadLeaflet(){
 function geoQueries(ev){
   var out=[], hotel=null;
   state.reservations.forEach(function(r){ if(r.cat==='hotel'&&(r.title===ev.place||(ev.map&&(r.address===ev.map||r.addressJa===ev.map)))) hotel=r; });
-  if(hotel){ if(hotel.addressJa) out.push(hotel.addressJa); if(hotel.address) out.push(hotel.address); out.push(hotel.title); }
   if(ev.map) out.push(ev.map);
+  if(hotel){ if(hotel.addressJa) out.push(hotel.addressJa); if(hotel.address) out.push(hotel.address); out.push(hotel.title); }
   if(ev.placeOrig) out.push(ev.placeOrig);
   if(ev.place) out.push(ev.place);
   return out.map(function(q){ return String(q).replace(/[\uAC00-\uD7A3]+/g,' ').replace(/\s+/g,' ').trim(); }).filter(function(q){ return q.length>1; });
@@ -1605,6 +1547,8 @@ function geoPump(){
 }
 function evCoord(ev){
   if(isFinite(+ev.lat)&&isFinite(+ev.lng)&&ev.lat!==''&&ev.lng!=null&&ev.lat!=null) return Promise.resolve({lat:+ev.lat,lng:+ev.lng});
+  var m=String(ev.map||'').match(/^\s*(-?\d{1,2}\.\d+)\s*,\s*(-?\d{2,3}\.\d+)\s*$/);
+  if(m) return Promise.resolve({lat:+m[1],lng:+m[2]});
   var qs=geoQueries(ev), i=0;
   return new Promise(function(res){
     (function next(){ if(i>=qs.length) return res(null); geoLookup(qs[i++]).then(function(v){ if(v) res(v); else next(); }); })();
@@ -1695,7 +1639,7 @@ function evForm(id){
     field('장소','place',ev.place||ev.title,'text',' required placeholder="예: 킨카쿠지"')+
     field('현지 이름','placeOrig',ev.placeOrig,'text',' placeholder="예: 金閣寺 (선택)"')+
     selectField('종류','type',ev.type||'sight',Object.keys(TYPE).map(function(k){return [k,TYPE[k]];}))+
-    '<label class="field"><span>지도 검색어</span><input name="map" value="'+esc(ev.map||'')+'" placeholder="예: Kinkaku-ji"><small>영어나 일본어로 적으면 구글 지도가 더 정확하게 찾아요. 비워두면 장소 이름으로 찾아요.</small></label>'+
+    '<label class="field"><span>지도 검색어</span><input name="map" value="'+esc(ev.map||'')+'" placeholder="예: Kinkaku-ji"><small>지도 버튼과 일정 탭 지도가 모두 이 검색어로 찾아요. 영어나 일본어로 적으면 더 정확해요. 구글 지도에서 길게 눌러 나온 좌표(예: 34.9671, 135.7727)를 붙여넣으면 정확히 그 지점에 찍혀요. 비워두면 장소 이름으로 찾아요.</small></label>'+
     areaField('메모','memo',ev.memo)+
     '<fieldset class="rt-fields"><legend>가는 길 (앞 일정 장소에서)</legend>'+
     field('탈 것 이름','rname',rt.name,'text',' placeholder="예: 하루카 30호, 트리니티항공 TW327 (선택)"')+
@@ -1815,7 +1759,6 @@ document.addEventListener('click',function(e){
     case 'qr-del': if(!qrView) break; if(!qrView.armed){qrView.armed=true;qrDraw();} else qrDelete(qrView.list[qrView.i]); break;
     case 'send-changes': sendChanges(); break;
     case 'hint-off': hintOff=true; try{localStorage.setItem('kyosaka:hint','off');}catch(e){} render(); break;
-    case 'backup-export': exportData(); break;
     case 'backup-paste':
       if(navigator.clipboard&&navigator.clipboard.readText){
         navigator.clipboard.readText().then(function(t){ if(t&&t.indexOf('"days"')>=0) readBackup(t); else pasteBackup(); },function(){ pasteBackup(); });
@@ -1865,9 +1808,6 @@ document.addEventListener('click',function(e){
 document.addEventListener('change',function(e){
   var inp=e.target; if(inp.matches&&inp.matches('[data-import="ckphoto"]')){ var cf=inp.files; qrAdd('ck:'+inp.getAttribute('data-id'),cf); inp.value=''; return; }
   if(inp.matches&&inp.matches('[data-import="qr"]')){ var fs=inp.files; qrAdd(inp.getAttribute('data-id'),fs); inp.value=''; return; }
-  if(!inp.matches||!inp.matches('[data-import="backup"]')) return;
-  var f=inp.files&&inp.files[0]; inp.value=''; if(!f) return;
-  var rd=new FileReader(); rd.onload=function(){ readBackup(String(rd.result||'')); }; rd.onerror=function(){ toast('파일을 읽지 못했어요'); }; rd.readAsText(f);
 });
 var qrTouch=null;
 document.addEventListener('touchstart',function(e){ if(qrView&&e.target.closest('.qrv-img')) qrTouch=e.touches[0].clientX; },{passive:true});
@@ -1934,6 +1874,8 @@ document.addEventListener('submit',function(e){
     var dayIdx=+v.day; closeSheet(); ui.day=dayIdx; var savedEv=null;
     commit(function(s){
       var old=id?findEv(id):null, item=old?JSON.parse(JSON.stringify(old.ev)):{id:uid('e')};
+      // place or map search changed: drop old pin so the map finds it again from the new search
+      if((item.map||'')!==v.map||(item.place||'')!==v.place||(item.placeOrig||'')!==v.placeOrig){ delete item.lat; delete item.lng; }
       item.time=v.time; item.type=v.type; item.title=v.place; item.place=v.place; item.placeOrig=v.placeOrig; item.map=v.map; item.memo=v.memo;
       item.route=(v.rhow||v.rmin||v.rdetail||v.rcost||v.rname)?{how:v.rhow,name:v.rname,span:v.rspan,min:v.rmin,detail:v.rdetail,cost:v.rcost}:null;
       s.days.forEach(function(d){d.items=d.items.filter(function(x){return x.id!==item.id;});});
