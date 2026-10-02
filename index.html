@@ -874,7 +874,8 @@ function altCtl(ev,alt){
   return '<span class="alt-ctl">'+h+'</span>';
 }
 function altPill(d,ev){ var a=altInfo(d,ev); return a?'<span class="alt-pill">후보 '+a.k+'/'+a.n+'</span>':''; }
-function prevIdx(d,ev){ var i=d.items.indexOf(ev)-1; while(i>=0&&sameAlt(d.items[i],ev)) i--; return i; }
+// the place you come from: skips your own candidates, and after a candidate group it is the 1st candidate
+function prevIdx(d,ev){ var i=d.items.indexOf(ev)-1; while(i>=0&&sameAlt(d.items[i],ev)) i--; while(i>0&&sameAlt(d.items[i-1],d.items[i])) i--; return i; }
 function confirmCodes(c){return confirmParts(c).map(function(p){return p.code;}).join(', ');}
 function resRange(r){
   if(!r.date) return '날짜 없음';
@@ -1108,7 +1109,7 @@ function renderInfo(){
     '<h2 class="group-label">가족과 나누기</h2><div class="list">'+
       (function(){ var at=lsGet(LS_PUBAT); return '<button class="row" data-act="share-prep"><div class="row-main"><div class="row-title">가족 앱에 공유하기</div><div class="row-sub">'+(at?'마지막 공유 '+esc(whenText(at))+'. 바꾼 내용이 있으면 다시 눌러 주세요':'오늘·일정·경비·예약을 예약번호, 주소 같은 정보는 빼고 가족 앱에 보내요')+'</div></div>'+ICON.chev+'</button>'; })()+
       '<button class="row" data-act="share-link"><div class="row-main"><div class="row-title">가족용 주소 보내기</div><div class="row-sub">가족이 이 주소로 열고 홈 화면에 추가하면, 공유한 내용이 자동으로 보여요</div></div>'+ICON.chev+'</button>'+
-    '</div><p class="foot">QR 이미지는 이 휴대폰에 따로 저장돼서 백업을 가져와도 지워지지 않아요. 가족에게는 QR 화면의 보내기로 나눠 주세요.</p><p class="foot">모든 내용은 이 휴대폰 안에만 저장돼요. 인터넷 없이도 열리지만, 지도와 길찾기는 인터넷이 필요해요.</p><p class="foot">앱 버전 45</p>'+
+    '</div><p class="foot">QR 이미지는 이 휴대폰에 따로 저장돼서 백업을 가져와도 지워지지 않아요. 가족에게는 QR 화면의 보내기로 나눠 주세요.</p><p class="foot">모든 내용은 이 휴대폰 안에만 저장돼요. 인터넷 없이도 열리지만, 지도와 길찾기는 인터넷이 필요해요.</p><p class="foot">앱 버전 46</p>'+
     '';
 }
 
