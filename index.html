@@ -1086,7 +1086,7 @@ function renderInfo(){
     '<h2 class="group-label">가족과 나누기</h2><div class="list">'+
       (function(){ var at=lsGet(LS_PUBAT); return '<button class="row" data-act="share-prep"><div class="row-main"><div class="row-title">가족 앱에 공유하기</div><div class="row-sub">'+(at?'마지막 공유 '+esc(whenText(at))+'. 바꾼 내용이 있으면 다시 눌러 주세요':'오늘·일정·경비·예약을 예약번호, 주소 같은 정보는 빼고 가족 앱에 보내요')+'</div></div>'+ICON.chev+'</button>'; })()+
       '<button class="row" data-act="share-link"><div class="row-main"><div class="row-title">가족용 주소 보내기</div><div class="row-sub">가족이 이 주소로 열고 홈 화면에 추가하면, 공유한 내용이 자동으로 보여요</div></div>'+ICON.chev+'</button>'+
-    '</div><p class="foot">QR 이미지는 이 휴대폰에 따로 저장돼서 백업을 가져와도 지워지지 않아요. 가족에게는 QR 화면의 보내기로 나눠 주세요.</p><p class="foot">모든 내용은 이 휴대폰 안에만 저장돼요. 인터넷 없이도 열리지만, 지도와 길찾기는 인터넷이 필요해요.</p><p class="foot">앱 버전 40</p>'+
+    '</div><p class="foot">QR 이미지는 이 휴대폰에 따로 저장돼서 백업을 가져와도 지워지지 않아요. 가족에게는 QR 화면의 보내기로 나눠 주세요.</p><p class="foot">모든 내용은 이 휴대폰 안에만 저장돼요. 인터넷 없이도 열리지만, 지도와 길찾기는 인터넷이 필요해요.</p><p class="foot">앱 버전 41</p>'+
     '';
 }
 
@@ -1546,35 +1546,53 @@ function geoQueries(ev){
   add(ev.placeOrig,'name'); add(ev.place,'name');
   return out;
 }
-var GEO_Q=[], GEO_BUSY=false;
-function geoCached(q){ try{ var v=localStorage.getItem('kyosaka:geo:'+q); return v?JSON.parse(v):undefined; }catch(e){ return undefined; } }
+var GEO_Q=[], GEO_BUSY=false, GEO_KEY='kyosaka:geo2:';
+try{ Object.keys(localStorage).forEach(function(k){ if(k.indexOf('kyosaka:geo:')===0) localStorage.removeItem(k); }); }catch(e){}
+function geoCached(q){ try{ var v=localStorage.getItem(GEO_KEY+q); return v?JSON.parse(v):undefined; }catch(e){ return undefined; } }
 function geoLookup(q){
   var c=geoCached(q); if(c!==undefined) return Promise.resolve(c);
   if(!navigator.onLine) return Promise.resolve(undefined);
   return new Promise(function(res){ GEO_Q.push({q:q,res:res}); geoPump(); });
 }
+// Japanese addresses/names: GSI (Japan's map agency) finds them to the house number; others: OpenStreetMap
+function geoGsi(q){
+  return fetch('https://msearch.gsi.go.jp/address-search/AddressSearch?q='+encodeURIComponent(q))
+    .then(function(r){ return r.ok?r.json():[]; })
+    .then(function(j){ var c=j&&j[0]&&j[0].geometry&&j[0].geometry.coordinates; return c?{lat:+c[1],lng:+c[0]}:null; });
+}
+function geoOsm(q){
+  return fetch('https://nominatim.openstreetmap.org/search?format=json&limit=1&accept-language=ko&countrycodes=jp&viewbox=134.9,35.3,136.2,34.2&bounded=1&q='+encodeURIComponent(q))
+    .then(function(r){ return r.ok?r.json():[]; })
+    .then(function(j){ return j&&j[0]?{lat:+j[0].lat,lng:+j[0].lon}:null; });
+}
 function geoPump(){
   if(GEO_BUSY||!GEO_Q.length) return; GEO_BUSY=true;
-  var job=GEO_Q.shift();
-  fetch('https://nominatim.openstreetmap.org/search?format=json&limit=1&accept-language=ko&countrycodes=jp&viewbox=134.9,35.3,136.2,34.2&bounded=1&q='+encodeURIComponent(job.q))
-    .then(function(r){ return r.ok?r.json():[]; }).catch(function(){ return null; })
-    .then(function(j){
-      var v=j&&j[0]?{lat:+j[0].lat,lng:+j[0].lon}:(j?null:undefined);
-      if(v!==undefined){ try{ localStorage.setItem('kyosaka:geo:'+job.q,JSON.stringify(v)); }catch(e){} }
-      job.res(v);
+  var job=GEO_Q.shift(), ja=/[\u3040-\u30FF\u4E00-\u9FFF]/.test(job.q), failed=false;
+  function safe(p){ return p.catch(function(){ failed=true; return null; }); }
+  (ja?safe(geoGsi(job.q)).then(function(v){ return (v&&inArea(v))?v:safe(geoOsm(job.q)); }):safe(geoOsm(job.q)))
+    .then(function(v){
+      v=v&&inArea(v)?v:null;
+      if(v||!failed){ try{ localStorage.setItem(GEO_KEY+job.q,JSON.stringify(v)); }catch(e){} }
+      job.res(v||(failed?undefined:null));
       setTimeout(function(){ GEO_BUSY=false; geoPump(); },1100);
     });
 }
+// a pin (lat/lng) belongs to the search word it came with; if the word changes later, the old pin is ignored
+function pinFresh(ev){
+  var k='kyosaka:pin:'+ev.id, now={lat:+ev.lat,lng:+ev.lng,map:ev.map||''}, rec=null;
+  try{ rec=JSON.parse(localStorage.getItem(k)||'null'); }catch(e){}
+  if(!rec||rec.lat!==now.lat||rec.lng!==now.lng){ try{ localStorage.setItem(k,JSON.stringify(now)); }catch(e){} return true; }
+  return rec.map===now.map;
+}
 function evCoord(ev){
-  if(isFinite(+ev.lat)&&isFinite(+ev.lng)&&ev.lat!==''&&ev.lng!=null&&ev.lat!=null) return Promise.resolve({lat:+ev.lat,lng:+ev.lng});
   var m=String(ev.map||'').match(/^\s*(-?\d{1,2}\.\d+)\s*,\s*(-?\d{2,3}\.\d+)\s*$/);
-  if(m) return Promise.resolve({lat:+m[1],lng:+m[2]});
+  if(m) return Promise.resolve({lat:+m[1],lng:+m[2],via:'map'});
+  if(isFinite(+ev.lat)&&isFinite(+ev.lng)&&ev.lat!==''&&ev.lng!=null&&ev.lat!=null&&pinFresh(ev)) return Promise.resolve({lat:+ev.lat,lng:+ev.lng});
   var qs=geoQueries(ev), i=0;
   return new Promise(function(res){
     (function next(){ if(i>=qs.length) return res(null); var g=qs[i++]; geoLookup(g.q).then(function(v){ if(v) res({lat:v.lat,lng:v.lng,via:g.via}); else next(); }); })();
   });
-}
-function mapPoints(dayIdxs){
+}function mapPoints(dayIdxs){
   var pts=[];
   dayIdxs.forEach(function(di){ var d=state.days[di], n=0; d.items.forEach(function(ev){ n++; pts.push({ev:ev,day:di,n:n,date:d.date}); }); });
   return pts;
