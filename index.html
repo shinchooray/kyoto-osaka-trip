@@ -1028,7 +1028,7 @@ function renderInfo(){
         return '<button class="row" data-act="share-prep"><div class="row-main"><div class="row-title">가족 앱에 공유하기</div><div class="row-sub">'+sub+'</div></div>'+ICON.chev+'</button>'+
           (lsGet(LS_GHTOKEN)?'<button class="row" data-act="share-auto"><div class="row-main"><div class="row-title">자동 공유 '+(auto?'켜짐':'꺼짐')+'</div><div class="row-sub">눌러서 '+(auto?'끄기':'켜기')+'</div></div></button>':''); })()+
       '<button class="row" data-act="share-link"><div class="row-main"><div class="row-title">가족용 주소 보내기</div><div class="row-sub">가족이 이 주소로 열고 홈 화면에 추가하면, 공유한 내용이 자동으로 보여요</div></div>'+ICON.chev+'</button>'+
-    '</div><p class="foot">QR 이미지는 이 휴대폰에 따로 저장돼서 백업을 가져와도 지워지지 않아요. 가족에게는 QR 화면의 보내기로 나눠 주세요.</p><p class="foot">모든 내용은 이 휴대폰 안에만 저장돼요. 인터넷 없이도 열리지만, 지도와 길찾기는 인터넷이 필요해요.</p><p class="foot">앱 버전 63</p>'+
+    '</div><p class="foot">QR 이미지는 이 휴대폰에 따로 저장돼서 백업을 가져와도 지워지지 않아요. 가족에게는 QR 화면의 보내기로 나눠 주세요.</p><p class="foot">모든 내용은 이 휴대폰 안에만 저장돼요. 인터넷 없이도 열리지만, 지도와 길찾기는 인터넷이 필요해요.</p><p class="foot">앱 버전 64</p>'+
     '';
 }
 
@@ -1173,7 +1173,10 @@ function shareData(){
     state:{v:state.v,trip:pick(state.trip,['title','start','end','members']),days:days,reservations:res,checklist:[],notes:''},spend:sp,
     bakeries:plShare('bread'),restaurants:plShare('food')};
 }
-var SENS=/[A-Z0-9]{6,}|[A-Z]{2,}\s+[A-Z]{2,}|\d{2,4}-\d{2,4}-\d{3,4}|〒|丁目|番地|@|예약\s*번호|여권|주소|호실|비밀번호|\b\d{1,4}-\d{1,4}-\d{1,4}\b/;
+// only things that must not go public: booking/ticket codes (letters+digits mixed), long numbers,
+// Korean mobile numbers, e-mail, and lines that say they hold a booking/passport/card number or password.
+// Shop names, addresses and shop phone numbers are fine.
+var SENS=/\b(?=[A-Z0-9]*\d)(?=[A-Z0-9]*[A-Z])[A-Z0-9]{6,}\b|\d{9,}|01[016789]-?\d{3,4}-?\d{4}|[\w.+-]+@[\w-]+\.[\w.]+|(예약|확인|여권|카드|회원)\s*번호|비밀번호/;
 function shareLines(o){
   var L=[];
   function add(t,cls){ t=String(t||'').trim(); if(t) L.push({t:t,c:cls||'',w:SENS.test(t)}); }
@@ -1196,7 +1199,7 @@ function sharePrep(){
   var o=pendingShare=shareData(), L=shareLines(o), warn=L.filter(function(x){return x.w;}).length;
   var n=0; o.state.days.forEach(function(d){ n+=d.items.length; });
   openSheet('<h2>가족에게 공유할 내용</h2><p class="sub">일정 '+n+'개, 예약 '+o.state.reservations.length+'개, 경비 '+o.spend.items.length+'건이에요. 예약번호, 주소, 전화, 예약 메모, 숙소 위치, 준비물, 정보 탭은 빠져요.</p>'+
-    (warn?'<div class="warn">예약번호나 주소처럼 보이는 줄이 '+warn+'개 있어요. 노란 줄을 확인하고, 문제가 있으면 취소한 뒤 그 메모를 고쳐 주세요.</div>':'')+
+    (warn?'<div class="warn">예약번호나 개인정보처럼 보이는 줄이 '+warn+'개 있어요. 노란 줄을 확인하고, 문제가 있으면 취소한 뒤 그 메모를 고쳐 주세요.</div>':'')+
     '<div class="pv">'+L.map(function(x){ return '<div class="'+x.c+(x.w?' pv-w':'')+'">'+esc(x.t)+'</div>'; }).join('')+'</div>'+
     '<p class="sub">올린 내용은 가족용 주소를 아는 사람이면 누구나 볼 수 있어요.</p>'+
     '<div class="actions"><button class="btn btn-ghost" data-act="sheet-close">취소</button><button class="btn btn-primary" data-act="share-go">올리기</button></div>'+
@@ -1271,7 +1274,7 @@ function autoShareNow(){
   var o=shareData(); if(hashStr(shareSig(o))===lsGet(LS_SHAREHASH)) return;
   var w=warnSig(o);
   if(w&&w!==(lsGet(LS_SHAREOK)||'')){
-    if(lsGet('kyosaka:shareWarned')!==w){ lsSet('kyosaka:shareWarned',w); toast('가족 공유: 예약번호나 주소처럼 보이는 줄이 있어서 자동으로 올리지 않았어요. 정보 탭에서 확인해 주세요',true); }
+    if(lsGet('kyosaka:shareWarned')!==w){ lsSet('kyosaka:shareWarned',w); toast('가족 공유: 예약번호나 개인정보처럼 보이는 줄이 있어서 자동으로 올리지 않았어요. 정보 탭에서 확인해 주세요',true); }
     if(ui.tab==='info') render(); return;
   }
   autoBusy=true;
