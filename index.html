@@ -127,8 +127,6 @@ button.row:active,a.row:active{background:var(--soft)}
 .row-num{font-variant-numeric:tabular-nums;font-weight:600;color:var(--osaka)}
 .text-block{padding:14px 16px;white-space:pre-wrap;font-size:15px}
 .text-block.empty{color:var(--muted)}
-.tip-title{font-weight:600}
-.tip-body{font-size:14px;color:var(--muted);margin-top:2px}
 
 /* checklist */
 .progress{margin:14px 20px 0;height:6px;border-radius:3px;background:var(--soft);overflow:hidden}
@@ -1015,8 +1013,6 @@ function renderInfo(){
     '<h2 class="group-label">긴급 연락처</h2><div class="list">'+sos.map(function(s){
       return '<a class="row" href="tel:'+s[1].replace(/[^+\d]/g,'')+'"><div class="row-main"><div class="row-title">'+esc(s[0])+'</div></div><span class="row-num">'+esc(s[1])+'</span></a>';
     }).join('')+'</div>'+
-    '<div class="head-row group-label" style="margin-right:20px"><span>가족 메모</span>'+(canEdit()?'<button class="link-btn" data-act="note-edit">고치기</button>':'')+'</div>'+
-    '<div class="list"><div class="text-block'+(state.notes?'':' empty')+'">'+esc(state.notes||'공동 경비 담당, 모이는 장소, 부모님 복용약처럼 다 같이 알아야 할 것을 적어두세요.')+'</div></div>'+
     '<h2 class="group-label">지도</h2><div class="list">'+
       '<button class="row" data-act="gkey-edit"><div class="row-main"><div class="row-title">구글 위치 찾기 '+(lsGet(LS_GKEY)?'켜짐':'꺼짐')+'</div><div class="row-sub">'+(lsGet(LS_GKEY)?'일정 탭 지도가 구글 지도처럼 한글 이름으로도 위치를 찾아요':'구글 API 키를 넣으면 일정 탭 지도 위치가 구글 지도와 같아져요')+'</div></div>'+ICON.chev+'</button></div>'+
     '<h2 class="group-label">가족과 나누기</h2><div class="list">'+
@@ -1028,24 +1024,10 @@ function renderInfo(){
         return '<button class="row" data-act="share-prep"><div class="row-main"><div class="row-title">가족 앱에 공유하기</div><div class="row-sub">'+sub+'</div></div>'+ICON.chev+'</button>'+
           (lsGet(LS_GHTOKEN)?'<button class="row" data-act="share-auto"><div class="row-main"><div class="row-title">자동 공유 '+(auto?'켜짐':'꺼짐')+'</div><div class="row-sub">눌러서 '+(auto?'끄기':'켜기')+'</div></div></button>':''); })()+
       '<button class="row" data-act="share-link"><div class="row-main"><div class="row-title">가족용 주소 보내기</div><div class="row-sub">가족이 이 주소로 열고 홈 화면에 추가하면, 공유한 내용이 자동으로 보여요</div></div>'+ICON.chev+'</button>'+
-    '</div><p class="foot">QR 이미지는 이 휴대폰에 따로 저장돼서 백업을 가져와도 지워지지 않아요. 가족에게는 QR 화면의 보내기로 나눠 주세요.</p><p class="foot">모든 내용은 이 휴대폰 안에만 저장돼요. 인터넷 없이도 열리지만, 지도와 길찾기는 인터넷이 필요해요.</p><p class="foot">앱 버전 64</p>'+
+    '</div><p class="foot">QR 이미지는 이 휴대폰에 따로 저장돼서 백업을 가져와도 지워지지 않아요. 가족에게는 QR 화면의 보내기로 나눠 주세요.</p><p class="foot">모든 내용은 이 휴대폰 안에만 저장돼요. 인터넷 없이도 열리지만, 지도와 길찾기는 인터넷이 필요해요.</p><p class="foot">앱 버전 65</p>'+
     '';
 }
 
-function tipsHtml(){
-  var tips=[
-    ['5명이면 택시 2대','일반 택시는 4명까지 타요. 짐이 많은 날은 점보택시(9인승)를 미리 예약하면 한 번에 움직일 수 있어요.'],
-    ['교통카드','아이폰은 지갑 앱에 ICOCA나 Suica를 넣어 쓸 수 있어요. 한국 갤럭시는 지원하지 않아서 실물 카드가 필요해요.'],
-    ['교토 시내버스는 붐벼요','관광지 가는 버스는 늘 만원이에요. 가능하면 JR, 한큐, 게이한, 지하철 같은 전철 위주로 다니면 편해요.'],
-    ['전기','일본은 100V, 콘센트가 11자 모양(A타입)이에요. 돼지코를 챙기세요.'],
-    ['10월 중순 날씨','평년 기준 낮 22~24도, 아침저녁 14~15도 정도예요. 얇은 겉옷이 있으면 좋아요.'],
-    ['면세 쇼핑','한 가게에서 같은 날 5,000엔 이상이면 면세. 여권 실물이 있어야 해요.'],
-    ['쓰레기통이 드물어요','작은 비닐봉지 하나 챙겨두면 편해요.']
-  ];
-  return '<h2 class="group-label">알아두면 좋은 것</h2><div class="list">'+tips.map(function(t){
-      return '<div class="row"><div class="row-main"><div class="tip-title">'+esc(t[0])+'</div><div class="tip-body">'+esc(t[1])+'</div></div></div>';
-    }).join('')+'</div>';
-}
 function renderCheck(){
   var list=state.checklist, done=list.filter(isDone).length;
   var pct=list.length?Math.round(done/list.length*100):0;
@@ -1064,8 +1046,7 @@ function renderCheck(){
     '<p>'+list.length+'개 중 '+done+'개 챙겼어요'+'</p></header>'+
     '<div class="progress" aria-hidden="true"><span style="width:'+pct+'%"></span></div>'+
     (ui.ckEdit&&canEdit()?'<p class="ck-hint">왼쪽 ≡ 을 잡고 끌어서 순서를 바꾸고, 이름을 눌러 고칠 수 있어요</p>':'')+'<div class="list ck-list">'+(rows||'<div class="text-block empty">준비물을 추가해 보세요</div>')+'</div>'+
-    (canEdit()?'<form class="add-row" data-form="check"><input name="text" placeholder="준비물 추가" autocomplete="off" enterkeyhint="done"><button class="mini" type="submit">추가</button></form>':'')+
-    tipsHtml();
+    (canEdit()?'<form class="add-row" data-form="check"><input name="text" placeholder="준비물 추가" autocomplete="off" enterkeyhint="done"><button class="mini" type="submit">추가</button></form>':'');
 }
 
 
@@ -1833,10 +1814,6 @@ function dayTitleForm(){
     '<div class="actions"><button type="button" class="btn btn-ghost" data-act="sheet-close">취소</button><button type="submit" class="btn btn-primary">저장</button></div></form>');
   var i=document.querySelector('.sheet input[name=title]'); if(i) setTimeout(function(){i.focus();i.select();},250);
 }
-function noteForm(){
-  openSheet('<form data-form="note"><h2>가족 메모</h2>'+areaField('다 같이 알아야 할 것','notes',state.notes)+
-    '<div class="actions"><button type="button" class="btn btn-ghost" data-act="sheet-close">취소</button><button type="submit" class="btn btn-primary">저장</button></div></form>');
-}
 
 function showTaxi(id){
   var r=findRes(id); if(!r||!r.addressJa){toast('일본어 주소를 먼저 넣어 주세요');return;}
@@ -1877,7 +1854,7 @@ document.addEventListener('click',function(e){
   var el=e.target.closest('[data-act]'); if(!el) return;
   var act=el.getAttribute('data-act'), id=el.getAttribute('data-id');
   if(act!=='del-ev'&&act!=='del-res'&&act!=='del-pl') armed=null;
-  if(!canEdit()&&/^(ev-|pl-|leg-|res-edit|res-add|sp-open|sp-rate|sp-del|note-edit|del-|backup-|send-changes|share-|token-|check|ck-)/.test(act)) return;
+  if(!canEdit()&&/^(ev-|pl-|leg-|res-edit|res-add|sp-open|sp-rate|sp-del|del-|backup-|send-changes|share-|token-|check|ck-)/.test(act)) return;
   switch(act){
     case 'share-prep': sharePrep(); break;
     case 'share-link': shareLink(); break;
@@ -1924,7 +1901,6 @@ document.addEventListener('click',function(e){
     case 'res-open': resDetail(id); break;
     case 'res-edit': resForm(id); break;
     case 'res-add': resForm(null); break;
-    case 'note-edit': noteForm(); break;
     case 'day-title': dayTitleForm(); break;
     case 'about': aboutSheet(id); break;
     case 'memo-toggle': var li=el.closest('li'); if(li) li.classList.toggle('memo-open'); break;
@@ -2034,7 +2010,6 @@ document.addEventListener('submit',function(e){
   if(kind==='sp-rate'){ var r=parseFloat(String(v.rate100||'').replace(/[^0-9.]/g,'')); if(r>0){ SP.rate=r/100; spSave(); } closeSheet(); render(); return; }
   if(kind==='ck-rename'){ var rid=f.getAttribute('data-id'); if(!v.text) return; closeSheet(); commit(function(s){ s.checklist.forEach(function(x){ if(x.id===rid) x.text=v.text; }); }); return; }
   if(kind==='check'){ if(!v.text) return; commit(function(s){s.checklist.push({id:uid('c'),text:v.text,done:false});}); return; }
-  if(kind==='note'){ closeSheet(); commit(function(s){s.notes=v.notes;}); return; }
   if(kind==='place'){
     if(!v.name) return; closeSheet();
     var pk=f.getAttribute('data-k'), bk=id?findPl(pk,id):null;
