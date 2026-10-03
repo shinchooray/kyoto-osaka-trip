@@ -544,9 +544,10 @@ ul.tev-memo{font-size:14px;color:var(--muted)}
 .rt-edit{background:none;border:0;padding:2px 0;font:inherit;color:inherit;text-align:left;cursor:pointer;border-bottom:1px dashed transparent}
 .rt-edit:active,.rt-edit:hover{border-bottom-color:var(--muted)}
 .dirty-reset{display:block;margin:-2px 0 4px auto;padding:2px 4px}
-.pl-mv{display:flex;flex-direction:column;gap:2px;margin-left:6px}
-.pl-mv button{width:26px;height:20px;padding:0;border:1px solid var(--line);border-radius:6px;background:var(--surface);color:var(--muted);font-size:10px;line-height:1;cursor:pointer}
-.pl-mv button:disabled{opacity:.3;cursor:default}
+.pl-row{-webkit-user-select:none;user-select:none;-webkit-touch-callout:none;position:relative;transition:transform .15s;background:var(--surface)}
+.pl-list.is-dragging .pl-row{transition:transform .15s}
+.pl-row.dragging{transition:none;z-index:2;box-shadow:0 8px 24px rgba(0,0,0,.18);border-radius:12px}
+.pl-hint{margin:-4px 20px 6px;font-size:12px;color:var(--muted)}
 .ver-row{display:flex;align-items:center;gap:8px}
 .ver-btn{padding:2px 9px;border:1px solid var(--line);border-radius:999px;background:var(--surface);color:var(--muted);font:inherit;font-size:12px;font-weight:700;cursor:pointer}
 /* hotel on top of today */
@@ -1052,7 +1053,7 @@ function renderInfo(){
         return '<button class="row" data-act="share-prep"><div class="row-main"><div class="row-title">가족 앱에 공유하기</div><div class="row-sub">'+sub+'</div></div>'+ICON.chev+'</button>'+
           (lsGet(LS_GHTOKEN)?'<button class="row" data-act="share-auto"><div class="row-main"><div class="row-title">자동 공유 '+(auto?'켜짐':'꺼짐')+'</div><div class="row-sub">눌러서 '+(auto?'끄기':'켜기')+'</div></div></button>':''); })()+
       '<button class="row" data-act="share-link"><div class="row-main"><div class="row-title">가족용 주소 보내기</div><div class="row-sub">가족이 이 주소로 열고 홈 화면에 추가하면, 공유한 내용이 자동으로 보여요</div></div>'+ICON.chev+'</button>'+
-    '</div><p class="foot">QR 이미지는 이 휴대폰에 따로 저장돼서 백업을 가져와도 지워지지 않아요. 가족에게는 QR 화면의 보내기로 나눠 주세요.</p><p class="foot">모든 내용은 이 휴대폰 안에만 저장돼요. 인터넷 없이도 열리지만, 지도와 길찾기는 인터넷이 필요해요.</p><p class="foot ver-row">앱 버전 70<button class="ver-btn" data-act="app-refresh">새로고침</button></p>'+
+    '</div><p class="foot">QR 이미지는 이 휴대폰에 따로 저장돼서 백업을 가져와도 지워지지 않아요. 가족에게는 QR 화면의 보내기로 나눠 주세요.</p><p class="foot">모든 내용은 이 휴대폰 안에만 저장돼요. 인터넷 없이도 열리지만, 지도와 길찾기는 인터넷이 필요해요.</p><p class="foot ver-row">앱 버전 71<button class="ver-btn" data-act="app-refresh">새로고침</button></p>'+
     '';
 }
 
@@ -1548,15 +1549,14 @@ function renderPlaceView(k){
   var P=PL[k], list=plShown(k), cn=plCur(k)==='osaka'?'오사카':'교토';
   var rows=list.map(function(b,i){
     var uses=plUses(k,b.id), q=b.map||b.nameOrig||b.name;
-    return '<div class="row pl-row"><span class="pl-n" style="background:'+P.col+'">'+(i+1)+'</span><div class="row-main"'+(canEdit()?' data-act="pl-edit" data-k="'+k+'" data-id="'+b.id+'" style="cursor:pointer"':'')+'><div class="row-title">'+esc(b.name)+'</div>'+
+    return '<div class="row pl-row" data-pl="'+k+'" data-id="'+b.id+'"><span class="pl-n" style="background:'+P.col+'">'+(i+1)+'</span><div class="row-main"'+(canEdit()?' data-act="pl-edit" data-k="'+k+'" data-id="'+b.id+'" style="cursor:pointer"':'')+'><div class="row-title">'+esc(b.name)+'</div>'+
       (b.nameOrig?'<div class="row-sub">'+esc(b.nameOrig)+'</div>':'')+(b.memo?'<div class="row-sub">'+esc(b.memo)+'</div>':'')+
       (uses.length?'<div class="pl-uses">'+uses.map(function(u){ return '<span class="pl-use" style="--pc:'+P.col+'">'+esc(md(u.d.date)+(u.ev.time?' '+u.ev.time:''))+'</span>'; }).join('')+'</div>':'')+'</div>'+
-      '<a class="mini" href="'+esc(mapUrl(q))+'" target="_blank" rel="noopener">'+ICON.pin+'지도</a>'+
-      (canEdit()?'<span class="pl-mv"><button data-act="pl-move" data-k="'+k+'" data-id="'+b.id+'" data-dir="-1" aria-label="위로"'+(i===0?' disabled':'')+'>▲</button><button data-act="pl-move" data-k="'+k+'" data-id="'+b.id+'" data-dir="1" aria-label="아래로"'+(i===list.length-1?' disabled':'')+'>▼</button></span>':'')+'</div>';
+      '<a class="mini" href="'+esc(mapUrl(q))+'" target="_blank" rel="noopener">'+ICON.pin+'지도</a>'+'</div>';
   }).join('');
   return '<div class="mapbar"><div class="seg seg--sm">'+PLCITY.map(function(c){ var n=PLD[k].filter(function(b){return plCity(b)===c[0];}).length; return '<label><input type="radio" name="plcity" data-act="plcity" data-k="'+k+'" data-v="'+c[0]+'"'+(plCur(k)===c[0]?' checked':'')+'><span>'+c[1]+' '+n+'</span></label>'; }).join('')+'</div><span class="map-status" id="map-status"></span></div>'+
     '<div id="tripmap" class="tripmap"></div><div id="map-miss" class="map-miss"></div>'+
-    '<h2 class="group-label">'+cn+' '+P.unit+' '+list.length+'곳</h2><div class="list">'+(rows||'<div class="text-block empty">'+cn+'에서 가보고 싶은 '+P.unit+'을 추가해 보세요. 일정에 '+P.t+'을 넣을 때 여기서 고를 수 있어요.</div>')+'</div>'+
+    '<h2 class="group-label">'+cn+' '+P.unit+' '+list.length+'곳</h2>'+(canEdit()&&list.length>1?'<p class="pl-hint">길게 누른 채로 끌면 순서를 바꿀 수 있어요</p>':'')+'<div class="list pl-list">'+(rows||'<div class="text-block empty">'+cn+'에서 가보고 싶은 '+P.unit+'을 추가해 보세요. 일정에 '+P.t+'을 넣을 때 여기서 고를 수 있어요.</div>')+'</div>'+
     (canEdit()?'<div class="pad"><button class="add wide" data-act="pl-add" data-k="'+k+'">'+cn+' '+P.unit+' 추가</button></div>':'');
 }
 function drawPlaceMap(k){
@@ -1900,6 +1900,7 @@ var armed=null;
 document.addEventListener('click',function(e){
   // leaving for the chat: close the sheet so 3 is tappable right away when coming back
   var lk=e.target.closest('a'); if(lk){ if(lk.hasAttribute('data-close-sheet')) setTimeout(closeSheet,300); return; }
+  if(Date.now()-plDragEnd<500) return;  // the tap that ends a drag is not a tap
   var el=e.target.closest('[data-act]'); if(!el) return;
   var act=el.getAttribute('data-act'), id=el.getAttribute('data-id');
   if(act!=='del-ev'&&act!=='del-res'&&act!=='del-pl'&&act!=='dirty-reset') armed=null;
@@ -1940,11 +1941,6 @@ document.addEventListener('click',function(e){
     case 'ev-edit': evForm(id); break;
     case 'ev-add': evForm(null); break;
     case 'plcity': ui.plCity=ui.plCity||{}; ui.plCity[el.getAttribute('data-k')]=el.getAttribute('data-v'); render(); break;
-    case 'pl-move':
-      // swap with the next/previous place of the same city (the list shows one city at a time)
-      var mvK=el.getAttribute('data-k'), mvD=+el.getAttribute('data-dir'), mvL=PLD[mvK], mvI=-1; mvL.forEach(function(b,i){ if(b.id===id) mvI=i; }); if(mvI<0) break;
-      var mvJ=mvI+mvD; while(mvJ>=0&&mvJ<mvL.length&&plCity(mvL[mvJ])!==plCity(mvL[mvI])) mvJ+=mvD; if(mvJ<0||mvJ>=mvL.length) break;
-      var mvT=mvL[mvI]; mvL[mvI]=mvL[mvJ]; mvL[mvJ]=mvT; plSave(mvK); markDirty('pl-'+mvK,'all','upsert'); render(); break;
     case 'pl-add': plForm(el.getAttribute('data-k'),null); break;
     case 'pl-edit': plForm(el.getAttribute('data-k'),id); break;
     case 'del-pl':
@@ -2035,6 +2031,54 @@ function endDrag(e){
   if(d.to===d.from) return;
   commit(function(s){ var i=-1; s.checklist.forEach(function(x,k){ if(x.id===d.id) i=k; }); if(i<0) return; var it=s.checklist.splice(i,1)[0]; s.checklist.splice(d.to,0,it); },true);
 }
+/* long-press and drag to reorder 밥지도/빵지도 lists */
+var PLD_DRAG=null, plPress=null, plDragEnd=0;
+function plStart(row,y){
+  var list=row.closest('.pl-list'); if(!list) return;
+  var rows=Array.prototype.slice.call(list.querySelectorAll('.pl-row')), sy=window.scrollY||0;
+  PLD_DRAG={k:row.getAttribute('data-pl'),row:row,rows:rows,from:rows.indexOf(row),to:rows.indexOf(row),startY:y+sy,
+    mids:rows.map(function(r){ var b=r.getBoundingClientRect(); return b.top+sy+b.height/2; }),h:row.getBoundingClientRect().height};
+  row.classList.add('dragging'); list.classList.add('is-dragging');
+  try{ if(navigator.vibrate) navigator.vibrate(25); }catch(e){}
+}
+function plMove(y){
+  var D=PLD_DRAG; if(!D) return;
+  if(y<90) window.scrollBy(0,-10); else if(y>window.innerHeight-130) window.scrollBy(0,10);
+  var ay=y+(window.scrollY||0), dy=ay-D.startY, mid=D.mids[D.from]+dy, to=D.from;
+  D.mids.forEach(function(m,i){ if(i<D.from&&mid<m) to=Math.min(to,i); if(i>D.from&&mid>m) to=Math.max(to,i); });
+  D.to=to; D.row.style.transform='translateY('+dy+'px)';
+  D.rows.forEach(function(r,i){ if(r===D.row) return; var sh=0; if(D.from<to&&i>D.from&&i<=to) sh=-D.h; if(D.from>to&&i<D.from&&i>=to) sh=D.h; r.style.transform=sh?'translateY('+sh+'px)':''; });
+}
+function plEnd(){
+  var D=PLD_DRAG; PLD_DRAG=null; if(!D) return; plDragEnd=Date.now();
+  D.rows.forEach(function(r){ r.style.transform=''; r.classList.remove('dragging'); });
+  var list=D.row.closest('.pl-list'); if(list) list.classList.remove('is-dragging');
+  if(D.to===D.from) return;
+  // new order of the shown city, then slot it back into the full list (other city keeps its places)
+  var ids=D.rows.map(function(r){ return r.getAttribute('data-id'); }), moved=ids.splice(D.from,1)[0]; ids.splice(D.to,0,moved);
+  var full=PLD[D.k], byId={}, k=0; full.forEach(function(b){ byId[b.id]=b; });
+  PLD[D.k]=full.map(function(b){ return ids.indexOf(b.id)>=0?byId[ids[k++]]:b; });
+  plSave(D.k); markDirty('pl-'+D.k,'all','upsert'); render();
+}
+function plPressStart(e,x,y){
+  var row=e.target.closest&&e.target.closest('.pl-row[data-pl]'); if(!row||!canEdit()||e.target.closest('a')) return;
+  plPress={x:x,y:y,timer:setTimeout(function(){ if(plPress){ plStart(row,plPress.y); } },450)};
+}
+document.addEventListener('touchstart',function(e){ var t=e.touches[0]; plPressStart(e,t.clientX,t.clientY); if(plPress) plPress.y0=t.clientY; },{passive:true});
+document.addEventListener('touchmove',function(e){
+  var t=e.touches[0];
+  if(PLD_DRAG){ e.preventDefault(); plMove(t.clientY); return; }
+  if(plPress&&(Math.abs(t.clientX-plPress.x)>10||Math.abs(t.clientY-plPress.y0)>10)){ clearTimeout(plPress.timer); plPress=null; }
+},{passive:false});
+function plRelease(){ if(plPress){ clearTimeout(plPress.timer); plPress=null; } if(PLD_DRAG) plEnd(); }
+document.addEventListener('touchend',plRelease); document.addEventListener('touchcancel',plRelease);
+document.addEventListener('mousedown',function(e){ if(e.button!==0) return; plPressStart(e,e.clientX,e.clientY); if(plPress) plPress.y0=e.clientY; });
+document.addEventListener('mousemove',function(e){
+  if(PLD_DRAG){ e.preventDefault(); plMove(e.clientY); return; }
+  if(plPress&&(Math.abs(e.clientX-plPress.x)>6||Math.abs(e.clientY-plPress.y0)>6)){ clearTimeout(plPress.timer); plPress=null; }
+});
+document.addEventListener('mouseup',plRelease);
+document.addEventListener('contextmenu',function(e){ if(e.target.closest&&e.target.closest('.pl-row')&&(plPress||PLD_DRAG)) e.preventDefault(); });
 document.addEventListener('pointerup',endDrag); document.addEventListener('pointercancel',endDrag);
 document.addEventListener('keydown',function(e){
   if((e.key==='Enter'||e.key===' ')&&e.target.matches&&e.target.matches('[role="button"][data-act]')){e.preventDefault();e.target.click();}
