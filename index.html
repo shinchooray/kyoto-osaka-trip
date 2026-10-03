@@ -1021,12 +1021,13 @@ function renderInfo(){
     '<h2 class="group-label">가족과 나누기</h2><div class="list">'+
       (function(){ var at=lsGet(LS_PUBAT), auto=autoOn(), blocked=auto&&shareBlocked();
         var sub=blocked?'<b style="color:var(--accent)">확인할 줄이 있어서 자동 공유가 멈췄어요. 눌러서 확인하고 올려 주세요</b>':
-          auto?'자동 공유 중이에요. 고치면 잠시 뒤 가족 앱에 올라가요'+(at?' · 마지막 '+esc(whenText(at)):''):
+          auto&&lsGet('kyosaka:shareErr')?'<b style="color:var(--accent)">자동 공유 실패: '+esc(lsGet('kyosaka:shareErr'))+'. 눌러서 다시 올려 주세요</b>':
+          auto?'자동 공유 중이에요. 고치면 몇 초 뒤 가족 앱에 올라가요'+(at?' · 마지막 '+esc(whenText(at)):''):
           (at?'마지막 공유 '+esc(whenText(at))+'. 바꾼 내용이 있으면 다시 눌러 주세요':'오늘·일정·경비·예약을 예약번호, 주소 같은 정보는 빼고 가족 앱에 보내요');
         return '<button class="row" data-act="share-prep"><div class="row-main"><div class="row-title">가족 앱에 공유하기</div><div class="row-sub">'+sub+'</div></div>'+ICON.chev+'</button>'+
           (lsGet(LS_GHTOKEN)?'<button class="row" data-act="share-auto"><div class="row-main"><div class="row-title">자동 공유 '+(auto?'켜짐':'꺼짐')+'</div><div class="row-sub">눌러서 '+(auto?'끄기':'켜기')+'</div></div></button>':''); })()+
       '<button class="row" data-act="share-link"><div class="row-main"><div class="row-title">가족용 주소 보내기</div><div class="row-sub">가족이 이 주소로 열고 홈 화면에 추가하면, 공유한 내용이 자동으로 보여요</div></div>'+ICON.chev+'</button>'+
-    '</div><p class="foot">QR 이미지는 이 휴대폰에 따로 저장돼서 백업을 가져와도 지워지지 않아요. 가족에게는 QR 화면의 보내기로 나눠 주세요.</p><p class="foot">모든 내용은 이 휴대폰 안에만 저장돼요. 인터넷 없이도 열리지만, 지도와 길찾기는 인터넷이 필요해요.</p><p class="foot">앱 버전 60</p>'+
+    '</div><p class="foot">QR 이미지는 이 휴대폰에 따로 저장돼서 백업을 가져와도 지워지지 않아요. 가족에게는 QR 화면의 보내기로 나눠 주세요.</p><p class="foot">모든 내용은 이 휴대폰 안에만 저장돼요. 인터넷 없이도 열리지만, 지도와 길찾기는 인터넷이 필요해요.</p><p class="foot">앱 버전 61</p>'+
     '';
 }
 
@@ -1262,7 +1263,7 @@ function hashStr(s){ var h=0; for(var i=0;i<s.length;i++) h=(h*31+s.charCodeAt(i
 function shareSig(o){ var c=Object.assign({},o); delete c.publishedAt; return JSON.stringify(c); }
 function warnSig(o){ return shareLines(o).filter(function(x){return x.w;}).map(function(x){return x.t;}).sort().join('\n'); }
 function shareBlocked(){ var o=shareData(), w=warnSig(o); return !!w&&w!==(lsGet(LS_SHAREOK)||''); }
-function autoShareSoon(){ if(!autoOn()) return; clearTimeout(autoT); autoT=setTimeout(autoShareNow,15000); }
+function autoShareSoon(){ if(!autoOn()) return; clearTimeout(autoT); autoT=setTimeout(autoShareNow,4000); }
 function autoShareNow(){
   clearTimeout(autoT); autoT=null;
   if(!autoOn()||autoBusy||!navigator.onLine) return;
@@ -1273,7 +1274,9 @@ function autoShareNow(){
     if(ui.tab==='info') render(); return;
   }
   autoBusy=true;
-  sharePublish(o).then(function(){ if(ui.tab==='info') render(); }).catch(function(){}).then(function(){ autoBusy=false; });
+  sharePublish(o).then(function(){ try{ localStorage.removeItem('kyosaka:shareErr'); }catch(e){} if(ui.tab==='info') render(); })
+    .catch(function(e){ var s=e&&e.status; lsSet('kyosaka:shareErr',s===401?'토큰이 맞지 않거나 만료됐어요':(s===403||s===404)?'토큰에 저장소 쓰기 권한이 없어요':!navigator.onLine?'인터넷이 없어서 못 올렸어요':'올리지 못했어요'+(s?' ('+s+')':'')); if(ui.tab==='info') render(); })
+    .then(function(){ autoBusy=false; });
 }function shareLink(){
   var url=APP_URL+'?family', text='교토·오사카 여행 일정이에요. 열어서 홈 화면에 추가해 두면 인터넷 없이도 볼 수 있어요.';
   if(navigator.share){ navigator.share({title:'교토·오사카 가족여행',text:text,url:url}).catch(function(){}); return; }
