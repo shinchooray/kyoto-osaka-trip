@@ -654,6 +654,9 @@ ul.tev-memo{font-size:14px;color:var(--muted)}
 .pv .pv-w{background:#FFF1B8;color:#5A4500;border-radius:4px;padding:2px 6px}
 .tk-steps{margin:0 0 12px;padding-left:20px;font-size:14px;line-height:1.55}
 .tk-steps b{font-weight:700}
+.rt-ft .rt-cost2{white-space:nowrap;display:inline-block}
+.rt-go{margin-left:auto;flex:none;padding:4px 11px;border-radius:999px;background:var(--rt-bg);color:var(--rt-fg);font-size:13px;font-weight:800;text-decoration:none;white-space:nowrap}
+.rt-ft-t{flex:1}
 .rt-stale{display:inline-block;margin-top:6px;padding:4px 10px;border-radius:8px;background:#FFF1C9;color:#7A4D00;font-size:13px;font-weight:700}
 .rt-stale+.rt-map{margin-top:6px}
 .pl-row{align-items:center}
@@ -737,7 +740,7 @@ function appLink(r){
 }
 var HOW={flight:'비행기',train:'전철',bus:'버스',walk:'도보',taxi:'택시',etc:'이동'};
 function routeOf(ev){ var r=ev&&ev.route; if(!r||!(r.how||r.min||r.detail)) return null; if(String(r.min)==='0'||/이동\s*없음/.test(r.detail||'')) return null; if(r.how==='walk'&&!(+r.min>0)) return null; return r; }
-function routeLine(r){ var p=[]; p.push(HOW[r.how]||r.how||'이동'); if(r.min) p.push('약 '+r.min+'분'); if(r.cost) p.push(r.cost); return p.join(', '); }
+function routeLine(r){ var p=[]; p.push(r.name||HOW_SHOW[r.how]||'이동'); if(r.min) p.push('약 '+r.min+'분'); if(r.cost) p.push(r.cost); return p.join(', '); }
 function prevQuery(d,ev){
   for(var j=prevIdx(d,ev);j>=0;j--){ var q=evQuery(d.items[j]); if(q) return q; }
   var h=null; state.reservations.forEach(function(r){ if(r.cat==='hotel'&&r.date&&r.endDate&&r.date<d.date&&d.date<=r.endDate) h=r; });
@@ -765,27 +768,26 @@ function routeDiagram(steps){
   }).join('')+'</ol>';
 }
 function flagRoute(x){ if(x&&routeOf(x)){ x.routeStale=true; markDirty('event',x.id,'upsert'); } }
-function routeCard(d,ev,kind,openIt){
+// between stops: just how and how long (and fare); "경로 보기" jumps straight to Google Maps.
+// a named or timed ride (flight, reserved train) keeps its name and times.
+var HOW_SHOW={flight:'비행기',train:'대중교통',bus:'대중교통',transit:'대중교통',walk:'도보',taxi:'택시',etc:'이동'};
+function howForm(h){ return h==='bus'||h==='transit'||h==='etc'?'train':(h||''); }
+function howIcon(h){ return HOW_ICON[h==='bus'||h==='transit'||!HOW_ICON[h]?'train':h]; }
+function routeCard(d,ev,kind){
   var r=routeOf(ev); if(!r) return '';
-  var to=evQuery(ev), from=prevQuery(d,ev), walk=r.how==='walk', opts=Array.isArray(r.opts)?r.opts.filter(function(o){return o&&o.steps&&o.steps.length;}):[];
+  var to=evQuery(ev), from=prevQuery(d,ev), special=!!(r.name||r.span)||r.how==='flight';
   var cost=(r.cost&&r.cost!=='무료')?r.cost:'';
-  var head='<div class="rt-ft">'+(kind!=='row'?'<span class="rt-ic sm">'+(HOW_ICON[r.how]||HOW_ICON.train)+'</span>':'')+
-    '<span class="rt-ft-t"><b class="rt-to">'+esc(r.name||HOW[r.how]||r.how||'이동')+'</b>'+(r.span?'<span class="rt-span">'+esc(r.span)+'</span>':'')+
-    (r.min?'<span class="rt-min">(약 '+esc(r.min)+'분)</span>':'')+(cost?'<span class="rt-cost2">'+esc(cost)+'</span>':'')+'</span></div>';
-  // a place before or at this stop changed: the saved route may be off until the chat redoes it
-  if(ev.routeStale&&canEdit()) head+='<div class="rt-stale">⚠ 장소가 바뀌었어요 · 경로 다시 확인</div>'+(to&&r.how!=='flight'?'<a class="rt-map" href="'+esc(routeUrl(from,to,r.how))+'" target="_blank" rel="noopener">'+ICON.nav+'구글 지도로 지금 경로 보기</a>':'');
-  if(walk) return '<div class="rt2 rt2--'+kind+' rt2--walk">'+head+'</div>';
-  var body='';
-  if(opts.length>1) body=opts.map(function(o,k){ return '<div class="rd-opt"><div class="rd-opt-h">방법 '+(k+1)+(o.label?' · '+esc(o.label):'')+(o.min?' <small>(약 '+esc(o.min)+'분)</small>':'')+(o.cost?' <small>'+esc(o.cost)+'</small>':'')+'</div>'+routeDiagram(o.steps)+'</div>'; }).join('');
-  else if(opts.length===1) body=routeDiagram(opts[0].steps);
-  else { var parts=String(r.detail||'').split(/\s*(?:→|->)\s*/).filter(Boolean); body=parts.length>1?routeSteps(r.detail):(r.detail?'<p class="rt-d">'+esc(r.detail)+'</p>':''); }
-  if(to&&r.how!=='flight') body+='<a class="rt-map" href="'+esc(routeUrl(from,to,r.how))+'" target="_blank" rel="noopener">'+ICON.nav+'구글 지도로 경로 보기</a>';
-  if(!body) return '<div class="rt2 rt2--'+kind+'">'+head+'</div>';
-  return '<div class="rt2 rt2--'+kind+'">'+head+'<details class="rt-more"'+(kind==='box'||openIt?' open':'')+'><summary>'+(opts.length>1?'방법 '+opts.length+'가지 보기':'경로 보기')+'</summary>'+body+'</details></div>';
-}
-function routeRow(d,ev){
+  var label=special&&r.name?r.name:(HOW_SHOW[r.how]||'이동');
+  var go=to&&r.how!=='flight'?'<a class="rt-go" href="'+esc(routeUrl(from,to,r.how))+'" target="_blank" rel="noopener">경로 보기 ↗</a>':'';
+  var head='<div class="rt-ft">'+(kind!=='row'?'<span class="rt-ic sm">'+howIcon(r.how)+'</span>':'')+
+    '<span class="rt-ft-t"><b class="rt-to">'+esc(label)+'</b>'+(special&&r.span?'<span class="rt-span">'+esc(r.span)+'</span>':'')+
+    (r.min?'<span class="rt-min">약 '+esc(r.min)+'분</span>':'')+(cost?'<span class="rt-cost2">교통비 '+esc(cost)+'</span>':'')+'</span>'+go+'</div>';
+  // a place before or at this stop changed: time and fare may be off until the chat redoes them
+  if(ev.routeStale&&canEdit()) head+='<div class="rt-stale">⚠ 장소가 바뀌었어요 · 시간 다시 확인</div>';
+  return '<div class="rt2 rt2--'+kind+(r.how==='walk'?' rt2--walk':'')+'">'+head+'</div>';
+}function routeRow(d,ev){
   var r=routeOf(ev); if(!r) return '';
-  return '<li class="ev-route"><div></div><div class="ev-rail"><span class="rt-ic">'+(HOW_ICON[r.how]||HOW_ICON.train)+'</span></div>'+routeCard(d,ev,'row')+'</li>';
+  return '<li class="ev-route"><div></div><div class="ev-rail"><span class="rt-ic">'+howIcon(r.how)+'</span></div>'+routeCard(d,ev,'row')+'</li>';
 }
 function routeBox(d,ev){ return routeCard(d,ev,'box'); }
 function catBadge(c){ return '<span class="cat cat--'+esc(CAT[c]?c:'etc')+'">'+esc(CAT[c]||'기타')+'</span>'; }
@@ -827,6 +829,12 @@ function nameParts(n){
   if(n.indexOf('→')>0) return {main:n,from:n.split('→')[0].trim(),to:n.split('→').pop().trim()};
   return {main:n,from:'',to:''};
 }
+// "교토 숙소" / "오사카 숙소": the city of the check-in day (moving day counts as the new city)
+function hotelLabel(r){
+  var c=''; state.days.forEach(function(d){ if(r&&d.date===r.date) c=d.city; });
+  return ({kyoto:'교토 ',osaka:'오사카 ',move:'오사카 '}[c]||'')+'숙소';
+}
+function hotelOfEv(ev){ var h=null; state.reservations.forEach(function(r){ if(r.cat==='hotel'&&((ev.place&&r.title===ev.place)||(ev.placeOrig&&r.nameOrig===ev.placeOrig))) h=r; }); return h; }
 function isHotelEv(ev){ return state.reservations.some(function(r){ return r.cat==='hotel'&&((ev.place&&r.title===ev.place)||(ev.placeOrig&&r.nameOrig===ev.placeOrig)); }); }
 function hotelTop(d){
   var h=hotelTonight(d.date), out=null; state.reservations.forEach(function(r){ if(r.cat==='hotel'&&r.endDate===d.date) out=r; });
@@ -844,11 +852,11 @@ function startNode(d,mode){
   var q=h.address||h.addressJa, map=q?'<a class="act" href="'+esc(mapUrl(q))+'" target="_blank" rel="noopener">'+ICON.pin+'지도</a>':'';
   var t='', fr=first&&first.route;
   if(first&&first.time&&fr&&+fr.min>0){ var m=mins(first.time)-(+fr.min); if(m>=0){ m=Math.floor(m/5)*5; t=('0'+Math.floor(m/60)).slice(-2)+':'+('0'+(m%60)).slice(-2); } }
-  if(mode==='today') return '<li class="tev tev--stay tev--start"><div class="tev-head">'+(t?'<span class="tev-time">'+t+'</span>':'')+'<span class="tev-kind">'+TYICON.stay+'출발</span></div><h3>숙소</h3></li>';
-  return '<li class="ev ev--stay ev--start"><div class="ev-time">'+t+'</div><div class="ev-rail"><span class="ev-dot"></span></div><div class="ev-body"><div class="ev-kind">'+TYICON.stay+'출발</div><h3 class="ev-title">숙소</h3></div></li>';
+  if(mode==='today') return '<li class="tev tev--stay tev--start"><div class="tev-head">'+(t?'<span class="tev-time">'+t+'</span>':'')+'<span class="tev-kind">'+TYICON.stay+'출발</span></div><h3>'+esc(hotelLabel(h))+'</h3></li>';
+  return '<li class="ev ev--stay ev--start"><div class="ev-time">'+t+'</div><div class="ev-rail"><span class="ev-dot"></span></div><div class="ev-body"><div class="ev-kind">'+TYICON.stay+'출발</div><h3 class="ev-title">'+esc(hotelLabel(h))+'</h3></div></li>';
 }
 function headHtml(ev,tag,cls){
-  if(isHotelEv(ev)) return '<'+tag+(cls?' class="'+cls+'"':'')+'>숙소</'+tag+'>';
+  if(isHotelEv(ev)) return '<'+tag+(cls?' class="'+cls+'"':'')+'>'+esc(hotelLabel(hotelOfEv(ev)))+'</'+tag+'>';
   var p=nameParts(evName(ev));
   var h='<'+tag+(cls?' class="'+cls+'"':'')+'>'+esc(p.main)+'</'+tag+'>';
   if(p.from&&p.to&&p.main!==evName(ev)) h+='<div class="mv-line"><span>'+esc(p.from)+'</span><b class="mv-arr">→</b><span>'+esc(p.to)+'</span></div>';
@@ -1046,7 +1054,8 @@ function changesText(){
   var payload={app:'kyosaka',type:'offline-changes',exportedAt:new Date().toISOString(),changes:ch,checklist:state.checklist,bakeries:PLD.bread,restaurants:PLD.food};
   return '오프라인 앱에서 직접 고친 내용이야. 아래 JSON을 여행 앱 데이터에 반영해줘.\n'+
     '- changes: upsert는 같은 id가 있으면 그 항목을 이 내용으로 바꾸고(event는 date의 날짜로 옮기고 시간순 정렬), 없으면 새로 추가해. delete는 그 id를 지워. kind가 day면 그 날짜의 제목(title)만 바꿔.\n'+
-    '- routeStale:true인 일정은 앞 일정이나 그 장소가 바뀌어서 route가 안 맞을 수 있어. 앞 일정에서 이 일정까지 가는 route(name, span, min, cost, opts 포함)를 새로 짜고 routeStale은 지워줘.\n'+
+    '- route는 how(train=대중교통, walk, taxi, flight), min(예상 분), cost(교통비)만 있으면 돼. name/span은 예약한 비행기·기차처럼 정해진 것만 넣어줘. 길 안내는 앱이 구글 지도로 보여줘.\n'+
+    '- routeStale:true인 일정은 앞 일정이나 그 장소가 바뀌어서 시간·교통비가 안 맞을 수 있어. 앞 일정에서 이 일정까지의 how, min, cost를 새로 확인하고 routeStale은 지워줘.\n'+
     '- event에 lat/lng가 없으면 원래 있던 lat/lng도 지워. 지도 검색어(map)로 위치를 다시 찾게 하려는 거야.\n'+
     '- type이 cafe인 일정은 빵집이야(bakery는 빵집 리스트의 id). type이 food인 일정의 restaurant는 식당 리스트의 id야.\n'+
     '- checklist: 이 목록(순서, 이름, 체크 상태)으로 통째로 바꿔.\n'+
@@ -1098,7 +1107,7 @@ function renderInfo(){
     '<h2 class="group-label">가족과 나누기</h2><div class="list">'+
       (function(){ var at=lsGet(LS_PUBAT); return '<button class="row" data-act="share-prep"><div class="row-main"><div class="row-title">가족 앱에 공유하기</div><div class="row-sub">'+(at?'마지막 공유 '+esc(whenText(at))+'. 바꾼 내용이 있으면 다시 눌러 주세요':'오늘·일정·경비·예약을 예약번호, 주소 같은 정보는 빼고 가족 앱에 보내요')+'</div></div>'+ICON.chev+'</button>'; })()+
       '<button class="row" data-act="share-link"><div class="row-main"><div class="row-title">가족용 주소 보내기</div><div class="row-sub">가족이 이 주소로 열고 홈 화면에 추가하면, 공유한 내용이 자동으로 보여요</div></div>'+ICON.chev+'</button>'+
-    '</div><p class="foot">QR 이미지는 이 휴대폰에 따로 저장돼서 백업을 가져와도 지워지지 않아요. 가족에게는 QR 화면의 보내기로 나눠 주세요.</p><p class="foot">모든 내용은 이 휴대폰 안에만 저장돼요. 인터넷 없이도 열리지만, 지도와 길찾기는 인터넷이 필요해요.</p><p class="foot">앱 버전 55</p>'+
+    '</div><p class="foot">QR 이미지는 이 휴대폰에 따로 저장돼서 백업을 가져와도 지워지지 않아요. 가족에게는 QR 화면의 보내기로 나눠 주세요.</p><p class="foot">모든 내용은 이 휴대폰 안에만 저장돼요. 인터넷 없이도 열리지만, 지도와 길찾기는 인터넷이 필요해요.</p><p class="foot">앱 버전 56</p>'+
     '';
 }
 
@@ -1838,13 +1847,12 @@ function evForm(id,preset){
     field('현지 이름','placeOrig',ev.placeOrig,'text',' placeholder="예: 金閣寺 (선택)"')+
     '<label class="field"><span>지도 검색어</span><input name="map" value="'+esc(ev.map||'')+'" placeholder="예: Kinkaku-ji"><small>지도 버튼과 일정 탭 지도가 모두 이 검색어로 찾아요. '+(gKey()?'구글 지도처럼 한글 가게 이름도 잘 찾아요. 체인점은 지점명까지 적어 주세요.':'영어나 일본어로 적으면 더 정확해요. 정보 탭에서 구글 위치 찾기를 켜면 한글 이름도 잘 찾아요.')+' 구글 지도에서 길게 눌러 나온 좌표(예: 34.9671, 135.7727)를 붙여넣으면 정확히 그 지점에 찍혀요. 비워두면 장소 이름으로 찾아요.</small></label>'+
     areaField('메모','memo',ev.memo)+
-    '<fieldset class="rt-fields"><legend>가는 길 (앞 일정 장소에서)</legend>'+
-    '<p class="sub" style="margin:0 0 8px">자동으로 계산되지 않아요. 전용 채팅이 짜준 경로가 들어 있어요. 장소를 바꾸면 ⚠ 표시가 붙으니 ③으로 보내 다시 짜 달라고 하면 돼요. "구글 지도로 경로 보기" 버튼은 항상 앞 일정에서 지금 경로를 보여줘요.</p>'+
-    field('탈 것 이름','rname',rt.name,'text',' placeholder="예: 하루카 30호, 트리니티항공 TW327 (선택)"')+
-    field('출발 → 도착 시각','rspan',rt.span,'text',' placeholder="예: 14:14 → 15:34 (선택)"')+
-    '<div class="two">'+selectField('방법','rhow',rt.how||'',[['','없음'],['flight','비행기'],['train','전철'],['bus','버스'],['walk','도보'],['taxi','택시'],['etc','기타']])+field('걸리는 시간(분)','rmin',rt.min,'number',' inputmode="numeric" min="0"')+'</div>'+
-    areaField('경로','rdetail',rt.detail,'예: JR 나라선 이나리역 → 교토역 환승 → 사가노선 사가아라시야마역')+
-    field('요금','rcost',rt.cost,'text',' placeholder="예: 1인 240엔"')+'</fieldset>'+
+    '<fieldset class="rt-fields"><legend>가는 길 (앞 일정에서)</legend>'+
+    '<p class="sub" style="margin:0 0 8px">방법, 예상 시간, 교통비만 적어 두면 돼요. 길은 일정 사이의 "경로 보기"를 누르면 구글 지도가 바로 알려줘요. 예약한 비행기나 기차처럼 정해진 것만 이름과 시각을 적어요.</p>'+
+    '<div class="two">'+selectField('방법','rhow',howForm(rt.how),[['','없음'],['train','대중교통'],['walk','도보'],['taxi','택시'],['flight','비행기']])+field('걸리는 시간(분)','rmin',rt.min,'number',' inputmode="numeric" min="0"')+'</div>'+
+    field('교통비','rcost',rt.cost,'text',' placeholder="예: 1인 240엔"')+
+    field('탈 것 이름 (예약한 경우)','rname',rt.name,'text',' placeholder="예: 하루카 30호, 트리니티항공 TW327"')+
+    field('출발 → 도착 시각 (예약한 경우)','rspan',rt.span,'text',' placeholder="예: 14:14 → 15:34"')+'</fieldset>'+
     '<div class="actions">'+(id?'<button type="button" class="btn btn-danger" data-act="del-ev" data-id="'+id+'">삭제</button>':'')+
     '<button type="button" class="btn btn-ghost" data-act="sheet-close">취소</button><button type="submit" class="btn btn-primary">저장</button></div></form>');
 }
@@ -2117,8 +2125,12 @@ document.addEventListener('submit',function(e){
       item.time=v.time; item.type=v.type; item.title=v.place; item.place=v.place; item.placeOrig=v.placeOrig; item.map=v.map; item.memo=v.memo;
       PLK.forEach(function(k){ var P=PL[k]; if(v.type===P.ev&&v[P.fld]&&findPl(k,v[P.fld])) item[P.fld]=v[P.fld]; else delete item[P.fld]; });
       // keep the saved route (with its step diagram) unless the route fields were edited here
-      var ro=item.route||{}, routeEdited=['how','name','span','min','detail','cost'].some(function(k){ return String(ro[k]==null?'':ro[k])!==String(v['r'+k]||''); });
-      if(routeEdited){ item.route=(v.rhow||v.rmin||v.rdetail||v.rcost||v.rname)?{how:v.rhow,name:v.rname,span:v.rspan,min:v.rmin,detail:v.rdetail,cost:v.rcost}:null; delete item.routeStale; }
+      var ro=item.route||{}, routeEdited=['how','name','span','min','cost'].some(function(k){ var a=ro[k]==null?'':String(ro[k]); if(k==='how') a=howForm(a); return a!==String(v['r'+k]||''); });
+      if(routeEdited){
+        var keepHow=howForm(ro.how)===v.rhow?ro.how:v.rhow;
+        item.route=(v.rhow||v.rmin||v.rcost||v.rname)?Object.assign({},ro,{how:keepHow,name:v.rname,span:v.rspan,min:v.rmin,cost:v.rcost}):null;
+        delete item.routeStale;
+      }
       var oldDay=old?s.days[old.day]:null, oldNext=old?oldDay.items[old.idx+1]:null;
       s.days.forEach(function(d){d.items=d.items.filter(function(x){return x.id!==item.id;});});
       var target=s.days[dayIdx];
