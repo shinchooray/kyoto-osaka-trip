@@ -938,7 +938,7 @@ function renderRes(){
     body+(canEdit()?'<div class="pad"><button class="add wide" data-act="res-add">직접 입력해서 추가</button></div>':'');
 }
 
-var CAPTURE_CHAT='https://claude.ai/chat/5cbe26b4-8b7c-4106-844f-2b1535614d69';
+var CAPTURE_CHAT='https://claude.ai/chat/81adfd72-ac0c-4aaa-8b9a-b4b129dbb2f8';
 var LS_DIRTY='kyosaka:dirty';
 function dirtyList(){ try{ return JSON.parse(localStorage.getItem(LS_DIRTY)||'[]'); }catch(e){ return []; } }
 function markDirty(kind,id,op,snap){
@@ -1027,7 +1027,7 @@ function renderInfo(){
         return '<button class="row" data-act="share-prep"><div class="row-main"><div class="row-title">가족 앱에 공유하기</div><div class="row-sub">'+sub+'</div></div>'+ICON.chev+'</button>'+
           (lsGet(LS_GHTOKEN)?'<button class="row" data-act="share-auto"><div class="row-main"><div class="row-title">자동 공유 '+(auto?'켜짐':'꺼짐')+'</div><div class="row-sub">눌러서 '+(auto?'끄기':'켜기')+'</div></div></button>':''); })()+
       '<button class="row" data-act="share-link"><div class="row-main"><div class="row-title">가족용 주소 보내기</div><div class="row-sub">가족이 이 주소로 열고 홈 화면에 추가하면, 공유한 내용이 자동으로 보여요</div></div>'+ICON.chev+'</button>'+
-    '</div><p class="foot">QR 이미지는 이 휴대폰에 따로 저장돼서 백업을 가져와도 지워지지 않아요. 가족에게는 QR 화면의 보내기로 나눠 주세요.</p><p class="foot">모든 내용은 이 휴대폰 안에만 저장돼요. 인터넷 없이도 열리지만, 지도와 길찾기는 인터넷이 필요해요.</p><p class="foot">앱 버전 61</p>'+
+    '</div><p class="foot">QR 이미지는 이 휴대폰에 따로 저장돼서 백업을 가져와도 지워지지 않아요. 가족에게는 QR 화면의 보내기로 나눠 주세요.</p><p class="foot">모든 내용은 이 휴대폰 안에만 저장돼요. 인터넷 없이도 열리지만, 지도와 길찾기는 인터넷이 필요해요.</p><p class="foot">앱 버전 62</p>'+
     '';
 }
 
