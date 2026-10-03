@@ -1098,7 +1098,7 @@ function renderInfo(){
     '<h2 class="group-label">가족과 나누기</h2><div class="list">'+
       (function(){ var at=lsGet(LS_PUBAT); return '<button class="row" data-act="share-prep"><div class="row-main"><div class="row-title">가족 앱에 공유하기</div><div class="row-sub">'+(at?'마지막 공유 '+esc(whenText(at))+'. 바꾼 내용이 있으면 다시 눌러 주세요':'오늘·일정·경비·예약을 예약번호, 주소 같은 정보는 빼고 가족 앱에 보내요')+'</div></div>'+ICON.chev+'</button>'; })()+
       '<button class="row" data-act="share-link"><div class="row-main"><div class="row-title">가족용 주소 보내기</div><div class="row-sub">가족이 이 주소로 열고 홈 화면에 추가하면, 공유한 내용이 자동으로 보여요</div></div>'+ICON.chev+'</button>'+
-    '</div><p class="foot">QR 이미지는 이 휴대폰에 따로 저장돼서 백업을 가져와도 지워지지 않아요. 가족에게는 QR 화면의 보내기로 나눠 주세요.</p><p class="foot">모든 내용은 이 휴대폰 안에만 저장돼요. 인터넷 없이도 열리지만, 지도와 길찾기는 인터넷이 필요해요.</p><p class="foot">앱 버전 54</p>'+
+    '</div><p class="foot">QR 이미지는 이 휴대폰에 따로 저장돼서 백업을 가져와도 지워지지 않아요. 가족에게는 QR 화면의 보내기로 나눠 주세요.</p><p class="foot">모든 내용은 이 휴대폰 안에만 저장돼요. 인터넷 없이도 열리지만, 지도와 길찾기는 인터넷이 필요해요.</p><p class="foot">앱 버전 55</p>'+
     '';
 }
 
@@ -1836,9 +1836,10 @@ function evForm(id,preset){
     plPick('food',ev)+plPick('bread',ev)+
     field('장소','place',ev.place||ev.title,'text',' required placeholder="예: 킨카쿠지"')+
     field('현지 이름','placeOrig',ev.placeOrig,'text',' placeholder="예: 金閣寺 (선택)"')+
-    '<label class="field"><span>지도 검색어</span><input name="map" value="'+esc(ev.map||'')+'" placeholder="예: Kinkaku-ji"><small>지도 버튼과 일정 탭 지도가 모두 이 검색어로 찾아요. 영어나 일본어로 적으면 더 정확해요. 구글 지도에서 길게 눌러 나온 좌표(예: 34.9671, 135.7727)를 붙여넣으면 정확히 그 지점에 찍혀요. 비워두면 장소 이름으로 찾아요.</small></label>'+
+    '<label class="field"><span>지도 검색어</span><input name="map" value="'+esc(ev.map||'')+'" placeholder="예: Kinkaku-ji"><small>지도 버튼과 일정 탭 지도가 모두 이 검색어로 찾아요. '+(gKey()?'구글 지도처럼 한글 가게 이름도 잘 찾아요. 체인점은 지점명까지 적어 주세요.':'영어나 일본어로 적으면 더 정확해요. 정보 탭에서 구글 위치 찾기를 켜면 한글 이름도 잘 찾아요.')+' 구글 지도에서 길게 눌러 나온 좌표(예: 34.9671, 135.7727)를 붙여넣으면 정확히 그 지점에 찍혀요. 비워두면 장소 이름으로 찾아요.</small></label>'+
     areaField('메모','memo',ev.memo)+
     '<fieldset class="rt-fields"><legend>가는 길 (앞 일정 장소에서)</legend>'+
+    '<p class="sub" style="margin:0 0 8px">자동으로 계산되지 않아요. 전용 채팅이 짜준 경로가 들어 있어요. 장소를 바꾸면 ⚠ 표시가 붙으니 ③으로 보내 다시 짜 달라고 하면 돼요. "구글 지도로 경로 보기" 버튼은 항상 앞 일정에서 지금 경로를 보여줘요.</p>'+
     field('탈 것 이름','rname',rt.name,'text',' placeholder="예: 하루카 30호, 트리니티항공 TW327 (선택)"')+
     field('출발 → 도착 시각','rspan',rt.span,'text',' placeholder="예: 14:14 → 15:34 (선택)"')+
     '<div class="two">'+selectField('방법','rhow',rt.how||'',[['','없음'],['flight','비행기'],['train','전철'],['bus','버스'],['walk','도보'],['taxi','택시'],['etc','기타']])+field('걸리는 시간(분)','rmin',rt.min,'number',' inputmode="numeric" min="0"')+'</div>'+
