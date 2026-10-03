@@ -566,10 +566,11 @@ ul.tev-memo{font-size:14px;color:var(--muted)}
 .tk-steps{margin:0 0 12px;padding-left:20px;font-size:14px;line-height:1.55}
 .tk-steps b{font-weight:700}
 
-.rt2 .rt-ft{flex-wrap:wrap;row-gap:6px}
-.rt2 .rt-ft-t{white-space:nowrap;flex:1 0 calc(100% - 40px);min-width:auto}
-.rt2 .rt-fare,.rt2 .rt-go{margin-left:0}
-.rt2 .rt-ft .rt-ic.sm+.rt-ft-t~.rt-fare,.rt2 .rt-ft .rt-ic.sm+.rt-ft-t~.rt-go{margin-left:0}
+.rt2 .rt-ft{flex-wrap:nowrap;gap:6px}
+.rt2 .rt-ft-t{flex:0 1 auto;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.rt2 .rt-to{font-size:14px}
+.rt2 .rt-min{margin-left:4px;font-size:12px}
+.rt2 .rt-fare,.rt2 .rt-go{padding:3px 8px;font-size:12px}
 .rt-fare{flex:none;margin-left:auto;padding:4px 10px;border-radius:999px;border:1px dashed var(--line);background:var(--surface);color:var(--muted);font:inherit;font-size:12.5px;font-weight:700;cursor:pointer;white-space:nowrap}
 .rt-fare.has{border-style:solid;border-color:color-mix(in srgb,#6B4FA0 40%,var(--line));color:#6B4FA0}
 .rt-fare+.rt-go{margin-left:0}
@@ -693,10 +694,10 @@ function routeCard(d,ev,kind){
   var to=evQuery(ev), from=prevQuery(d,ev);
   var go=to&&r.how!=='flight'?'<a class="rt-go" href="'+esc(routeUrl(from,to,r.how))+'" target="_blank" rel="noopener">경로 보기 ↗</a>':'';
   // fare is what you actually paid: tap to write it, it goes into 경비 > 교통
-  var L=spForLeg(ev.id), fare=L.length?'교통비 '+spSumText(spSum(L)):'';
+  var L=spForLeg(ev.id), fare=L.length?spSumText(spSum(L)):'';
   var fb=r.how==='walk'&&!fare?'':canEdit()?'<button class="rt-fare'+(fare?' has':'')+'" data-act="leg-open" data-id="'+ev.id+'">'+esc(fare||'+ 교통비')+'</button>':(fare?'<span class="rt-fare has">'+esc(fare)+'</span>':'');
   var head='<div class="rt-ft">'+(kind!=='row'?'<span class="rt-ic sm">'+howIcon(r.how)+'</span>':'')+
-    '<span class="rt-ft-t"><b class="rt-to">'+esc(HOW_SHOW[r.how]||'이동')+'</b>'+(r.min?'<span class="rt-min">약 '+esc(r.min)+'분</span>':'')+'</span>'+fb+go+'</div>';
+    '<span class="rt-ft-t"><b class="rt-to">'+esc(HOW_SHOW[r.how]||'이동')+'</b>'+(r.min?'<span class="rt-min">'+esc(r.min)+'분</span>':'')+'</span>'+fb+go+'</div>';
   // a place before or at this stop changed: the time may be off until the chat redoes it
   if(ev.routeStale&&canEdit()) head+='<div class="rt-stale">⚠ 장소가 바뀌었어요 · 시간 다시 확인</div>';
   return '<div class="rt2 rt2--'+kind+(r.how==='walk'?' rt2--walk':'')+'">'+head+'</div>';
@@ -1025,7 +1026,7 @@ function renderInfo(){
         return '<button class="row" data-act="share-prep"><div class="row-main"><div class="row-title">가족 앱에 공유하기</div><div class="row-sub">'+sub+'</div></div>'+ICON.chev+'</button>'+
           (lsGet(LS_GHTOKEN)?'<button class="row" data-act="share-auto"><div class="row-main"><div class="row-title">자동 공유 '+(auto?'켜짐':'꺼짐')+'</div><div class="row-sub">눌러서 '+(auto?'끄기':'켜기')+'</div></div></button>':''); })()+
       '<button class="row" data-act="share-link"><div class="row-main"><div class="row-title">가족용 주소 보내기</div><div class="row-sub">가족이 이 주소로 열고 홈 화면에 추가하면, 공유한 내용이 자동으로 보여요</div></div>'+ICON.chev+'</button>'+
-    '</div><p class="foot">QR 이미지는 이 휴대폰에 따로 저장돼서 백업을 가져와도 지워지지 않아요. 가족에게는 QR 화면의 보내기로 나눠 주세요.</p><p class="foot">모든 내용은 이 휴대폰 안에만 저장돼요. 인터넷 없이도 열리지만, 지도와 길찾기는 인터넷이 필요해요.</p><p class="foot">앱 버전 59</p>'+
+    '</div><p class="foot">QR 이미지는 이 휴대폰에 따로 저장돼서 백업을 가져와도 지워지지 않아요. 가족에게는 QR 화면의 보내기로 나눠 주세요.</p><p class="foot">모든 내용은 이 휴대폰 안에만 저장돼요. 인터넷 없이도 열리지만, 지도와 길찾기는 인터넷이 필요해요.</p><p class="foot">앱 버전 60</p>'+
     '';
 }
 
