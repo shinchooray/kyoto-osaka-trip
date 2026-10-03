@@ -541,6 +541,8 @@ ul.tev-memo{font-size:14px;color:var(--muted)}
 .rt2--walk .rt-to{font-weight:700;color:var(--muted)}
 .rt2--walk{padding:2px 0}
 .rt-min{white-space:nowrap}
+.ver-row{display:flex;align-items:center;gap:8px}
+.ver-btn{padding:2px 9px;border:1px solid var(--line);border-radius:999px;background:var(--surface);color:var(--muted);font:inherit;font-size:12px;font-weight:700;cursor:pointer}
 /* hotel on top of today */
 .htop-s{display:flex;align-items:center;gap:6px;flex-wrap:wrap;width:calc(100% - 32px);margin:10px 16px 6px;padding:6px 10px;border:0;border-radius:10px;background:transparent;color:var(--muted);font:inherit;font-size:13px;text-align:left;cursor:pointer}
 .htop-s svg{width:15px;height:15px;color:#6B4FA0;flex:none}
@@ -1024,7 +1026,7 @@ function renderInfo(){
         return '<button class="row" data-act="share-prep"><div class="row-main"><div class="row-title">가족 앱에 공유하기</div><div class="row-sub">'+sub+'</div></div>'+ICON.chev+'</button>'+
           (lsGet(LS_GHTOKEN)?'<button class="row" data-act="share-auto"><div class="row-main"><div class="row-title">자동 공유 '+(auto?'켜짐':'꺼짐')+'</div><div class="row-sub">눌러서 '+(auto?'끄기':'켜기')+'</div></div></button>':''); })()+
       '<button class="row" data-act="share-link"><div class="row-main"><div class="row-title">가족용 주소 보내기</div><div class="row-sub">가족이 이 주소로 열고 홈 화면에 추가하면, 공유한 내용이 자동으로 보여요</div></div>'+ICON.chev+'</button>'+
-    '</div><p class="foot">QR 이미지는 이 휴대폰에 따로 저장돼서 백업을 가져와도 지워지지 않아요. 가족에게는 QR 화면의 보내기로 나눠 주세요.</p><p class="foot">모든 내용은 이 휴대폰 안에만 저장돼요. 인터넷 없이도 열리지만, 지도와 길찾기는 인터넷이 필요해요.</p><p class="foot">앱 버전 65</p>'+
+    '</div><p class="foot">QR 이미지는 이 휴대폰에 따로 저장돼서 백업을 가져와도 지워지지 않아요. 가족에게는 QR 화면의 보내기로 나눠 주세요.</p><p class="foot">모든 내용은 이 휴대폰 안에만 저장돼요. 인터넷 없이도 열리지만, 지도와 길찾기는 인터넷이 필요해요.</p><p class="foot ver-row">앱 버전 66<button class="ver-btn" data-act="app-refresh">새로고침</button></p>'+
     '';
 }
 
@@ -1262,7 +1264,20 @@ function autoShareNow(){
   sharePublish(o).then(function(){ try{ localStorage.removeItem('kyosaka:shareErr'); }catch(e){} if(ui.tab==='info') render(); })
     .catch(function(e){ var s=e&&e.status; lsSet('kyosaka:shareErr',s===401?'토큰이 맞지 않거나 만료됐어요':(s===403||s===404)?'토큰에 저장소 쓰기 권한이 없어요':!navigator.onLine?'인터넷이 없어서 못 올렸어요':'올리지 못했어요'+(s?' ('+s+')':'')); if(ui.tab==='info') render(); })
     .then(function(){ autoBusy=false; });
-}function shareLink(){
+}// get the newest app now instead of closing and reopening it
+function appRefresh(btn){
+  if(!navigator.onLine){ toast('인터넷이 연결되면 새 버전을 받을 수 있어요'); return; }
+  btn.disabled=true; btn.textContent='확인 중…';
+  var cur=+((String(btn.parentNode.textContent).match(/앱 버전 (\d+)/)||[])[1]||0);
+  var upd=(navigator.serviceWorker&&navigator.serviceWorker.getRegistration)?navigator.serviceWorker.getRegistration().then(function(r){ return r&&r.update(); }).catch(function(){}):Promise.resolve();
+  var get=fetch('./index.html?fresh='+Date.now(),{cache:'no-store'}).then(function(r){ return r.ok?r.text():''; }).catch(function(){ return ''; });
+  Promise.all([upd,get]).then(function(x){
+    var v=+((String(x[1]).match(/앱 버전 (\d+)/)||[])[1]||0);
+    ssSet('kyosaka:toast',v>cur?'앱 버전 '+v+'(으)로 바꿨어요':'지금이 최신 버전이에요');
+    stashUI(); location.reload();
+  });
+}
+function shareLink(){
   var url=APP_URL+'?family', text='교토·오사카 여행 일정이에요. 열어서 홈 화면에 추가해 두면 인터넷 없이도 볼 수 있어요.';
   if(navigator.share){ navigator.share({title:'교토·오사카 가족여행',text:text,url:url}).catch(function(){}); return; }
   toast(quietCopyText(url)?'가족용 주소를 복사했어요':url,true);
@@ -1858,6 +1873,7 @@ document.addEventListener('click',function(e){
   switch(act){
     case 'share-prep': sharePrep(); break;
     case 'share-link': shareLink(); break;
+    case 'app-refresh': appRefresh(el); break;
     case 'share-auto': lsSet(LS_AUTOSHARE,autoOn()?'off':'on'); render(); if(autoOn()){ toast('자동 공유를 켰어요'); autoShareSoon(); } else toast('자동 공유를 껐어요'); break;
     case 'share-go': shareGo(el); break;
     case 'token-edit': tokenSheet(); break;

@@ -1,5 +1,5 @@
 // 앱 화면을 휴대폰에 저장해 두고, 인터넷이 없어도 열리게 합니다.
-const CACHE = 'kyosaka-v4';
+const CACHE = 'kyosaka-v5';
 const SHELL = ['./', './index.html', './manifest.webmanifest', './icon-192.png', './icon-512.png', './apple-touch-icon.png'];
 
 self.addEventListener('install', (e) => {
@@ -45,6 +45,18 @@ self.addEventListener('fetch', (e) => {
     return;
   }
   if (url.origin !== self.location.origin) return;
+
+  // 정보 탭 '새로고침': 저장본을 건너뛰고 서버에서 바로 받아 저장본도 바꿔둠
+  if (url.searchParams.has('fresh')) {
+    e.respondWith(fetch(req, { cache: 'no-store' }).then((res) => {
+      if (res.ok) {
+        const a = res.clone(), b = res.clone();
+        e.waitUntil(caches.open(CACHE).then((c) => Promise.all([c.put('./index.html', a), c.put('./', b)])));
+      }
+      return res;
+    }));
+    return;
+  }
 
   // 저장본을 바로 보여주고, 인터넷이 되면 서버에 새 버전이 있는지 꼭 확인해서 바꿔둠
   e.respondWith(caches.open(CACHE).then((c) =>
