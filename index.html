@@ -543,6 +543,7 @@ ul.tev-memo{font-size:14px;color:var(--muted)}
 .rt-min{white-space:nowrap}
 .rt-edit{background:none;border:0;padding:2px 0;font:inherit;color:inherit;text-align:left;cursor:pointer;border-bottom:1px dashed transparent}
 .rt-edit:active,.rt-edit:hover{border-bottom-color:var(--muted)}
+.dirty-reset{display:block;margin:-2px 0 4px auto;padding:2px 4px}
 .ver-row{display:flex;align-items:center;gap:8px}
 .ver-btn{padding:2px 9px;border:1px solid var(--line);border-radius:999px;background:var(--surface);color:var(--muted);font:inherit;font-size:12px;font-weight:700;cursor:pointer}
 /* hotel on top of today */
@@ -1008,7 +1009,7 @@ function quietCopyText(v){
 function syncBar(){
   // 1 send what changed here → 2 ask in the chat → 3 paste the chat's backup back
   return '<div class="sync">'+
-    (function(){ var n=dirtyList().length; return '<button class="sync-btn'+(n?' has-dirty':'')+'" data-act="send-changes"><span class="sync-n">1</span><span><b>이 앱에서 고친 내용 보내기</b><small>'+(n?'이 앱에서 직접 고친 내용 '+n+'건을 복사해요. 전용 채팅에 붙여넣으면 반영돼요':'고친 내용이 없어도 눌러서 지금 상태를 채팅에 알려줄 수 있어요')+'</small></span>'+(n?'<em class="dirty-n">'+n+'</em>':'')+'</button>'; })()+
+    (function(){ var n=dirtyList().length; return '<button class="sync-btn'+(n?' has-dirty':'')+'" data-act="send-changes"><span class="sync-n">1</span><span><b>이 앱에서 고친 내용 보내기</b><small>'+(n?'이 앱에서 직접 고친 내용 '+n+'건을 복사해요. 전용 채팅에 붙여넣으면 반영돼요':'고친 내용이 없어도 눌러서 지금 상태를 채팅에 알려줄 수 있어요')+'</small></span>'+(n?'<em class="dirty-n">'+n+'</em>':'')+'</button>'+(n?'<button class="link-btn small dirty-reset" data-act="dirty-reset">고친 내용 '+n+'건 초기화</button>':''); })()+
     '<a class="sync-btn" href="'+CAPTURE_CHAT+'" target="_blank" rel="noopener"><span class="sync-n">2</span><span><b>Claude에게 추가·수정 부탁하기</b><small>전용 채팅이 열려요. 1에서 복사한 내용을 붙여넣거나, 예약 캡처를 올리거나, 바꾸고 싶은 일정을 말하면 돼요. 답장 끝의 백업을 복사해 주세요</small></span></a>'+
     '<button class="sync-btn" data-act="backup-paste"><span class="sync-n">3</span><span><b>복사한 백업 붙여넣기</b><small>돌아와서 누르면 바뀐 내용이 이 앱에 바로 반영돼요</small></span></button>'+
   '</div>';
@@ -1037,7 +1038,7 @@ function renderInfo(){
         return '<button class="row" data-act="share-prep"><div class="row-main"><div class="row-title">가족 앱에 공유하기</div><div class="row-sub">'+sub+'</div></div>'+ICON.chev+'</button>'+
           (lsGet(LS_GHTOKEN)?'<button class="row" data-act="share-auto"><div class="row-main"><div class="row-title">자동 공유 '+(auto?'켜짐':'꺼짐')+'</div><div class="row-sub">눌러서 '+(auto?'끄기':'켜기')+'</div></div></button>':''); })()+
       '<button class="row" data-act="share-link"><div class="row-main"><div class="row-title">가족용 주소 보내기</div><div class="row-sub">가족이 이 주소로 열고 홈 화면에 추가하면, 공유한 내용이 자동으로 보여요</div></div>'+ICON.chev+'</button>'+
-    '</div><p class="foot">QR 이미지는 이 휴대폰에 따로 저장돼서 백업을 가져와도 지워지지 않아요. 가족에게는 QR 화면의 보내기로 나눠 주세요.</p><p class="foot">모든 내용은 이 휴대폰 안에만 저장돼요. 인터넷 없이도 열리지만, 지도와 길찾기는 인터넷이 필요해요.</p><p class="foot ver-row">앱 버전 68<button class="ver-btn" data-act="app-refresh">새로고침</button></p>'+
+    '</div><p class="foot">QR 이미지는 이 휴대폰에 따로 저장돼서 백업을 가져와도 지워지지 않아요. 가족에게는 QR 화면의 보내기로 나눠 주세요.</p><p class="foot">모든 내용은 이 휴대폰 안에만 저장돼요. 인터넷 없이도 열리지만, 지도와 길찾기는 인터넷이 필요해요.</p><p class="foot ver-row">앱 버전 69<button class="ver-btn" data-act="app-refresh">새로고침</button></p>'+
     '';
 }
 
@@ -1886,7 +1887,7 @@ document.addEventListener('click',function(e){
   var lk=e.target.closest('a'); if(lk){ if(lk.hasAttribute('data-close-sheet')) setTimeout(closeSheet,300); return; }
   var el=e.target.closest('[data-act]'); if(!el) return;
   var act=el.getAttribute('data-act'), id=el.getAttribute('data-id');
-  if(act!=='del-ev'&&act!=='del-res'&&act!=='del-pl') armed=null;
+  if(act!=='del-ev'&&act!=='del-res'&&act!=='del-pl'&&act!=='dirty-reset') armed=null;
   if(!canEdit()&&/^(ev-|pl-|leg-|res-edit|res-add|sp-open|sp-rate|sp-del|del-|backup-|send-changes|share-|token-|check|ck-)/.test(act)) return;
   switch(act){
     case 'share-prep': sharePrep(); break;
@@ -1944,6 +1945,8 @@ document.addEventListener('click',function(e){
     case 'sp-del': SP.items=SP.items.filter(function(x){return x.id!==id;}); spSave(); render(); var evd=el.getAttribute('data-ev'), lg=el.getAttribute('data-leg'); if(lg) legSheet(lg); else if(evd) spSheet(evd); toast('지웠어요'); break;
     case 'leg-open': legSheet(id); break;
     case 'leg-edit': legEdit(id); break;
+    // forget the list of pending changes only; the trip data itself stays as it is
+    case 'dirty-reset': if(armed!=='dirty'){ armed='dirty'; el.textContent='한 번 더 누르면 초기화'; return; } armed=null; clearDirty(); render(); toast('고친 내용 목록을 비웠어요. 일정은 그대로예요'); break;
     case 'sheet-close': closeSheet(); break;
     case 'copy': copyText(el.getAttribute('data-v')); break;
     case 'taxi': showTaxi(id); break;
