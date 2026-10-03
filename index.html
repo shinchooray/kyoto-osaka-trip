@@ -544,9 +544,10 @@ ul.tev-memo{font-size:14px;color:var(--muted)}
 .rt-edit{background:none;border:0;padding:2px 0;font:inherit;color:inherit;text-align:left;cursor:pointer;border-bottom:1px dashed transparent}
 .rt-edit:active,.rt-edit:hover{border-bottom-color:var(--muted)}
 .dirty-reset{display:block;margin:-2px 0 4px auto;padding:2px 4px}
-.pl-row{-webkit-user-select:none;user-select:none;-webkit-touch-callout:none;position:relative;transition:transform .15s;background:var(--surface)}
-.pl-list.is-dragging .pl-row{transition:transform .15s}
-.pl-row.dragging{transition:none;z-index:2;box-shadow:0 8px 24px rgba(0,0,0,.18);border-radius:12px}
+.pl-row{-webkit-user-select:none;user-select:none;-webkit-touch-callout:none;position:relative;background:var(--surface)}
+.pl-list.is-dragging .pl-row{transition:transform .2s cubic-bezier(.2,.8,.2,1);will-change:transform}
+.pl-row.dragging{transition:none;z-index:2;box-shadow:0 10px 28px rgba(0,0,0,.2);border-radius:12px;opacity:.97}
+.pl-row.settling{transition:transform .18s ease-out}
 .pl-hint{margin:-4px 20px 6px;font-size:12px;color:var(--muted)}
 .ver-row{display:flex;align-items:center;gap:8px}
 .ver-btn{padding:2px 9px;border:1px solid var(--line);border-radius:999px;background:var(--surface);color:var(--muted);font:inherit;font-size:12px;font-weight:700;cursor:pointer}
@@ -1053,7 +1054,7 @@ function renderInfo(){
         return '<button class="row" data-act="share-prep"><div class="row-main"><div class="row-title">가족 앱에 공유하기</div><div class="row-sub">'+sub+'</div></div>'+ICON.chev+'</button>'+
           (lsGet(LS_GHTOKEN)?'<button class="row" data-act="share-auto"><div class="row-main"><div class="row-title">자동 공유 '+(auto?'켜짐':'꺼짐')+'</div><div class="row-sub">눌러서 '+(auto?'끄기':'켜기')+'</div></div></button>':''); })()+
       '<button class="row" data-act="share-link"><div class="row-main"><div class="row-title">가족용 주소 보내기</div><div class="row-sub">가족이 이 주소로 열고 홈 화면에 추가하면, 공유한 내용이 자동으로 보여요</div></div>'+ICON.chev+'</button>'+
-    '</div><p class="foot">QR 이미지는 이 휴대폰에 따로 저장돼서 백업을 가져와도 지워지지 않아요. 가족에게는 QR 화면의 보내기로 나눠 주세요.</p><p class="foot">모든 내용은 이 휴대폰 안에만 저장돼요. 인터넷 없이도 열리지만, 지도와 길찾기는 인터넷이 필요해요.</p><p class="foot ver-row">앱 버전 71<button class="ver-btn" data-act="app-refresh">새로고침</button></p>'+
+    '</div><p class="foot">QR 이미지는 이 휴대폰에 따로 저장돼서 백업을 가져와도 지워지지 않아요. 가족에게는 QR 화면의 보내기로 나눠 주세요.</p><p class="foot">모든 내용은 이 휴대폰 안에만 저장돼요. 인터넷 없이도 열리지만, 지도와 길찾기는 인터넷이 필요해요.</p><p class="foot ver-row">앱 버전 72<button class="ver-btn" data-act="app-refresh">새로고침</button></p>'+
     '';
 }
 
@@ -1559,17 +1560,21 @@ function renderPlaceView(k){
     '<h2 class="group-label">'+cn+' '+P.unit+' '+list.length+'곳</h2>'+(canEdit()&&list.length>1?'<p class="pl-hint">길게 누른 채로 끌면 순서를 바꿀 수 있어요</p>':'')+'<div class="list pl-list">'+(rows||'<div class="text-block empty">'+cn+'에서 가보고 싶은 '+P.unit+'을 추가해 보세요. 일정에 '+P.t+'을 넣을 때 여기서 고를 수 있어요.</div>')+'</div>'+
     (canEdit()?'<div class="pad"><button class="add wide" data-act="pl-add" data-k="'+k+'">'+cn+' '+P.unit+' 추가</button></div>':'');
 }
-function drawPlaceMap(k){
+function drawPlaceMap(k,keepView){
   var box=document.getElementById('tripmap'); if(!box) return;
   var st=document.getElementById('map-status'), P=PL[k];
   if(!navigator.onLine&&!window.L){ box.innerHTML='<div class="map-off">인터넷이 연결되면 지도를 볼 수 있어요</div>'; return; }
   loadLeaflet().then(function(L){
     if(!document.getElementById('tripmap')) return;
+    var keep=keepView&&MAP&&MAP.getContainer()===box;
+    if(keep){ MAPLAYER.clearLayers(); }
+    else {
     if(MAP){ try{ MAP.remove(); }catch(e){} MAP=null; }
     MAP=L.map('tripmap',{zoomControl:true,attributionControl:true}).setView([34.85,135.6],9);
     L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19,attribution:'© OpenStreetMap'}).addTo(MAP);
     MAPLAYER=L.layerGroup().addTo(MAP);
-    MAP.on('popupopen',function(pe){ var a=pe.popup.getElement().querySelector('[data-pop-pl]'); if(a) a.onclick=function(e){ e.preventDefault(); plForm(k,a.getAttribute('data-pop-pl')); }; });
+    }
+    if(!keep) MAP.on('popupopen',function(pe){ var a=pe.popup.getElement().querySelector('[data-pop-pl]'); if(a) a.onclick=function(e){ e.preventDefault(); plForm(k,a.getAttribute('data-pop-pl')); }; });
     var run=++MAPRUN, done=0, bounds=[], miss=[], LIST=plShown(k);
     if(!LIST.length){ if(st) st.textContent=''; MAP.setView(plCur(k)==='osaka'?[34.68,135.50]:[35.0,135.76],12); return; }
     if(st) st.textContent='위치 찾는 중… 0/'+LIST.length;
@@ -1585,7 +1590,7 @@ function drawPlaceMap(k){
         } else miss.push(b);
         if(st) st.textContent=done<LIST.length?'위치 찾는 중… '+done+'/'+LIST.length:(miss.length?miss.length+'곳은 위치를 못 찾았어요':'');
         if(done===LIST.length){
-          if(bounds.length===1) MAP.setView(bounds[0],15); else if(bounds.length) MAP.fitBounds(bounds,{padding:[30,30]});
+          if(!keep){ if(bounds.length===1) MAP.setView(bounds[0],15); else if(bounds.length) MAP.fitBounds(bounds,{padding:[30,30]}); }
           var mm=document.getElementById('map-miss'); if(mm) mm.innerHTML=miss.length?'<div class="list"><div class="row"><div class="row-main"><div class="row-k">지도에 못 올린 '+P.unit+'</div>'+miss.map(function(b){return '<div class="row-sub">'+esc(b.name)+'</div>';}).join('')+'</div></div></div>':'';
         }
       });
@@ -2036,31 +2041,46 @@ var PLD_DRAG=null, plPress=null, plDragEnd=0;
 function plStart(row,y){
   var list=row.closest('.pl-list'); if(!list) return;
   var rows=Array.prototype.slice.call(list.querySelectorAll('.pl-row')), sy=window.scrollY||0;
-  PLD_DRAG={k:row.getAttribute('data-pl'),row:row,rows:rows,from:rows.indexOf(row),to:rows.indexOf(row),startY:y+sy,
-    mids:rows.map(function(r){ var b=r.getBoundingClientRect(); return b.top+sy+b.height/2; }),h:row.getBoundingClientRect().height};
+  PLD_DRAG={k:row.getAttribute('data-pl'),row:row,rows:rows,list:list,from:rows.indexOf(row),to:rows.indexOf(row),startY:y+sy,y:y,
+    tops:rows.map(function(r){ return r.getBoundingClientRect().top+sy; }),
+    mids:rows.map(function(r){ var b=r.getBoundingClientRect(); return b.top+sy+b.height/2; }),h:row.getBoundingClientRect().height,raf:0};
   row.classList.add('dragging'); list.classList.add('is-dragging');
   try{ if(navigator.vibrate) navigator.vibrate(25); }catch(e){}
+  plTick();
 }
-function plMove(y){
+// follow the finger and shift the others on every move; a frame loop only scrolls gently near the screen edges
+function plStep(){
   var D=PLD_DRAG; if(!D) return;
-  if(y<90) window.scrollBy(0,-10); else if(y>window.innerHeight-130) window.scrollBy(0,10);
-  var ay=y+(window.scrollY||0), dy=ay-D.startY, mid=D.mids[D.from]+dy, to=D.from;
+  var ay=D.y+(window.scrollY||0), dy=ay-D.startY, mid=D.mids[D.from]+dy, to=D.from;
   D.mids.forEach(function(m,i){ if(i<D.from&&mid<m) to=Math.min(to,i); if(i>D.from&&mid>m) to=Math.max(to,i); });
-  D.to=to; D.row.style.transform='translateY('+dy+'px)';
+  if(to!==D.to){ D.to=to; try{ if(navigator.vibrate) navigator.vibrate(8); }catch(e){} }
+  D.row.style.transform='translateY('+dy+'px) scale(1.02)';
   D.rows.forEach(function(r,i){ if(r===D.row) return; var sh=0; if(D.from<to&&i>D.from&&i<=to) sh=-D.h; if(D.from>to&&i<D.from&&i>=to) sh=D.h; r.style.transform=sh?'translateY('+sh+'px)':''; });
 }
-function plEnd(){
-  var D=PLD_DRAG; PLD_DRAG=null; if(!D) return; plDragEnd=Date.now();
-  D.rows.forEach(function(r){ r.style.transform=''; r.classList.remove('dragging'); });
-  var list=D.row.closest('.pl-list'); if(list) list.classList.remove('is-dragging');
-  if(D.to===D.from) return;
-  // new order of the shown city, then slot it back into the full list (other city keeps its places)
-  var ids=D.rows.map(function(r){ return r.getAttribute('data-id'); }), moved=ids.splice(D.from,1)[0]; ids.splice(D.to,0,moved);
-  var full=PLD[D.k], byId={}, k=0; full.forEach(function(b){ byId[b.id]=b; });
-  PLD[D.k]=full.map(function(b){ return ids.indexOf(b.id)>=0?byId[ids[k++]]:b; });
-  plSave(D.k); markDirty('pl-'+D.k,'all','upsert'); render();
+function plTick(){
+  var D=PLD_DRAG; if(!D) return;
+  var y=D.y, edgeTop=70, edgeBot=window.innerHeight-110, v=0;
+  if(y<edgeTop) v=-Math.min(12,(edgeTop-y)/4); else if(y>edgeBot) v=Math.min(12,(y-edgeBot)/4);
+  if(v){ window.scrollBy(0,v); plStep(); }
+  D.raf=requestAnimationFrame(plTick);
 }
-function plPressStart(e,x,y){
+function plMove(y){ if(PLD_DRAG){ PLD_DRAG.y=y; plStep(); } }function plEnd(){
+  var D=PLD_DRAG; PLD_DRAG=null; if(!D) return; plDragEnd=Date.now(); cancelAnimationFrame(D.raf);
+  // glide into the empty slot, then put the rows in their new order without redrawing the page
+  var slot=D.tops[D.to]-D.tops[D.from];
+  D.row.classList.remove('dragging'); D.row.classList.add('settling'); D.row.style.transform='translateY('+slot+'px)';
+  setTimeout(function(){
+    D.rows.forEach(function(r){ r.style.transform=''; r.classList.remove('settling'); });
+    D.list.classList.remove('is-dragging');
+    if(D.to===D.from) return;
+    var ids=D.rows.map(function(r){ return r.getAttribute('data-id'); }), moved=ids.splice(D.from,1)[0]; ids.splice(D.to,0,moved);
+    var full=PLD[D.k], byId={}, k=0; full.forEach(function(b){ byId[b.id]=b; });
+    PLD[D.k]=full.map(function(b){ return ids.indexOf(b.id)>=0?byId[ids[k++]]:b; });
+    ids.forEach(function(id,i){ var r=D.list.querySelector('.pl-row[data-id="'+id+'"]'); D.list.appendChild(r); var n=r.querySelector('.pl-n'); if(n) n.textContent=i+1; });
+    plSave(D.k); markDirty('pl-'+D.k,'all','upsert');
+    drawPlaceMap(D.k,true);   // only the pin numbers change; keep the map where it is
+  },190);
+}function plPressStart(e,x,y){
   var row=e.target.closest&&e.target.closest('.pl-row[data-pl]'); if(!row||!canEdit()||e.target.closest('a')) return;
   plPress={x:x,y:y,timer:setTimeout(function(){ if(plPress){ plStart(row,plPress.y); } },450)};
 }
