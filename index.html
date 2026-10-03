@@ -541,6 +541,8 @@ ul.tev-memo{font-size:14px;color:var(--muted)}
 .rt2--walk .rt-to{font-weight:700;color:var(--muted)}
 .rt2--walk{padding:2px 0}
 .rt-min{white-space:nowrap}
+.rt-edit{background:none;border:0;padding:2px 0;font:inherit;color:inherit;text-align:left;cursor:pointer;border-bottom:1px dashed transparent}
+.rt-edit:active,.rt-edit:hover{border-bottom-color:var(--muted)}
 .ver-row{display:flex;align-items:center;gap:8px}
 .ver-btn{padding:2px 9px;border:1px solid var(--line);border-radius:999px;background:var(--surface);color:var(--muted);font:inherit;font-size:12px;font-weight:700;cursor:pointer}
 /* hotel on top of today */
@@ -706,7 +708,7 @@ function routeCard(d,ev,kind){
   var L=spForLeg(ev.id), fare=L.length?spSumText(spSum(L)):'';
   var fb=r.how==='walk'&&!fare?'':canEdit()?'<button class="rt-fare'+(fare?' has':'')+'" data-act="leg-open" data-id="'+ev.id+'">'+esc(fare||'+ 교통비')+'</button>':(fare?'<span class="rt-fare has">'+esc(fare)+'</span>':'');
   var head='<div class="rt-ft">'+(kind!=='row'?'<span class="rt-ic sm">'+howIcon(r.how)+'</span>':'')+
-    '<span class="rt-ft-t"><b class="rt-to">'+esc(HOW_SHOW[r.how]||'이동')+'</b>'+(r.min?'<span class="rt-min">'+esc(r.min)+'분</span>':'')+'</span>'+fb+go+'</div>';
+    (canEdit()?'<button class="rt-ft-t rt-edit" data-act="leg-edit" data-id="'+ev.id+'" aria-label="이동 수단과 시간 고치기">':'<span class="rt-ft-t">')+'<b class="rt-to">'+esc(HOW_SHOW[r.how]||'이동')+'</b>'+(r.min?'<span class="rt-min">'+esc(r.min)+'분</span>':'')+(canEdit()?'</button>':'</span>')+fb+go+'</div>';
   // a place before or at this stop changed: the time may be off until the chat redoes it
   if(ev.routeStale&&canEdit()) head+='<div class="rt-stale">⚠ 장소가 바뀌었어요 · 시간 다시 확인</div>';
   return '<div class="rt2 rt2--'+kind+(r.how==='walk'?' rt2--walk':'')+'">'+head+'</div>';
@@ -1035,7 +1037,7 @@ function renderInfo(){
         return '<button class="row" data-act="share-prep"><div class="row-main"><div class="row-title">가족 앱에 공유하기</div><div class="row-sub">'+sub+'</div></div>'+ICON.chev+'</button>'+
           (lsGet(LS_GHTOKEN)?'<button class="row" data-act="share-auto"><div class="row-main"><div class="row-title">자동 공유 '+(auto?'켜짐':'꺼짐')+'</div><div class="row-sub">눌러서 '+(auto?'끄기':'켜기')+'</div></div></button>':''); })()+
       '<button class="row" data-act="share-link"><div class="row-main"><div class="row-title">가족용 주소 보내기</div><div class="row-sub">가족이 이 주소로 열고 홈 화면에 추가하면, 공유한 내용이 자동으로 보여요</div></div>'+ICON.chev+'</button>'+
-    '</div><p class="foot">QR 이미지는 이 휴대폰에 따로 저장돼서 백업을 가져와도 지워지지 않아요. 가족에게는 QR 화면의 보내기로 나눠 주세요.</p><p class="foot">모든 내용은 이 휴대폰 안에만 저장돼요. 인터넷 없이도 열리지만, 지도와 길찾기는 인터넷이 필요해요.</p><p class="foot ver-row">앱 버전 67<button class="ver-btn" data-act="app-refresh">새로고침</button></p>'+
+    '</div><p class="foot">QR 이미지는 이 휴대폰에 따로 저장돼서 백업을 가져와도 지워지지 않아요. 가족에게는 QR 화면의 보내기로 나눠 주세요.</p><p class="foot">모든 내용은 이 휴대폰 안에만 저장돼요. 인터넷 없이도 열리지만, 지도와 길찾기는 인터넷이 필요해요.</p><p class="foot ver-row">앱 버전 68<button class="ver-btn" data-act="app-refresh">새로고침</button></p>'+
     '';
 }
 
@@ -1423,6 +1425,13 @@ function spChip(ev,date){
 function spDayLine(date){
   var s=spSum(spForDay(date)); if(!s.total) return '';
   return '<button class="sp-day" data-act="tab" data-v="spend"><span>이 날 쓴 돈</span><b>'+esc(spSumText(s))+'</b>'+(s.jpy?'<small>'+esc(krwShort(s.total))+'</small>':'')+'</button>';
+}
+function legEdit(evId){
+  var f=findEv(evId); if(!f) return; var d=state.days[f.day], ev=f.ev, rt=ev.route||{}, from=prevName(d,ev);
+  openSheet('<form data-form="route" data-ev="'+esc(evId)+'"><p class="about-kicker">가는 길</p><h2>'+esc((from?from+' → ':'')+evName(ev))+'</h2>'+
+    '<div class="two">'+selectField('방법','rhow',howForm(rt.how),[['','모름'],['train','대중교통'],['walk','도보'],['taxi','택시'],['flight','비행기']])+field('걸리는 시간(분)','rmin',rt.min,'number',' inputmode="numeric" min="0"')+'</div>'+
+    '<p class="sub">정확한 길과 시간은 "경로 보기"를 누르면 구글 지도가 알려줘요.</p>'+
+    '<div class="actions"><button type="button" class="btn btn-ghost" data-act="sheet-close">취소</button><button type="submit" class="btn btn-primary">저장</button></div></form>');
 }
 function legSheet(evId){
   var f=findEv(evId); if(!f) return; var d=state.days[f.day], ev=f.ev, from=prevName(d,ev), to=evName(ev);
@@ -1934,6 +1943,7 @@ document.addEventListener('click',function(e){
     case 'sp-rate': spRateSheet(); break;
     case 'sp-del': SP.items=SP.items.filter(function(x){return x.id!==id;}); spSave(); render(); var evd=el.getAttribute('data-ev'), lg=el.getAttribute('data-leg'); if(lg) legSheet(lg); else if(evd) spSheet(evd); toast('지웠어요'); break;
     case 'leg-open': legSheet(id); break;
+    case 'leg-edit': legEdit(id); break;
     case 'sheet-close': closeSheet(); break;
     case 'copy': copyText(el.getAttribute('data-v')); break;
     case 'taxi': showTaxi(id); break;
@@ -2024,6 +2034,12 @@ document.addEventListener('submit',function(e){
     var evId=f.getAttribute('data-ev')||'';
     SP.items.push({id:uid('s'),date:v.date||'',ev:evId,cat:v.cat||'etc',amount:amt,cur:cur,memo:v.memo||''});
     spSave(); closeSheet(); render(); toast('기록했어요 '+money(amt,cur)); return;
+  }
+  if(kind==='route'){
+    var rid=f.getAttribute('data-ev'), rf=findEv(rid); if(!rf) return; closeSheet();
+    commit(function(){ var ev=rf.ev, ro=ev.route||{}, keepHow=howForm(ro.how)===v.rhow?ro.how:v.rhow;
+      ev.route=(v.rhow||v.rmin)?Object.assign({},ro,{how:keepHow,min:v.rmin}):null; delete ev.routeStale; });
+    markDirty('event',rid,'upsert'); return;
   }
   if(kind==='leg'){
     var la=parseFloat(String(v.amount||'').replace(/[^0-9.]/g,'')); if(!(la>0)){ toast('금액을 넣어 주세요'); return; }
