@@ -549,7 +549,7 @@ ul.tev-memo{font-size:14px;color:var(--muted)}
 .seg--sm{border-radius:999px}
 .mapbar{display:flex;align-items:center;gap:10px;margin:10px 16px 0}
 .map-status{font-size:13px;color:var(--muted)}
-.tripmap{margin:10px 16px 0;height:62vh;min-height:320px;border-radius:16px;overflow:hidden;border:1px solid var(--line);background:var(--soft)}
+.tripmap{position:relative;z-index:0;isolation:isolate;margin:10px 16px 0;height:62vh;min-height:320px;border-radius:16px;overflow:hidden;border:1px solid var(--line);background:var(--soft)}
 .map-off{display:grid;place-items:center;height:100%;padding:20px;text-align:center;color:var(--muted);font-size:14px}
 .map-miss .list{margin-top:10px}
 .mk-wrap{background:none;border:0}
@@ -1118,7 +1118,7 @@ function renderInfo(){
     '<h2 class="group-label">가족과 나누기</h2><div class="list">'+
       (function(){ var at=lsGet(LS_PUBAT); return '<button class="row" data-act="share-prep"><div class="row-main"><div class="row-title">가족 앱에 공유하기</div><div class="row-sub">'+(at?'마지막 공유 '+esc(whenText(at))+'. 바꾼 내용이 있으면 다시 눌러 주세요':'오늘·일정·경비·예약을 예약번호, 주소 같은 정보는 빼고 가족 앱에 보내요')+'</div></div>'+ICON.chev+'</button>'; })()+
       '<button class="row" data-act="share-link"><div class="row-main"><div class="row-title">가족용 주소 보내기</div><div class="row-sub">가족이 이 주소로 열고 홈 화면에 추가하면, 공유한 내용이 자동으로 보여요</div></div>'+ICON.chev+'</button>'+
-    '</div><p class="foot">QR 이미지는 이 휴대폰에 따로 저장돼서 백업을 가져와도 지워지지 않아요. 가족에게는 QR 화면의 보내기로 나눠 주세요.</p><p class="foot">모든 내용은 이 휴대폰 안에만 저장돼요. 인터넷 없이도 열리지만, 지도와 길찾기는 인터넷이 필요해요.</p><p class="foot">앱 버전 47</p>'+
+    '</div><p class="foot">QR 이미지는 이 휴대폰에 따로 저장돼서 백업을 가져와도 지워지지 않아요. 가족에게는 QR 화면의 보내기로 나눠 주세요.</p><p class="foot">모든 내용은 이 휴대폰 안에만 저장돼요. 인터넷 없이도 열리지만, 지도와 길찾기는 인터넷이 필요해요.</p><p class="foot">앱 버전 48</p>'+
     '';
 }
 
