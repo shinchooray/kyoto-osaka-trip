@@ -1071,7 +1071,7 @@ function changesText(){
     '- event에 lat/lng가 없으면 원래 있던 lat/lng도 지워. 지도 검색어(map)로 위치를 다시 찾게 하려는 거야.\n'+
     '- type이 cafe인 일정은 빵집이야(bakery는 빵집 리스트의 id). 같은 시간에 있는 식사·빵 일정 여러 개는 그중 하나를 고르는 후보이니 그대로 두고, 후보끼리의 순서는 changes에 나온 순서를 따라줘.\n'+
     '- checklist: 이 목록(순서, 이름, 체크 상태)으로 통째로 바꿔.\n'+
-    '- bakeries: 가보고 싶은 빵집 리스트야(id, name, nameOrig, map, memo). 이걸로 통째로 바꾸고, 백업의 state 안에 bakeries로 꼭 넣어줘. 빵집을 추가해 달라고 하면 여기에 넣으면 돼.\n'+
+    '- bakeries: 가보고 싶은 빵집 리스트야(id, city, name, nameOrig, map, memo). city는 kyoto(교토) 또는 osaka(오사카). 이걸로 통째로 바꾸고, 백업의 state 안에 bakeries로 꼭 넣어줘. 빵집을 추가해 달라고 하면 여기에 넣으면 돼.\n'+
     '- 다른 내용은 건드리지 마. 반영한 뒤 무엇을 바꿨는지 짧게 알려주고, 끝에 백업 코드 블록을 붙여줘.\n\n'+
     JSON.stringify(payload);
 }
@@ -1118,7 +1118,7 @@ function renderInfo(){
     '<h2 class="group-label">가족과 나누기</h2><div class="list">'+
       (function(){ var at=lsGet(LS_PUBAT); return '<button class="row" data-act="share-prep"><div class="row-main"><div class="row-title">가족 앱에 공유하기</div><div class="row-sub">'+(at?'마지막 공유 '+esc(whenText(at))+'. 바꾼 내용이 있으면 다시 눌러 주세요':'오늘·일정·경비·예약을 예약번호, 주소 같은 정보는 빼고 가족 앱에 보내요')+'</div></div>'+ICON.chev+'</button>'; })()+
       '<button class="row" data-act="share-link"><div class="row-main"><div class="row-title">가족용 주소 보내기</div><div class="row-sub">가족이 이 주소로 열고 홈 화면에 추가하면, 공유한 내용이 자동으로 보여요</div></div>'+ICON.chev+'</button>'+
-    '</div><p class="foot">QR 이미지는 이 휴대폰에 따로 저장돼서 백업을 가져와도 지워지지 않아요. 가족에게는 QR 화면의 보내기로 나눠 주세요.</p><p class="foot">모든 내용은 이 휴대폰 안에만 저장돼요. 인터넷 없이도 열리지만, 지도와 길찾기는 인터넷이 필요해요.</p><p class="foot">앱 버전 48</p>'+
+    '</div><p class="foot">QR 이미지는 이 휴대폰에 따로 저장돼서 백업을 가져와도 지워지지 않아요. 가족에게는 QR 화면의 보내기로 나눠 주세요.</p><p class="foot">모든 내용은 이 휴대폰 안에만 저장돼요. 인터넷 없이도 열리지만, 지도와 길찾기는 인터넷이 필요해요.</p><p class="foot">앱 버전 49</p>'+
     '';
 }
 
@@ -1297,7 +1297,7 @@ function shareData(){
   var sp={rate:SP.rate,items:SP.items.map(function(x){ return pick(x,['id','date','ev','cat','amount','cur','memo']); })};
   return {app:'kyosaka',type:'family-share',publishedAt:new Date().toISOString(),
     state:{v:state.v,trip:pick(state.trip,['title','start','end','members']),days:days,reservations:res,checklist:[],notes:''},spend:sp,
-    bakeries:BK.map(function(b){ var x=pick(b,['id','name','nameOrig','map','memo','lat','lng']), g=ggCached(gQuery(bkEv(b))); if(g){ x.lat=g.lat; x.lng=g.lng; } return x; })};
+    bakeries:BK.map(function(b){ var x=pick(b,['id','city','name','nameOrig','map','memo','lat','lng']), g=ggCached(gQuery(bkEv(b))); if(g){ x.lat=g.lat; x.lng=g.lng; } return x; })};
 }
 var SENS=/[A-Z0-9]{6,}|[A-Z]{2,}\s+[A-Z]{2,}|\d{2,4}-\d{2,4}-\d{3,4}|〒|丁目|番地|@|예약\s*번호|여권|주소|호실|비밀번호|\b\d{1,4}-\d{1,4}-\d{1,4}\b/;
 function shareLines(o){
@@ -1588,17 +1588,22 @@ function bkMerge(list){
 }
 function bkEv(b){ return {id:'bk:'+b.id,type:'cafe',title:b.name,place:b.name,placeOrig:b.nameOrig||'',map:b.map||'',lat:b.lat,lng:b.lng}; }
 function bkUses(id){ var out=[]; state.days.forEach(function(d){ d.items.forEach(function(ev){ if(ev.bakery===id) out.push({d:d,ev:ev}); }); }); return out; }
+var BKCITY=[['kyoto','교토'],['osaka','오사카']];
+function bkCity(b){ if(b.city==='kyoto'||b.city==='osaka') return b.city; return (isFinite(+b.lat)&&b.lat!==''&&b.lat!=null&&+b.lat<34.85)?'osaka':'kyoto'; }
+function bkShown(){ var c=ui.bkCity||'kyoto'; return BK.filter(function(b){ return bkCity(b)===c; }); }
 function renderBreadView(){
-  var rows=BK.map(function(b,i){
+  var list=bkShown(), cn=(ui.bkCity||'kyoto')==='osaka'?'오사카':'교토';
+  var rows=list.map(function(b,i){
     var uses=bkUses(b.id), q=b.map||b.nameOrig||b.name;
     return '<div class="row bk-row"><span class="bk-n">'+(i+1)+'</span><div class="row-main"'+(canEdit()?' data-act="bk-edit" data-id="'+b.id+'" style="cursor:pointer"':'')+'><div class="row-title">'+esc(b.name)+'</div>'+
       (b.nameOrig?'<div class="row-sub">'+esc(b.nameOrig)+'</div>':'')+(b.memo?'<div class="row-sub">'+esc(b.memo)+'</div>':'')+
       (uses.length?'<div class="bk-uses">'+uses.map(function(u){ return '<span class="bk-use">'+esc(md(u.d.date)+(u.ev.time?' '+u.ev.time:''))+'</span>'; }).join('')+'</div>':'')+'</div>'+
       '<a class="mini" href="'+esc(mapUrl(q))+'" target="_blank" rel="noopener">'+ICON.pin+'지도</a></div>';
   }).join('');
-  return '<div class="mapbar"><span class="map-status" id="map-status"></span></div><div id="tripmap" class="tripmap"></div><div id="map-miss" class="map-miss"></div>'+
-    '<h2 class="group-label">빵집 '+BK.length+'곳</h2><div class="list">'+(rows||'<div class="text-block empty">가보고 싶은 빵집을 추가해 보세요. 일정에 빵을 넣을 때 여기서 고를 수 있어요.</div>')+'</div>'+
-    (canEdit()?'<div class="pad"><button class="add wide" data-act="bk-add">빵집 추가</button></div>':'');
+  return '<div class="mapbar"><div class="seg seg--sm">'+BKCITY.map(function(c){ var n=BK.filter(function(b){return bkCity(b)===c[0];}).length; return '<label><input type="radio" name="bkcity" data-act="bkcity" data-v="'+c[0]+'"'+((ui.bkCity||'kyoto')===c[0]?' checked':'')+'><span>'+c[1]+' '+n+'</span></label>'; }).join('')+'</div><span class="map-status" id="map-status"></span></div>'+
+    '<div id="tripmap" class="tripmap"></div><div id="map-miss" class="map-miss"></div>'+
+    '<h2 class="group-label">'+cn+' 빵집 '+list.length+'곳</h2><div class="list">'+(rows||'<div class="text-block empty">'+cn+'에서 가보고 싶은 빵집을 추가해 보세요. 일정에 빵을 넣을 때 여기서 고를 수 있어요.</div>')+'</div>'+
+    (canEdit()?'<div class="pad"><button class="add wide" data-act="bk-add">'+cn+' 빵집 추가</button></div>':'');
 }
 function drawBreadMap(){
   var box=document.getElementById('tripmap'); if(!box) return;
@@ -1611,10 +1616,10 @@ function drawBreadMap(){
     L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19,attribution:'© OpenStreetMap'}).addTo(MAP);
     MAPLAYER=L.layerGroup().addTo(MAP);
     MAP.on('popupopen',function(pe){ var a=pe.popup.getElement().querySelector('[data-pop-bk]'); if(a) a.onclick=function(e){ e.preventDefault(); bkForm(a.getAttribute('data-pop-bk')); }; });
-    var run=++MAPRUN, done=0, bounds=[], miss=[];
-    if(!BK.length){ if(st) st.textContent=''; return; }
-    if(st) st.textContent='위치 찾는 중… 0/'+BK.length;
-    BK.forEach(function(b,i){
+    var run=++MAPRUN, done=0, bounds=[], miss=[], LIST=bkShown();
+    if(!LIST.length){ if(st) st.textContent=''; MAP.setView((ui.bkCity||'kyoto')==='osaka'?[34.68,135.50]:[35.0,135.76],12); return; }
+    if(st) st.textContent='위치 찾는 중… 0/'+LIST.length;
+    LIST.forEach(function(b,i){
       evCoord(bkEv(b)).then(function(c){
         if(run!==MAPRUN) return; done++;
         if(c&&inArea(c)){
@@ -1624,8 +1629,8 @@ function drawBreadMap(){
             (canEdit()?'<br><a href="#" data-pop-bk="'+esc(b.id)+'">위치가 틀렸으면 고치기</a>':'')+'</div>').addTo(MAPLAYER);
           bounds.push([c.lat,c.lng]);
         } else miss.push(b);
-        if(st) st.textContent=done<BK.length?'위치 찾는 중… '+done+'/'+BK.length:(miss.length?miss.length+'곳은 위치를 못 찾았어요':'');
-        if(done===BK.length){
+        if(st) st.textContent=done<LIST.length?'위치 찾는 중… '+done+'/'+LIST.length:(miss.length?miss.length+'곳은 위치를 못 찾았어요':'');
+        if(done===LIST.length){
           if(bounds.length===1) MAP.setView(bounds[0],15); else if(bounds.length) MAP.fitBounds(bounds,{padding:[30,30]});
           var mm=document.getElementById('map-miss'); if(mm) mm.innerHTML=miss.length?'<div class="list"><div class="row"><div class="row-main"><div class="row-k">지도에 못 올린 빵집</div>'+miss.map(function(b){return '<div class="row-sub">'+esc(b.name)+'</div>';}).join('')+'</div></div></div>':'';
         }
@@ -1634,8 +1639,9 @@ function drawBreadMap(){
   }).catch(function(){ box.innerHTML='<div class="map-off">지도를 불러오지 못했어요. 인터넷 연결을 확인해 주세요</div>'; });
 }
 function bkForm(id){
-  var b=id?findBk(id):{name:'',nameOrig:'',map:'',memo:''}; if(!b) return;
+  var b=id?findBk(id):{name:'',nameOrig:'',map:'',memo:'',city:ui.bkCity||'kyoto'}; if(!b) return;
   openSheet('<form data-form="bakery" data-id="'+esc(id||'')+'"><h2>'+(id?'빵집 고치기':'빵집 추가')+'</h2>'+
+    selectField('지역','city',id?bkCity(b):b.city,BKCITY)+
     field('이름','name',b.name,'text',' required placeholder="예: 시즈야 산조점"')+
     field('현지 이름','nameOrig',b.nameOrig,'text',' placeholder="예: 志津屋 三条店 (선택)"')+
     '<label class="field"><span>지도 검색어</span><input name="map" value="'+esc(b.map||'')+'" placeholder="비워두면 이름으로 찾아요"><small>구글 지도에서 길게 눌러 나온 좌표(예: 35.0094, 135.7640)를 넣으면 정확히 그 지점에 찍혀요.</small></label>'+
@@ -1839,7 +1845,7 @@ function evForm(id,preset){
     '<div class="two">'+selectField('날짜','day',String(dayIdx),state.days.map(function(d,i){return [String(i),mdw(d.date)];}))+field('시간','time',ev.time,'time')+'</div>'+
     selectField('종류','type',ev.type||'sight',Object.keys(TYPE).map(function(k){return [k,TYPE[k]];}))+
     '<p class="sub" style="margin-top:-6px">식사나 빵을 같은 시간에 여러 곳 넣으면 후보로 묶여요. 그때 골라서 가면 돼요.</p>'+
-    '<div class="bk-pick"'+(ev.type==='cafe'?'':' hidden')+'>'+(BK.length?selectField('빵집 고르기','bakery',ev.bakery||'',[['','직접 입력']].concat(BK.map(function(b){return [b.id,b.name];}))):
+    '<div class="bk-pick"'+(ev.type==='cafe'?'':' hidden')+'>'+(BK.length?selectField('빵집 고르기','bakery',ev.bakery||'',[['','직접 입력']].concat(BK.map(function(b){return [b.id,'['+(bkCity(b)==='osaka'?'오사카':'교토')+'] '+b.name];}))):
       '<p class="sub">빵집 리스트가 비어 있어요. 일정 탭 → 빵 지도에서 먼저 추가하면 여기서 고를 수 있어요.</p>')+'</div>'+
     field('장소','place',ev.place||ev.title,'text',' required placeholder="예: 킨카쿠지"')+
     field('현지 이름','placeOrig',ev.placeOrig,'text',' placeholder="예: 金閣寺 (선택)"')+
@@ -1989,6 +1995,7 @@ document.addEventListener('click',function(e){
       commit(function(){ var t=mit[mf.idx]; mit[mf.idx]=mit[j]; mit[j]=t; },true);
       markDirty('event',id,'upsert'); markDirty('event',other,'upsert');
       break;
+    case 'bkcity': ui.bkCity=el.getAttribute('data-v'); render(); break;
     case 'bk-add': bkForm(null); break;
     case 'bk-edit': bkForm(id); break;
     case 'del-bk':
@@ -2106,8 +2113,8 @@ document.addEventListener('submit',function(e){
   if(kind==='bakery'){
     if(!v.name) return; closeSheet();
     var bk=id?findBk(id):null;
-    if(bk){ if((bk.map||'')!==v.map||bk.name!==v.name||(bk.nameOrig||'')!==v.nameOrig){ delete bk.lat; delete bk.lng; } bk.name=v.name; bk.nameOrig=v.nameOrig; bk.map=v.map; bk.memo=v.memo; }
-    else { bk={id:uid('b'),name:v.name,nameOrig:v.nameOrig,map:v.map,memo:v.memo}; BK.push(bk); }
+    if(bk){ if((bk.map||'')!==v.map||bk.name!==v.name||(bk.nameOrig||'')!==v.nameOrig){ delete bk.lat; delete bk.lng; } bk.name=v.name; bk.nameOrig=v.nameOrig; bk.map=v.map; bk.memo=v.memo; bk.city=v.city; ui.bkCity=v.city; }
+    else { bk={id:uid('b'),city:v.city,name:v.name,nameOrig:v.nameOrig,map:v.map,memo:v.memo}; ui.bkCity=v.city; BK.push(bk); }
     bkSave();
     // scheduled visits follow the bakery's name and map search
     var linked=bkUses(bk.id);
