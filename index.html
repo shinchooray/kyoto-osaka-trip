@@ -681,6 +681,7 @@ var HOW_ICON={
   bus:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="3" width="16" height="15" rx="3"/><path d="M4 10h16M7 18v2M17 18v2"/><circle cx="8" cy="14" r=".8" fill="currentColor"/><circle cx="16" cy="14" r=".8" fill="currentColor"/></svg>',
   walk:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="13" cy="4" r="2"/><path d="M11 21l2-6-3-3 1-5 4 3 3 1M9 12l-3 2"/></svg>',
   flight:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.5 13.5L4 11l-1 1.5 5.5 3.5L10 21l1.5-.5-.5-5 4-3.5 4.5 2 1-1.5-4-3.5L20 5a1.5 1.5 0 0 0-2-2l-4 3.5-3.5-4L9 3l2 4.5L7.5 11z"/></svg>',
+  etc:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h13M13 6l6 6-6 6"/></svg>',
   taxi:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 17h14v-5l-2-5H7l-2 5z"/><path d="M4 12h16M7 17v2M17 17v2M10 4h4"/><circle cx="8" cy="14.5" r=".8" fill="currentColor"/><circle cx="16" cy="14.5" r=".8" fill="currentColor"/></svg>'
 };
 function flagRoute(x){ if(x&&routeOf(x)){ x.routeStale=true; markDirty('event',x.id,'upsert'); } }
@@ -688,9 +689,17 @@ function flagRoute(x){ if(x&&routeOf(x)){ x.routeStale=true; markDirty('event',x
 // a named or timed ride (flight, reserved train) keeps its name and times.
 var HOW_SHOW={flight:'비행기',train:'대중교통',bus:'대중교통',transit:'대중교통',walk:'도보',taxi:'택시',etc:'이동'};
 function howForm(h){ return h==='bus'||h==='transit'||h==='etc'?'train':(h||''); }
-function howIcon(h){ return HOW_ICON[h==='bus'||h==='transit'||!HOW_ICON[h]?'train':h]; }
+function howIcon(h){ return HOW_ICON[!h?'etc':(h==='bus'||h==='transit'||!HOW_ICON[h]?'train':h)]; }
+// the way from the previous stop: the saved route, or (if nothing is saved yet) a plain "이동" so
+// 경로 보기 and 교통비 are always there. No line when there is nowhere to come from or it is the same place.
+function legOf(d,ev){
+  if(ev.route) return routeOf(ev);
+  var to=evQuery(ev), from=prevQuery(d,ev); if(!to||!from||to===from) return null;
+  var i=d.items.indexOf(ev), p=i>0?d.items[i-1]:null; if(p&&evName(p)===evName(ev)) return null;
+  return {how:'',min:''};
+}
 function routeCard(d,ev,kind){
-  var r=routeOf(ev); if(!r) return '';
+  var r=legOf(d,ev); if(!r) return '';
   var to=evQuery(ev), from=prevQuery(d,ev);
   var go=to&&r.how!=='flight'?'<a class="rt-go" href="'+esc(routeUrl(from,to,r.how))+'" target="_blank" rel="noopener">경로 보기 ↗</a>':'';
   // fare is what you actually paid: tap to write it, it goes into 경비 > 교통
@@ -703,7 +712,7 @@ function routeCard(d,ev,kind){
   return '<div class="rt2 rt2--'+kind+(r.how==='walk'?' rt2--walk':'')+'">'+head+'</div>';
 }
 function routeRow(d,ev){
-  var r=routeOf(ev); if(!r) return '';
+  var r=legOf(d,ev); if(!r) return '';
   return '<li class="ev-route"><div></div><div class="ev-rail"><span class="rt-ic">'+howIcon(r.how)+'</span></div>'+routeCard(d,ev,'row')+'</li>';
 }
 function catBadge(c){ return '<span class="cat cat--'+esc(CAT[c]?c:'etc')+'">'+esc(CAT[c]||'기타')+'</span>'; }
@@ -1026,7 +1035,7 @@ function renderInfo(){
         return '<button class="row" data-act="share-prep"><div class="row-main"><div class="row-title">가족 앱에 공유하기</div><div class="row-sub">'+sub+'</div></div>'+ICON.chev+'</button>'+
           (lsGet(LS_GHTOKEN)?'<button class="row" data-act="share-auto"><div class="row-main"><div class="row-title">자동 공유 '+(auto?'켜짐':'꺼짐')+'</div><div class="row-sub">눌러서 '+(auto?'끄기':'켜기')+'</div></div></button>':''); })()+
       '<button class="row" data-act="share-link"><div class="row-main"><div class="row-title">가족용 주소 보내기</div><div class="row-sub">가족이 이 주소로 열고 홈 화면에 추가하면, 공유한 내용이 자동으로 보여요</div></div>'+ICON.chev+'</button>'+
-    '</div><p class="foot">QR 이미지는 이 휴대폰에 따로 저장돼서 백업을 가져와도 지워지지 않아요. 가족에게는 QR 화면의 보내기로 나눠 주세요.</p><p class="foot">모든 내용은 이 휴대폰 안에만 저장돼요. 인터넷 없이도 열리지만, 지도와 길찾기는 인터넷이 필요해요.</p><p class="foot ver-row">앱 버전 66<button class="ver-btn" data-act="app-refresh">새로고침</button></p>'+
+    '</div><p class="foot">QR 이미지는 이 휴대폰에 따로 저장돼서 백업을 가져와도 지워지지 않아요. 가족에게는 QR 화면의 보내기로 나눠 주세요.</p><p class="foot">모든 내용은 이 휴대폰 안에만 저장돼요. 인터넷 없이도 열리지만, 지도와 길찾기는 인터넷이 필요해요.</p><p class="foot ver-row">앱 버전 67<button class="ver-btn" data-act="app-refresh">새로고침</button></p>'+
     '';
 }
 
@@ -1089,7 +1098,7 @@ function renderToday(){
     var acts=((ev.memo||ev.placeOrig)?'<button class="act act--memo" data-act="memo-toggle">'+ICON.note+'<span>메모</span></button>':'')+(q?'<a class="act" href="'+esc(mapUrl(q))+'" target="_blank" rel="noopener">'+ICON.pin+'지도</a>':'')+
       (aboutOf(ev)?'<button class="act act--story" data-act="about" data-id="'+ev.id+'">'+ICON.book+'이곳 이야기</button>':'')+
       (typeof spChip==='function'?spChip(ev,d.date):'');
-    return (routeOf(ev)?'<li class="tev-route'+(past?' is-past':'')+'">'+routeCard(d,ev,'today')+'</li>':'')+
+    return (legOf(d,ev)?'<li class="tev-route'+(past?' is-past':'')+'">'+routeCard(d,ev,'today')+'</li>':'')+
       '<li class="tev tev--'+esc(ty)+(past?' is-past':'')+(isCur?' is-cur':'')+'"'+(past?' data-act="tev-toggle"':'')+'>'+
       '<div class="tev-head"><span class="tev-time">'+esc(ev.time||'시간 미정')+'</span><span class="tev-kind">'+(TYICON[ty]||'')+esc(TYPE[ty]||'')+'</span>'+
         (isCur?'<b class="pill pill--now">지금</b>':'')+(isNext?'<b class="pill pill--next">다음, '+esc(inHow(now,next.time))+'</b>':'')+(past?'<span class="tev-done">지난 일정</span>':'')+'</div>'+
