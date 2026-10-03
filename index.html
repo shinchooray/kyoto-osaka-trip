@@ -544,6 +544,9 @@ ul.tev-memo{font-size:14px;color:var(--muted)}
 .rt-edit{background:none;border:0;padding:2px 0;font:inherit;color:inherit;text-align:left;cursor:pointer;border-bottom:1px dashed transparent}
 .rt-edit:active,.rt-edit:hover{border-bottom-color:var(--muted)}
 .dirty-reset{display:block;margin:-2px 0 4px auto;padding:2px 4px}
+.pl-mv{display:flex;flex-direction:column;gap:2px;margin-left:6px}
+.pl-mv button{width:26px;height:20px;padding:0;border:1px solid var(--line);border-radius:6px;background:var(--surface);color:var(--muted);font-size:10px;line-height:1;cursor:pointer}
+.pl-mv button:disabled{opacity:.3;cursor:default}
 .ver-row{display:flex;align-items:center;gap:8px}
 .ver-btn{padding:2px 9px;border:1px solid var(--line);border-radius:999px;background:var(--surface);color:var(--muted);font:inherit;font-size:12px;font-weight:700;cursor:pointer}
 /* hotel on top of today */
@@ -958,7 +961,18 @@ function markDirty(kind,id,op,snap){
   l.push({kind:kind,id:id,op:op,at:Date.now(),snap:snap||null});
   try{ localStorage.setItem(LS_DIRTY,JSON.stringify(l)); }catch(e){}
 }
-function clearDirty(){ try{ localStorage.removeItem(LS_DIRTY); localStorage.removeItem('kyosaka:dirtyCopiedAt'); }catch(e){} }
+function clearDirty(){ try{ localStorage.removeItem(LS_DIRTY); localStorage.removeItem('kyosaka:dirtyCopiedAt'); }catch(e){} saveBase(); }
+// "before" picture for 되돌리기: taken whenever nothing is waiting to be sent (on open and after clearing)
+var LS_BASE='kyosaka:base';
+function saveBase(){ if(FAMILY||typeof PLD==='undefined') return; lsSet(LS_BASE,JSON.stringify({state:state,bread:PLD.bread,food:PLD.food})); }
+function hasBase(){ return !!lsGet(LS_BASE); }
+function revertDirty(){
+  var b=null; try{ b=JSON.parse(lsGet(LS_BASE)||'null'); }catch(e){}
+  if(!b||!b.state||!Array.isArray(b.state.days)){ clearDirty(); render(); toast('되돌릴 수 있는 기록이 없어서 목록만 비웠어요'); return; }
+  var ck=state.checklist; state=b.state; state.checklist=ck;   // checklist ticks are not part of 고친 내용
+  PLD.bread=b.bread||[]; PLD.food=b.food||[]; plSave('bread'); plSave('food');
+  saveLocal(); clearDirty(); render(); autoShareSoon(); toast('고치기 전으로 되돌렸어요');
+}
 function dirtyUnsent(){ var l=dirtyList(); if(!l.length) return 0; var c=0; try{ c=+localStorage.getItem('kyosaka:dirtyCopiedAt')||0; }catch(e){} return l.filter(function(x){return x.at>c;}).length; }
 function changesText(){
   var ch=[];
@@ -1009,7 +1023,7 @@ function quietCopyText(v){
 function syncBar(){
   // 1 send what changed here → 2 ask in the chat → 3 paste the chat's backup back
   return '<div class="sync">'+
-    (function(){ var n=dirtyList().length; return '<button class="sync-btn'+(n?' has-dirty':'')+'" data-act="send-changes"><span class="sync-n">1</span><span><b>이 앱에서 고친 내용 보내기</b><small>'+(n?'이 앱에서 직접 고친 내용 '+n+'건을 복사해요. 전용 채팅에 붙여넣으면 반영돼요':'고친 내용이 없어도 눌러서 지금 상태를 채팅에 알려줄 수 있어요')+'</small></span>'+(n?'<em class="dirty-n">'+n+'</em>':'')+'</button>'+(n?'<button class="link-btn small dirty-reset" data-act="dirty-reset">고친 내용 '+n+'건 초기화</button>':''); })()+
+    (function(){ var n=dirtyList().length; return '<button class="sync-btn'+(n?' has-dirty':'')+'" data-act="send-changes"><span class="sync-n">1</span><span><b>이 앱에서 고친 내용 보내기</b><small>'+(n?'이 앱에서 직접 고친 내용 '+n+'건을 복사해요. 전용 채팅에 붙여넣으면 반영돼요':'고친 내용이 없어도 눌러서 지금 상태를 채팅에 알려줄 수 있어요')+'</small></span>'+(n?'<em class="dirty-n">'+n+'</em>':'')+'</button>'+(n?'<button class="link-btn small dirty-reset" data-act="dirty-reset">고친 내용 '+n+'건 '+(hasBase()?'되돌리기':'목록 비우기')+'</button>':''); })()+
     '<a class="sync-btn" href="'+CAPTURE_CHAT+'" target="_blank" rel="noopener"><span class="sync-n">2</span><span><b>Claude에게 추가·수정 부탁하기</b><small>전용 채팅이 열려요. 1에서 복사한 내용을 붙여넣거나, 예약 캡처를 올리거나, 바꾸고 싶은 일정을 말하면 돼요. 답장 끝의 백업을 복사해 주세요</small></span></a>'+
     '<button class="sync-btn" data-act="backup-paste"><span class="sync-n">3</span><span><b>복사한 백업 붙여넣기</b><small>돌아와서 누르면 바뀐 내용이 이 앱에 바로 반영돼요</small></span></button>'+
   '</div>';
@@ -1038,7 +1052,7 @@ function renderInfo(){
         return '<button class="row" data-act="share-prep"><div class="row-main"><div class="row-title">가족 앱에 공유하기</div><div class="row-sub">'+sub+'</div></div>'+ICON.chev+'</button>'+
           (lsGet(LS_GHTOKEN)?'<button class="row" data-act="share-auto"><div class="row-main"><div class="row-title">자동 공유 '+(auto?'켜짐':'꺼짐')+'</div><div class="row-sub">눌러서 '+(auto?'끄기':'켜기')+'</div></div></button>':''); })()+
       '<button class="row" data-act="share-link"><div class="row-main"><div class="row-title">가족용 주소 보내기</div><div class="row-sub">가족이 이 주소로 열고 홈 화면에 추가하면, 공유한 내용이 자동으로 보여요</div></div>'+ICON.chev+'</button>'+
-    '</div><p class="foot">QR 이미지는 이 휴대폰에 따로 저장돼서 백업을 가져와도 지워지지 않아요. 가족에게는 QR 화면의 보내기로 나눠 주세요.</p><p class="foot">모든 내용은 이 휴대폰 안에만 저장돼요. 인터넷 없이도 열리지만, 지도와 길찾기는 인터넷이 필요해요.</p><p class="foot ver-row">앱 버전 69<button class="ver-btn" data-act="app-refresh">새로고침</button></p>'+
+    '</div><p class="foot">QR 이미지는 이 휴대폰에 따로 저장돼서 백업을 가져와도 지워지지 않아요. 가족에게는 QR 화면의 보내기로 나눠 주세요.</p><p class="foot">모든 내용은 이 휴대폰 안에만 저장돼요. 인터넷 없이도 열리지만, 지도와 길찾기는 인터넷이 필요해요.</p><p class="foot ver-row">앱 버전 70<button class="ver-btn" data-act="app-refresh">새로고침</button></p>'+
     '';
 }
 
@@ -1537,7 +1551,8 @@ function renderPlaceView(k){
     return '<div class="row pl-row"><span class="pl-n" style="background:'+P.col+'">'+(i+1)+'</span><div class="row-main"'+(canEdit()?' data-act="pl-edit" data-k="'+k+'" data-id="'+b.id+'" style="cursor:pointer"':'')+'><div class="row-title">'+esc(b.name)+'</div>'+
       (b.nameOrig?'<div class="row-sub">'+esc(b.nameOrig)+'</div>':'')+(b.memo?'<div class="row-sub">'+esc(b.memo)+'</div>':'')+
       (uses.length?'<div class="pl-uses">'+uses.map(function(u){ return '<span class="pl-use" style="--pc:'+P.col+'">'+esc(md(u.d.date)+(u.ev.time?' '+u.ev.time:''))+'</span>'; }).join('')+'</div>':'')+'</div>'+
-      '<a class="mini" href="'+esc(mapUrl(q))+'" target="_blank" rel="noopener">'+ICON.pin+'지도</a></div>';
+      '<a class="mini" href="'+esc(mapUrl(q))+'" target="_blank" rel="noopener">'+ICON.pin+'지도</a>'+
+      (canEdit()?'<span class="pl-mv"><button data-act="pl-move" data-k="'+k+'" data-id="'+b.id+'" data-dir="-1" aria-label="위로"'+(i===0?' disabled':'')+'>▲</button><button data-act="pl-move" data-k="'+k+'" data-id="'+b.id+'" data-dir="1" aria-label="아래로"'+(i===list.length-1?' disabled':'')+'>▼</button></span>':'')+'</div>';
   }).join('');
   return '<div class="mapbar"><div class="seg seg--sm">'+PLCITY.map(function(c){ var n=PLD[k].filter(function(b){return plCity(b)===c[0];}).length; return '<label><input type="radio" name="plcity" data-act="plcity" data-k="'+k+'" data-v="'+c[0]+'"'+(plCur(k)===c[0]?' checked':'')+'><span>'+c[1]+' '+n+'</span></label>'; }).join('')+'</div><span class="map-status" id="map-status"></span></div>'+
     '<div id="tripmap" class="tripmap"></div><div id="map-miss" class="map-miss"></div>'+
@@ -1925,6 +1940,11 @@ document.addEventListener('click',function(e){
     case 'ev-edit': evForm(id); break;
     case 'ev-add': evForm(null); break;
     case 'plcity': ui.plCity=ui.plCity||{}; ui.plCity[el.getAttribute('data-k')]=el.getAttribute('data-v'); render(); break;
+    case 'pl-move':
+      // swap with the next/previous place of the same city (the list shows one city at a time)
+      var mvK=el.getAttribute('data-k'), mvD=+el.getAttribute('data-dir'), mvL=PLD[mvK], mvI=-1; mvL.forEach(function(b,i){ if(b.id===id) mvI=i; }); if(mvI<0) break;
+      var mvJ=mvI+mvD; while(mvJ>=0&&mvJ<mvL.length&&plCity(mvL[mvJ])!==plCity(mvL[mvI])) mvJ+=mvD; if(mvJ<0||mvJ>=mvL.length) break;
+      var mvT=mvL[mvI]; mvL[mvI]=mvL[mvJ]; mvL[mvJ]=mvT; plSave(mvK); markDirty('pl-'+mvK,'all','upsert'); render(); break;
     case 'pl-add': plForm(el.getAttribute('data-k'),null); break;
     case 'pl-edit': plForm(el.getAttribute('data-k'),id); break;
     case 'del-pl':
@@ -1945,8 +1965,7 @@ document.addEventListener('click',function(e){
     case 'sp-del': SP.items=SP.items.filter(function(x){return x.id!==id;}); spSave(); render(); var evd=el.getAttribute('data-ev'), lg=el.getAttribute('data-leg'); if(lg) legSheet(lg); else if(evd) spSheet(evd); toast('지웠어요'); break;
     case 'leg-open': legSheet(id); break;
     case 'leg-edit': legEdit(id); break;
-    // forget the list of pending changes only; the trip data itself stays as it is
-    case 'dirty-reset': if(armed!=='dirty'){ armed='dirty'; el.textContent='한 번 더 누르면 초기화'; return; } armed=null; clearDirty(); render(); toast('고친 내용 목록을 비웠어요. 일정은 그대로예요'); break;
+    case 'dirty-reset': if(armed!=='dirty'){ armed='dirty'; el.textContent=hasBase()?'한 번 더 누르면 고치기 전으로 되돌려요':'한 번 더 누르면 목록을 비워요'; return; } armed=null; if(hasBase()) revertDirty(); else { clearDirty(); render(); toast('고친 내용 목록을 비웠어요'); } break;
     case 'sheet-close': closeSheet(); break;
     case 'copy': copyText(el.getAttribute('data-v')); break;
     case 'taxi': showTaxi(id); break;
@@ -2113,7 +2132,7 @@ document.addEventListener('submit',function(e){
 render();
 (function(){ var t=ssGet('kyosaka:toast'); if(t){ ssDel('kyosaka:toast'); setTimeout(function(){ toast(t); },300); } })();
 document.addEventListener('visibilitychange',function(){ if(document.visibilityState==='visible'&&document.querySelector('.sheet [data-close-sheet]')) closeSheet(); if(document.visibilityState==='hidden'&&autoT) autoShareNow(); });
-if(!FAMILY){ autoShareSoon(); window.addEventListener('online',autoShareSoon); }
+if(!FAMILY){ autoShareSoon(); window.addEventListener('online',autoShareSoon); if(!dirtyList().length) saveBase(); }
 if(FAMILY){ famRefresh(); window.addEventListener('online',famRefresh); document.addEventListener('visibilitychange',function(){ if(document.visibilityState==='visible') famRefresh(); }); }
 setInterval(function(){ if(ui.tab==='today' && !$('#sheet-root').classList.contains('open') && !document.querySelector('.taxi')) render(); },60000);
 if('serviceWorker' in navigator){
