@@ -549,6 +549,8 @@ ul.tev-memo{font-size:14px;color:var(--muted)}
 .pl-row.dragging{transition:none;z-index:2;box-shadow:0 10px 28px rgba(0,0,0,.2);border-radius:12px;opacity:.97}
 .pl-row.settling{transition:transform .18s ease-out}
 .pl-hint{margin:-4px 20px 6px;font-size:12px;color:var(--muted)}
+.tlist .tev[data-act]{cursor:pointer}
+.tlist .tev[data-act]:active{filter:brightness(.97)}
 .ver-row{display:flex;align-items:center;gap:8px}
 .ver-btn{padding:2px 9px;border:1px solid var(--line);border-radius:999px;background:var(--surface);color:var(--muted);font:inherit;font-size:12px;font-weight:700;cursor:pointer}
 /* hotel on top of today */
@@ -719,10 +721,6 @@ function routeCard(d,ev,kind){
   if(ev.routeStale&&canEdit()) head+='<div class="rt-stale">⚠ 장소가 바뀌었어요 · 시간 다시 확인</div>';
   return '<div class="rt2 rt2--'+kind+(r.how==='walk'?' rt2--walk':'')+'">'+head+'</div>';
 }
-function routeRow(d,ev){
-  var r=legOf(d,ev); if(!r) return '';
-  return '<li class="ev-route"><div></div><div class="ev-rail"><span class="rt-ic">'+howIcon(r.how)+'</span></div>'+routeCard(d,ev,'row')+'</li>';
-}
 function catBadge(c){ return '<span class="cat cat--'+esc(CAT[c]?c:'etc')+'">'+esc(CAT[c]||'기타')+'</span>'; }
 function aboutOf(ev){ var a=ev&&ev.about; return a&&(a.intro||a.history||(a.facts&&a.facts.length))?a:null; }
 function aboutSheet(id){
@@ -813,7 +811,7 @@ function resRange(r){
 }
 
 /* UI state */
-var ui = {tab:'today', day:defaultDay(), tday:null, ckEdit:false};
+var ui = {tab:'plan', day:defaultDay(), ckEdit:false};
 (function(){var s=ssGet(SS_UI); if(s){try{var o=JSON.parse(s); if(o.tab) ui.tab=o.tab; if(typeof o.day==='number') ui.day=o.day; if(typeof o.tday==='number') ui.tday=o.tday; if(o.pview) ui.pview=o.pview; ui.scroll=o.scroll||0;}catch(e){}} ssDel(SS_UI);})();
 function defaultDay(){var t=todayJST();for(var i=0;i<state.days.length;i++){if(state.days[i].date===t) return i;}return 0;}
 function stashUI(){ssSet(SS_UI, JSON.stringify({tab:ui.tab, day:ui.day, tday:ui.tday, pview:ui.pview, scroll:window.scrollY||0}));}
@@ -843,13 +841,14 @@ var ICON = {
 };
 
 function render(){
-  if(FAMILY&&['today','plan','spend','res'].indexOf(ui.tab)<0) ui.tab='today';
-  var html = ui.tab==='res'?renderRes():ui.tab==='info'?renderInfo():ui.tab==='check'?renderCheck():ui.tab==='plan'?renderPlan():ui.tab==='spend'?renderSpend():renderToday();
-  var tabs=[['today','오늘'],['plan','일정'],['spend','경비'],['res','예약'],['check','준비물'],['info','정보']];
-  if(FAMILY) tabs=tabs.slice(0,4);
+  if(ui.tab==='today') ui.tab='plan';
+  if(FAMILY&&['plan','spend','res'].indexOf(ui.tab)<0) ui.tab='plan';
+  var html = ui.tab==='res'?renderRes():ui.tab==='info'?renderInfo():ui.tab==='check'?renderCheck():ui.tab==='spend'?renderSpend():renderPlan();
+  var tabs=[['plan','일정'],['spend','경비'],['res','예약'],['check','준비물'],['info','정보']];
+  if(FAMILY) tabs=tabs.slice(0,3);
   setTimeout(function(){ if(ui.tab==='spend') fitLines(); if(ui.tab==='plan'&&ui.pview==='map') drawMap(); else if(ui.tab==='plan'&&PL[ui.pview]) drawPlaceMap(ui.pview); else if(MAP){ try{MAP.remove();}catch(e){} MAP=null; } },0);
   $('#app').innerHTML = '<main class="main">'+banner()+html+'</main>'+
-    '<nav class="tabs" aria-label="메뉴"><div class="tabs-in" role="tablist">'+
+    '<nav class="tabs" aria-label="메뉴"><div class="tabs-in" role="tablist" style="grid-template-columns:repeat('+tabs.length+',1fr)">'+
     tabs.map(function(t){return '<button class="tab" role="tab" aria-selected="'+(ui.tab===t[0])+'" data-act="tab" data-v="'+t[0]+'">'+ICON[t[0]]+'<span>'+t[1]+'</span></button>';}).join('')+
     '</div></nav>';
 }
@@ -874,55 +873,27 @@ function statusText(){
 
 function renderPlan(){
   var days=state.days; if(ui.day>=days.length) ui.day=0;
-  var d=days[ui.day], today=todayJST();
+  var d=days[ui.day], today=todayJST(), live=d.date===today;
   var stations=days.map(function(day,i){
     var isT=day.date===today;
     return '<button class="st st--'+day.city+(isT?' is-today':'')+'" role="tab" aria-selected="'+(i===ui.day)+'" data-act="day" data-i="'+i+'" aria-label="'+esc(mdw(day.date))+'">'+
       '<span class="st-mark"></span><span class="st-d">'+parts(day.date)[2]+'</span><span class="st-w">'+(isT?'오늘':wd(day.date))+'</span></button>';
   }).join('');
   var cityName={kyoto:'교토',osaka:'오사카',move:'교토에서 오사카로'}[d.city];
-  var res=resForDay(d.date);
-  var resHtml=res.length?'<div class="day-res">'+res.map(function(x){
-    return '<button class="rchip'+(isMissing(x.r)?' is-missing':'')+'" data-act="res-open" data-id="'+x.r.id+'"><span class="rchip-k">'+esc(x.tag)+'</span>'+esc(x.r.title)+'</button>';
-  }).join('')+'</div>':'';
-  var items=d.items.map(function(ev){
-    var q=ev.map||ev.place, hotel=null;
-    if(!ev.map && ev.place) state.reservations.forEach(function(r){ if(r.cat==='hotel' && r.title===ev.place) hotel=r; });
-    if(hotel) q=hotel.address||'';
-    var body='<div class="ev-kind">'+(TYICON[ev.type||'sight']||'')+esc(TYPE[ev.type||'sight']||'')+'</div>'+headHtml(ev,'h3','ev-title')+
-      (ev.placeOrig?'<p class="ev-memo ev-orig">현지 이름: '+esc(ev.placeOrig)+'</p>':'')+memoHtml(ev.memo,'ev-memo')+
-      ((q||aboutOf(ev)||ev.memo||ev.placeOrig)?'<div class="ev-acts">'+((ev.memo||ev.placeOrig)?'<button class="maplink act--memo" data-act="memo-toggle">'+ICON.note+'<span>메모</span></button>':'')+(q?'<a class="maplink" href="'+esc(mapUrl(q))+'" target="_blank" rel="noopener">'+ICON.pin+'지도'+'</a>':'')+(aboutOf(ev)?'<button class="maplink about-link" data-act="about" data-id="'+ev.id+'">'+ICON.book+'이곳 이야기</button>':'')+'</div>':'');
-    return routeRow(d,ev)+'<li class="ev ev--'+esc(ev.type||'sight')+'"><div class="ev-time">'+esc(ev.time||'')+'</div><div class="ev-rail"><span class="ev-dot"></span></div>'+
-      '<div class="ev-body"'+(canEdit()?' data-act="ev-edit" data-id="'+ev.id+'" role="button" tabindex="0" aria-label="'+esc(ev.title)+' 고치기"':'')+'>'+body+'</div></li>';
-  }).join('');
+  var pv=ui.pview||'list';
   return '<header class="top"><h1>'+esc(state.trip.title)+'</h1>'+
-    '<p class="status">'+esc(statusText())+'</p>'+
+    '<p class="status">'+esc(statusText()+(live?' · 지금 '+nowJST():''))+'</p>'+
     (mode==='readonly'?'<span class="ro-note">보기 전용</span>':'')+'</header>'+
     '<div class="route"><div class="route-cities"><span class="rc-k">교토 2박</span><span class="rc-m">이동</span><span class="rc-o">오사카 2박</span></div>'+
     '<div class="stations" role="tablist" aria-label="날짜">'+stations+'</div></div>'+
     '<section class="day day--'+d.city+'">'+
-    '<div class="day-head"><div class="view-toggle"><div class="seg seg--sm">'+[['list','목록'],['map','지도'],['food','밥지도'],['bread','빵지도']].map(function(o){
-        var on=(ui.pview||'list')===o[0]; return '<label><input type="radio" name="pview" data-act="pview" data-v="'+o[0]+'"'+(on?' checked':'')+'><span>'+o[1]+'</span></label>'; }).join('')+'</div></div>'+
-      (PL[ui.pview]?'<h2>'+PL[ui.pview].head+'</h2></div>':
-      '<p class="day-date">'+esc(md(d.date)+' '+wd(d.date)+'요일, '+cityName)+'</p><h2>'+(canEdit()?'<button class="day-title-btn" data-act="day-title" aria-label="이 날 제목 고치기">'+esc(d.title||'제목 없음')+ICON.edit+'</button>':esc(d.title))+'</h2></div>')+
-    (PL[ui.pview]?renderPlaceView(ui.pview):ui.pview==='map'?renderMapView():'<ol class="timeline">'+startNode(d,'plan')+items+'</ol>'+
-    (canEdit()?'<button class="add" data-act="ev-add">일정 추가</button>':''))+
+    '<div class="day-head"><div class="view-toggle"><div class="seg seg--sm">'+[['list','일정표'],['map','지도'],['food','밥지도'],['bread','빵지도']].map(function(o){
+        return '<label><input type="radio" name="pview" data-act="pview" data-v="'+o[0]+'"'+(pv===o[0]?' checked':'')+'><span>'+o[1]+'</span></label>'; }).join('')+'</div></div>'+
+      (PL[pv]?'<h2>'+PL[pv].head+'</h2></div>':
+      '<p class="day-date">'+(live?'오늘, ':'')+esc(md(d.date)+' '+wd(d.date)+'요일, '+cityName)+'</p><h2>'+(canEdit()?'<button class="day-title-btn" data-act="day-title" aria-label="이 날 제목 고치기">'+esc(d.title||'제목 없음')+ICON.edit+'</button>':esc(d.title))+'</h2></div>')+
+    (PL[pv]?renderPlaceView(pv):pv==='map'?renderMapView():dayList(d)+(canEdit()?'<div class="pad"><button class="add wide" data-act="ev-add">일정 추가</button></div>':''))+
     '</section>';
 }
-
-function resForDay(date){
-  var out=[];
-  state.reservations.forEach(function(r){
-    if(!r.date) return;
-    if(r.cat==='hotel' && r.endDate){
-      if(r.date===date) out.push({r:r,tag:'체크인'});
-      else if(r.endDate===date) out.push({r:r,tag:'체크아웃'});
-      else if(r.date<date && date<r.endDate) out.push({r:r,tag:'숙박'});
-    } else if(r.date===date || (r.endDate && r.date<=date && date<=r.endDate)) out.push({r:r,tag:CAT[r.cat]||'예약'});
-  });
-  return out;
-}
-
 function sortedRes(){
   return state.reservations.slice().sort(function(a,b){
     var ka=(a.date||'9999')+(a.time||'99:99'), kb=(b.date||'9999')+(b.time||'99:99');
@@ -1054,7 +1025,7 @@ function renderInfo(){
         return '<button class="row" data-act="share-prep"><div class="row-main"><div class="row-title">가족 앱에 공유하기</div><div class="row-sub">'+sub+'</div></div>'+ICON.chev+'</button>'+
           (lsGet(LS_GHTOKEN)?'<button class="row" data-act="share-auto"><div class="row-main"><div class="row-title">자동 공유 '+(auto?'켜짐':'꺼짐')+'</div><div class="row-sub">눌러서 '+(auto?'끄기':'켜기')+'</div></div></button>':''); })()+
       '<button class="row" data-act="share-link"><div class="row-main"><div class="row-title">가족용 주소 보내기</div><div class="row-sub">가족이 이 주소로 열고 홈 화면에 추가하면, 공유한 내용이 자동으로 보여요</div></div>'+ICON.chev+'</button>'+
-    '</div><p class="foot">QR 이미지는 이 휴대폰에 따로 저장돼서 백업을 가져와도 지워지지 않아요. 가족에게는 QR 화면의 보내기로 나눠 주세요.</p><p class="foot">모든 내용은 이 휴대폰 안에만 저장돼요. 인터넷 없이도 열리지만, 지도와 길찾기는 인터넷이 필요해요.</p><p class="foot ver-row">앱 버전 72<button class="ver-btn" data-act="app-refresh">새로고침</button></p>'+
+    '</div><p class="foot">QR 이미지는 이 휴대폰에 따로 저장돼서 백업을 가져와도 지워지지 않아요. 가족에게는 QR 화면의 보내기로 나눠 주세요.</p><p class="foot">모든 내용은 이 휴대폰 안에만 저장돼요. 인터넷 없이도 열리지만, 지도와 길찾기는 인터넷이 필요해요.</p><p class="foot ver-row">앱 버전 73<button class="ver-btn" data-act="app-refresh">새로고침</button></p>'+
     '';
 }
 
@@ -1096,40 +1067,26 @@ function evQuery(ev){
 }
 function hotelTonight(date){var h=null;state.reservations.forEach(function(r){if(r.cat==='hotel'&&r.date&&r.endDate&&r.date<=date&&date<r.endDate) h=r;});return h;}
 
-function renderToday(){
-  var days=state.days, t=todayJST(), live=-1;
-  days.forEach(function(d,i){if(d.date===t) live=i;});
-  var idx=live>=0?live:(ui.tday==null?0:Math.min(ui.tday,days.length-1));
-  var d=days[idx], isLive=live>=0, now=nowJST();
-  var cityName={kyoto:'교토',osaka:'오사카',move:'교토에서 오사카로'}[d.city];
-  var cur=null,next=null;
-  if(isLive){d.items.forEach(function(ev){if(!ev.time) return; if(ev.time<=now) cur=ev; else if(!next) next=ev;});}
-
-  var head='<header class="page-head today-head day--'+d.city+'"><p class="day-date">'+
-    (isLive?'오늘, ':'미리보기, ')+esc(md(d.date)+' '+wd(d.date)+'요일, '+cityName)+'</p>'+
-    '<h1>'+esc(d.title)+'</h1><p class="status">'+esc(isLive?('여행 '+(idx+1)+'일째, 지금 '+now):statusText())+'</p>'+
-    (isLive?'':'<div class="peek"><button class="mini" data-act="tday" data-i="'+(idx-1)+'"'+(idx===0?' disabled':'')+'>전날</button>'+
-      '<span>'+(idx+1)+'일째 / '+days.length+'일</span><button class="mini" data-act="tday" data-i="'+(idx+1)+'"'+(idx===days.length-1?' disabled':'')+'>다음날</button></div>')+
-    '</header>';
-
+// one day's plan as cards. On the day itself: "지금 / 다음" tags and the stops already passed folded up.
+// Tapping a card opens it for editing (a folded one opens up first).
+function dayList(d){
+  var live=d.date===todayJST(), now=nowJST(), cur=null, next=null;
+  if(live){ d.items.forEach(function(ev){ if(!ev.time) return; if(ev.time<=now) cur=ev; else if(!next) next=ev; }); }
   var items=d.items.map(function(ev){
-    var q=evQuery(ev), past=isLive&&ev.time&&cur&&ev.time<cur.time, isCur=cur===ev, isNext=isLive&&ev===next, ty=ev.type||'sight';
+    var q=evQuery(ev), past=live&&ev.time&&cur&&ev.time<cur.time, isCur=cur===ev, isNext=live&&ev===next, ty=ev.type||'sight';
     var acts=((ev.memo||ev.placeOrig)?'<button class="act act--memo" data-act="memo-toggle">'+ICON.note+'<span>메모</span></button>':'')+(q?'<a class="act" href="'+esc(mapUrl(q))+'" target="_blank" rel="noopener">'+ICON.pin+'지도</a>':'')+
-      (aboutOf(ev)?'<button class="act act--story" data-act="about" data-id="'+ev.id+'">'+ICON.book+'이곳 이야기</button>':'')+
-      (typeof spChip==='function'?spChip(ev,d.date):'');
+      (aboutOf(ev)?'<button class="act act--story" data-act="about" data-id="'+ev.id+'">'+ICON.book+'이곳 이야기</button>':'')+spChip(ev,d.date);
+    var tap=past?' data-act="tev-toggle" data-id="'+ev.id+'"':(canEdit()?' data-act="ev-edit" data-id="'+ev.id+'" role="button" tabindex="0"':'');
     return (legOf(d,ev)?'<li class="tev-route'+(past?' is-past':'')+'">'+routeCard(d,ev,'today')+'</li>':'')+
-      '<li class="tev tev--'+esc(ty)+(past?' is-past':'')+(isCur?' is-cur':'')+'"'+(past?' data-act="tev-toggle"':'')+'>'+
+      '<li class="tev tev--'+esc(ty)+(past?' is-past':'')+(isCur?' is-cur':'')+'"'+tap+'>'+
       '<div class="tev-head"><span class="tev-time">'+esc(ev.time||'시간 미정')+'</span><span class="tev-kind">'+(TYICON[ty]||'')+esc(TYPE[ty]||'')+'</span>'+
         (isCur?'<b class="pill pill--now">지금</b>':'')+(isNext?'<b class="pill pill--next">다음, '+esc(inHow(now,next.time))+'</b>':'')+(past?'<span class="tev-done">지난 일정</span>':'')+'</div>'+
       headHtml(ev,'h3','')+
       '<div class="tev-more">'+(ev.placeOrig?'<p class="tev-memo tev-orig">현지 이름: '+esc(ev.placeOrig)+'</p>':'')+memoHtml(ev.memo,'tev-memo')+
       (acts?'<div class="tev-acts">'+acts+'</div>':'')+'</div></li>';
   }).join('');
-
-  return head+(typeof spDayLine==='function'?spDayLine(d.date):'')+hotelTop(d)+
-    '<ol class="tlist day--'+d.city+'">'+startNode(d,'today')+items+'</ol>';
+  return spDayLine(d.date)+hotelTop(d)+'<ol class="tlist day--'+d.city+'">'+startNode(d,'today')+items+'</ol>';
 }
-
 /* ---------- backup ---------- */
 function backupJson(){return JSON.stringify({app:'kyosaka',exportedAt:new Date().toISOString(),state:state});}
 var APP_URL='https://shinchooray.github.io/kyoto-osaka-trip/';
@@ -1925,7 +1882,6 @@ document.addEventListener('click',function(e){
     case 'day': ui.day=+el.getAttribute('data-i'); render(); break;
     case 'pview': ui.pview=el.getAttribute('data-v'); render(); break;
     case 'map-scope': ui.mapAll=el.getAttribute('data-v')==='all'; drawMap(); break;
-    case 'tday': if(el.disabled) break; ui.tday=+el.getAttribute('data-i'); render(); window.scrollTo(0,0); break;
     case 'ev-add-today': ui.day=+el.getAttribute('data-i'); evForm(null); break;
     case 'qr-open': var ql=QR[id]||[]; qrOpen(ql,+el.getAttribute('data-i')||0); break;
     case 'qr-all': qrOpen(qrAllList(),0); break;
@@ -1960,7 +1916,7 @@ document.addEventListener('click',function(e){
     case 'day-title': dayTitleForm(); break;
     case 'about': aboutSheet(id); break;
     case 'memo-toggle': var li=el.closest('li'); if(li) li.classList.toggle('memo-open'); break;
-    case 'tev-toggle': el.classList.toggle('open'); break;
+    case 'tev-toggle': if(el.classList.contains('open')&&canEdit()) evForm(id); else el.classList.toggle('open'); break;
     case 'sp-open': spSheet(id,el.getAttribute('data-d')||''); break;
     case 'sp-rate': spRateSheet(); break;
     case 'sp-del': SP.items=SP.items.filter(function(x){return x.id!==id;}); spSave(); render(); var evd=el.getAttribute('data-ev'), lg=el.getAttribute('data-leg'); if(lg) legSheet(lg); else if(evd) spSheet(evd); toast('지웠어요'); break;
@@ -2198,7 +2154,7 @@ render();
 document.addEventListener('visibilitychange',function(){ if(document.visibilityState==='visible'&&document.querySelector('.sheet [data-close-sheet]')) closeSheet(); if(document.visibilityState==='hidden'&&autoT) autoShareNow(); });
 if(!FAMILY){ autoShareSoon(); window.addEventListener('online',autoShareSoon); if(!dirtyList().length) saveBase(); }
 if(FAMILY){ famRefresh(); window.addEventListener('online',famRefresh); document.addEventListener('visibilitychange',function(){ if(document.visibilityState==='visible') famRefresh(); }); }
-setInterval(function(){ if(ui.tab==='today' && !$('#sheet-root').classList.contains('open') && !document.querySelector('.taxi')) render(); },60000);
+setInterval(function(){ if(ui.tab==='plan' && (ui.pview||'list')==='list' && state.days[ui.day] && state.days[ui.day].date===todayJST() && !$('#sheet-root').classList.contains('open') && !document.querySelector('.taxi')) render(); },60000);
 if('serviceWorker' in navigator){
   var hadCtl=!!navigator.serviceWorker.controller, reloaded=false;
   navigator.serviceWorker.addEventListener('controllerchange',function(){ if(hadCtl&&!reloaded&&!$('#sheet-root').classList.contains('open')){ reloaded=true; location.reload(); } });
