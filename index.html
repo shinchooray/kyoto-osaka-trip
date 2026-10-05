@@ -553,6 +553,14 @@ ul.tev-memo{font-size:14px;color:var(--muted)}
 .tlist .tev[data-act]{cursor:pointer}
 .tlist .tev[data-act]:active{filter:brightness(.97)}
 .pl-btns{display:flex;gap:6px;flex:none}
+/* 미정 (not decided yet) */
+.tlist .tev.is-tbd{border-style:dashed;border-left-style:dashed;background:color-mix(in srgb,var(--surface) 70%,transparent)}
+.tlist .tev.is-tbd h3{color:var(--muted)}
+.pill--tbd{background:color-mix(in srgb,var(--muted) 18%,var(--surface));color:var(--muted);border:1px dashed var(--muted)}
+.mk--tbd{opacity:.55;outline:2px dashed #fff}
+.tbd-row{display:flex;align-items:center;gap:8px;margin-top:14px;padding:10px 12px;border:1px dashed var(--line);border-radius:12px;font-size:14px;color:var(--muted);cursor:pointer}
+.tbd-row input{width:18px;height:18px}
+.tbd-row b{color:var(--ink);margin-right:4px}
 .field > span.pl-pick-h{display:flex;align-items:center;justify-content:space-between;gap:8px}
 .pl-pick-h .seg{flex:none;display:inline-flex}
 .pl-pick-h .seg span{padding:4px 12px}
@@ -616,7 +624,7 @@ var SEED = JSON.parse($('#trip-data').textContent);
 var state = (function(){ try{ var s=localStorage.getItem(LS_STATE); if(s){ var o=JSON.parse(s); if(o&&Array.isArray(o.days)) return o; } }catch(e){} return JSON.parse(JSON.stringify(SEED)); })();
 var mode = 'local';
 var SS_UI = 'kyosaka:ui';
-var APP_VER = 79;   // shown at the bottom of 정보 (and used by the 새로고침 button); bump on every change
+var APP_VER = 80;   // shown at the bottom of 정보 (and used by the 새로고침 button); bump on every change
 /* family view: read-only copy of what the owner shared (?family link, remembered on this phone) */
 var LS_SHARED='kyosaka:shared', SHARED=null;
 var FAMILY=(function(){
@@ -982,6 +990,7 @@ function changesText(){
     '- changes: upsert는 같은 id가 있으면 그 항목을 이 내용으로 바꾸고(event는 date의 날짜로 옮기고 시간순 정렬), 없으면 새로 추가해. delete는 그 id를 지워. kind가 day면 그 날짜의 제목(title)만 바꿔.\n'+
     '- route는 how(train=대중교통, walk=도보, taxi=택시, flight=비행기)와 min(예상 분)만 있으면 돼. 길 안내는 앱이 구글 지도로 보여주고, 교통비는 내가 앱에서 직접 적어.\n'+
     '- routeStale:true인 일정은 앞 일정이나 그 장소가 바뀌어서 시간·교통비가 안 맞을 수 있어. 앞 일정에서 이 일정까지의 how, min을 새로 확인하고 routeStale은 지워줘.\n'+
+    '- tentative:true인 일정은 아직 확정 안 된 미정 일정이야. 그대로 두고, 확정됐다고 하면 tentative를 지워줘.\n'+
     '- 새 일정을 추가할 때 memo는 내가 따로 부탁하지 않으면 비워둬.\n'+
     '- event에 lat/lng가 없으면 원래 있던 lat/lng도 지워. 지도 검색어(map)로 위치를 다시 찾게 하려는 거야.\n'+
     '- type이 cafe인 일정은 빵집이야(bakery는 빵집 리스트의 id). type이 food인 일정의 restaurant는 식당 리스트의 id야.\n'+
@@ -1094,8 +1103,8 @@ function dayList(d){
       (aboutOf(ev)?'<button class="act act--story" data-act="about" data-id="'+ev.id+'">'+ICON.book+'이곳 이야기</button>':'')+spChip(ev,d.date);
     var tap=past?' data-act="tev-toggle" data-id="'+ev.id+'"':(canEdit()?' data-act="ev-edit" data-id="'+ev.id+'" role="button" tabindex="0"':'');
     return (legOf(d,ev)?'<li class="tev-route'+(past?' is-past':'')+'">'+routeCard(d,ev,'today')+'</li>':'')+
-      '<li class="tev tev--'+esc(ty)+(past?' is-past':'')+(isCur?' is-cur':'')+'"'+tap+'>'+
-      '<div class="tev-head"><span class="tev-time">'+esc(ev.time||'시간 미정')+'</span><span class="tev-kind">'+(TYICON[ty]||'')+esc(TYPE[ty]||'')+'</span>'+
+      '<li class="tev tev--'+esc(ty)+(past?' is-past':'')+(isCur?' is-cur':'')+(ev.tentative?' is-tbd':'')+'"'+tap+'>'+
+      '<div class="tev-head"><span class="tev-time">'+esc(ev.time||'시간 미정')+'</span><span class="tev-kind">'+(TYICON[ty]||'')+esc(TYPE[ty]||'')+'</span>'+(ev.tentative?'<b class="pill pill--tbd">미정</b>':'')+
         (isCur?'<b class="pill pill--now">지금</b>':'')+(isNext?'<b class="pill pill--next">다음, '+esc(inHow(now,next.time))+'</b>':'')+(past?'<span class="tev-done">지난 일정</span>':'')+'</div>'+
       headHtml(ev,'h3','')+
       '<div class="tev-more">'+(ev.placeOrig?'<p class="tev-memo tev-orig">현지 이름: '+esc(ev.placeOrig)+'</p>':'')+memoHtml(ev.memo,'tev-memo')+
@@ -1144,7 +1153,7 @@ function shareData(){
   var days=state.days.map(function(d){
     return {date:d.date,city:d.city,title:d.title,items:d.items.map(function(ev){
       var stay=ev.type==='stay'||isHotelEv(ev);
-      var it=pick(ev,stay?['id','time','type','title','place','placeOrig']:['id','time','type','title','place','placeOrig','map','memo','lat','lng','spot','restaurant','bakery']);
+      var it=pick(ev,stay?['id','time','type','title','place','placeOrig']:['id','time','type','title','place','placeOrig','map','memo','lat','lng','spot','restaurant','bakery','tentative']);
       var gv=stay?null:ggCached(gQuery(ev)); if(gv){ it.lat=gv.lat; it.lng=gv.lng; }
       if(ev.route) it.route=pick(ev.route,['how','min']);
       if(!stay&&aboutRaw(ev.about)) it.about=pick(ev.about,['intro','history','highlights','facts','tip']);
@@ -1745,7 +1754,7 @@ function placeMarkers(L,found,miss){
     var ev=f.p.ev, ty=ev.type||'sight';
     var n=num[f.p.day]=(num[f.p.day]||0)+1;
     var label=ui.mapAll?(parts(f.p.date)[2]+'·'+n):String(n);
-    var icon=L.divIcon({className:'mk-wrap',html:'<div class="mk mk--'+ty+'">'+esc(label)+'</div>',iconSize:[30,30],iconAnchor:[15,15]});
+    var icon=L.divIcon({className:'mk-wrap',html:'<div class="mk mk--'+ty+(ev.tentative?' mk--tbd':'')+'">'+esc(label)+'</div>',iconSize:[30,30],iconAnchor:[15,15]});
     var q=evQuery(ev);
     var html='<div class="mk-pop"><b>'+esc((ev.time||'')+' '+ev.title)+'</b>'+(ui.mapAll?'<div class="mk-d">'+esc(mdw(f.p.date))+'</div>':'')+(q?'<a href="'+esc(mapUrl(q))+'" target="_blank" rel="noopener">구글 지도에서 열기</a>':'')+
       (canEdit()?'<br><a href="#" data-pop-edit="'+esc(ev.id)+'">위치가 틀렸으면 고치기</a>':'')+'</div>';
@@ -1790,6 +1799,7 @@ function evForm(id,preset){
     '<div class="two">'+selectField('날짜','day',String(dayIdx),state.days.map(function(d,i){return [String(i),mdw(d.date)];}))+field('시간','time',ev.time,'time')+'</div>'+
     selectField('종류','type',ev.type||'sight',Object.keys(TYPE).map(function(k){return [k,TYPE[k]];}))+
     plPick('sight',ev,dayIdx)+plPick('food',ev,dayIdx)+plPick('bread',ev,dayIdx)+
+    '<label class="tbd-row"><input type="checkbox" name="tentative"'+(ev.tentative?' checked':'')+'><span><b>미정</b> 아직 확정 안 된 일정이에요</span></label>'+
     field('장소','place',ev.place||ev.title,'text',' required placeholder="예: 킨카쿠지"')+
     field('현지 이름','placeOrig',ev.placeOrig,'text',' placeholder="예: 金閣寺 (선택)"')+
     '<label class="field"><span>지도 검색어</span><input name="map" value="'+esc(ev.map||'')+'" placeholder="예: Kinkaku-ji"><small>지도 버튼과 일정 탭 지도가 모두 이 검색어로 찾아요. '+(gKey()?'구글 지도처럼 한글 가게 이름도 잘 찾아요. 체인점은 지점명까지 적어 주세요.':'영어나 일본어로 적으면 더 정확해요. 정보 탭에서 구글 위치 찾기를 켜면 한글 이름도 잘 찾아요.')+' 구글 지도에서 길게 눌러 나온 좌표(예: 34.9671, 135.7727)를 붙여넣으면 정확히 그 지점에 찍혀요. 비워두면 장소 이름으로 찾아요.</small></label>'+
@@ -2146,6 +2156,7 @@ document.addEventListener('submit',function(e){
       if(locChanged){ delete item.lat; delete item.lng; }
       var moved=!old||locChanged||old.day!==dayIdx||(old.ev.time||'')!==v.time;
       item.time=v.time; item.type=v.type; item.title=v.place; item.place=v.place; item.placeOrig=v.placeOrig; item.map=v.map; item.memo=v.memo;
+      if(f.querySelector('input[name=tentative]').checked) item.tentative=true; else delete item.tentative;
       PLK.forEach(function(k){ var P=PL[k]; if(v.type===P.ev&&v[P.fld]&&findPl(k,v[P.fld])) item[P.fld]=v[P.fld]; else delete item[P.fld]; });
       // keep the saved route (with its step diagram) unless the route fields were edited here
       var ro=item.route||{}, routeEdited=['how','min'].some(function(k){ var a=ro[k]==null?'':String(ro[k]); if(k==='how') a=howForm(a); return a!==String(v['r'+k]||''); });
