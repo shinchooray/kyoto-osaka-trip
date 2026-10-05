@@ -558,9 +558,11 @@ ul.tev-memo{font-size:14px;color:var(--muted)}
 .tlist .tev.is-tbd h3{color:var(--muted)}
 .pill--tbd{background:color-mix(in srgb,var(--muted) 18%,var(--surface));color:var(--muted);border:1px dashed var(--muted)}
 .mk--tbd{opacity:.55;outline:2px dashed #fff}
-.tbd-row{display:flex;align-items:center;gap:8px;margin-top:14px;padding:10px 12px;border:1px dashed var(--line);border-radius:12px;font-size:14px;color:var(--muted);cursor:pointer}
-.tbd-row input{width:18px;height:18px}
-.tbd-row b{color:var(--ink);margin-right:4px}
+.ev-form-h{display:flex;align-items:center;justify-content:space-between;gap:10px}
+.ev-form-h h2{margin-right:auto}
+.tbd-toggle{flex:none;padding:6px 14px;border:1.5px dashed var(--muted);border-radius:999px;background:var(--surface);color:var(--muted);font:inherit;font-size:14px;font-weight:700;cursor:pointer}
+.tbd-toggle[aria-pressed="true"]{border-style:solid;border-color:var(--ink);background:var(--ink);color:var(--bg)}
+.tbd-toggle[aria-pressed="true"]::before{content:"✓ "}
 .field > span.pl-pick-h{display:flex;align-items:center;justify-content:space-between;gap:8px}
 .pl-pick-h .seg{flex:none;display:inline-flex}
 .pl-pick-h .seg span{padding:4px 12px}
@@ -624,7 +626,7 @@ var SEED = JSON.parse($('#trip-data').textContent);
 var state = (function(){ try{ var s=localStorage.getItem(LS_STATE); if(s){ var o=JSON.parse(s); if(o&&Array.isArray(o.days)) return o; } }catch(e){} return JSON.parse(JSON.stringify(SEED)); })();
 var mode = 'local';
 var SS_UI = 'kyosaka:ui';
-var APP_VER = 80;   // shown at the bottom of 정보 (and used by the 새로고침 button); bump on every change
+var APP_VER = 81;   // shown at the bottom of 정보 (and used by the 새로고침 button); bump on every change
 /* family view: read-only copy of what the owner shared (?family link, remembered on this phone) */
 var LS_SHARED='kyosaka:shared', SHARED=null;
 var FAMILY=(function(){
@@ -1795,11 +1797,11 @@ function areaField(label,name,val,hint){
 function evForm(id,preset){
   var f=id?findEv(id):null, ev=f?f.ev:Object.assign({time:'',type:'sight',title:'',place:'',map:'',memo:''},preset||{});
   var dayIdx=f?f.day:ui.day, rt=ev.route||{};
-  openSheet('<form data-form="ev" data-id="'+(id||'')+'"><h2>'+(id?'일정 고치기':'일정 추가')+'</h2>'+
+  openSheet('<form data-form="ev" data-id="'+(id||'')+'"><div class="ev-form-h"><h2>'+(id?'일정 고치기':'일정 추가')+'</h2>'+
+    '<button type="button" class="tbd-toggle" data-act="tbd-toggle" aria-pressed="'+!!ev.tentative+'">미정</button><input type="hidden" name="tentative" value="'+(ev.tentative?'1':'')+'"></div>'+
     '<div class="two">'+selectField('날짜','day',String(dayIdx),state.days.map(function(d,i){return [String(i),mdw(d.date)];}))+field('시간','time',ev.time,'time')+'</div>'+
     selectField('종류','type',ev.type||'sight',Object.keys(TYPE).map(function(k){return [k,TYPE[k]];}))+
     plPick('sight',ev,dayIdx)+plPick('food',ev,dayIdx)+plPick('bread',ev,dayIdx)+
-    '<label class="tbd-row"><input type="checkbox" name="tentative"'+(ev.tentative?' checked':'')+'><span><b>미정</b> 아직 확정 안 된 일정이에요</span></label>'+
     field('장소','place',ev.place||ev.title,'text',' required placeholder="예: 킨카쿠지"')+
     field('현지 이름','placeOrig',ev.placeOrig,'text',' placeholder="예: 金閣寺 (선택)"')+
     '<label class="field"><span>지도 검색어</span><input name="map" value="'+esc(ev.map||'')+'" placeholder="예: Kinkaku-ji"><small>지도 버튼과 일정 탭 지도가 모두 이 검색어로 찾아요. '+(gKey()?'구글 지도처럼 한글 가게 이름도 잘 찾아요. 체인점은 지점명까지 적어 주세요.':'영어나 일본어로 적으면 더 정확해요. 정보 탭에서 구글 위치 찾기를 켜면 한글 이름도 잘 찾아요.')+' 구글 지도에서 길게 눌러 나온 좌표(예: 34.9671, 135.7727)를 붙여넣으면 정확히 그 지점에 찍혀요. 비워두면 장소 이름으로 찾아요.</small></label>'+
@@ -1958,6 +1960,7 @@ document.addEventListener('click',function(e){
     case 'sp-del': SP.items=SP.items.filter(function(x){return x.id!==id;}); spSave(); render(); var evd=el.getAttribute('data-ev'), lg=el.getAttribute('data-leg'); if(lg) legSheet(lg); else if(evd) spSheet(evd); toast('지웠어요'); break;
     case 'leg-open': legSheet(id); break;
     case 'leg-edit': legEdit(id); break;
+    case 'tbd-toggle': var tb=el.getAttribute('aria-pressed')!=='true'; el.setAttribute('aria-pressed',tb); el.parentNode.querySelector('input[name=tentative]').value=tb?'1':''; break;
     case 'dirty-reset': if(armed!=='dirty'){ armed='dirty'; el.textContent=hasBase()?'한 번 더 누르면 고치기 전으로 되돌려요':'한 번 더 누르면 목록을 비워요'; return; } armed=null; if(hasBase()) revertDirty(); else { clearDirty(); render(); toast('고친 내용 목록을 비웠어요'); } break;
     case 'sheet-close': closeSheet(); break;
     case 'copy': copyText(el.getAttribute('data-v')); break;
@@ -2156,7 +2159,7 @@ document.addEventListener('submit',function(e){
       if(locChanged){ delete item.lat; delete item.lng; }
       var moved=!old||locChanged||old.day!==dayIdx||(old.ev.time||'')!==v.time;
       item.time=v.time; item.type=v.type; item.title=v.place; item.place=v.place; item.placeOrig=v.placeOrig; item.map=v.map; item.memo=v.memo;
-      if(f.querySelector('input[name=tentative]').checked) item.tentative=true; else delete item.tentative;
+      if(v.tentative==='1') item.tentative=true; else delete item.tentative;
       PLK.forEach(function(k){ var P=PL[k]; if(v.type===P.ev&&v[P.fld]&&findPl(k,v[P.fld])) item[P.fld]=v[P.fld]; else delete item[P.fld]; });
       // keep the saved route (with its step diagram) unless the route fields were edited here
       var ro=item.route||{}, routeEdited=['how','min'].some(function(k){ var a=ro[k]==null?'':String(ro[k]); if(k==='how') a=howForm(a); return a!==String(v['r'+k]||''); });
