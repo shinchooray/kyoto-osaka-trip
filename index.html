@@ -554,10 +554,11 @@ ul.tev-memo{font-size:14px;color:var(--muted)}
 .tlist .tev[data-act]:active{filter:brightness(.97)}
 .pl-btns{display:flex;gap:6px;flex:none}
 /* 미정 (not decided yet) */
-.tlist .tev.is-tbd{border-style:dashed;border-left-style:dashed;background:color-mix(in srgb,var(--surface) 70%,transparent)}
-.tlist .tev.is-tbd h3{color:var(--muted)}
-.pill--tbd{background:color-mix(in srgb,var(--muted) 18%,var(--surface));color:var(--muted);border:1px dashed var(--muted)}
-.mk--tbd{opacity:.55;outline:2px dashed #fff}
+.tlist .tev.is-tbd{--tbd:#C98A00;border:2px dashed var(--tbd);border-left:6px dashed var(--tbd);background:repeating-linear-gradient(135deg,color-mix(in srgb,var(--tbd) 10%,var(--surface)) 0 12px,var(--surface) 12px 24px)}
+.tlist .tev.is-tbd h3{opacity:.8}
+.tlist .tev.is-tbd h3::after{content:" ?";color:var(--tbd);font-weight:800}
+.pill--tbd{background:#C98A00;color:#fff;border:0;letter-spacing:.02em}
+.mk--tbd{background:repeating-linear-gradient(135deg,#C98A00 0 4px,#fff 4px 8px)!important;color:#5A3D00!important;border:2px dashed #C98A00!important}
 .ev-form-h{display:flex;align-items:center;justify-content:space-between;gap:10px}
 .ev-form-h h2{margin-right:auto}
 .tbd-toggle{flex:none;padding:6px 14px;border:1.5px dashed var(--muted);border-radius:999px;background:var(--surface);color:var(--muted);font:inherit;font-size:14px;font-weight:700;cursor:pointer}
@@ -626,7 +627,7 @@ var SEED = JSON.parse($('#trip-data').textContent);
 var state = (function(){ try{ var s=localStorage.getItem(LS_STATE); if(s){ var o=JSON.parse(s); if(o&&Array.isArray(o.days)) return o; } }catch(e){} return JSON.parse(JSON.stringify(SEED)); })();
 var mode = 'local';
 var SS_UI = 'kyosaka:ui';
-var APP_VER = 81;   // shown at the bottom of 정보 (and used by the 새로고침 button); bump on every change
+var APP_VER = 82;   // shown at the bottom of 정보 (and used by the 새로고침 button); bump on every change
 /* family view: read-only copy of what the owner shared (?family link, remembered on this phone) */
 var LS_SHARED='kyosaka:shared', SHARED=null;
 var FAMILY=(function(){
@@ -1106,7 +1107,7 @@ function dayList(d){
     var tap=past?' data-act="tev-toggle" data-id="'+ev.id+'"':(canEdit()?' data-act="ev-edit" data-id="'+ev.id+'" role="button" tabindex="0"':'');
     return (legOf(d,ev)?'<li class="tev-route'+(past?' is-past':'')+'">'+routeCard(d,ev,'today')+'</li>':'')+
       '<li class="tev tev--'+esc(ty)+(past?' is-past':'')+(isCur?' is-cur':'')+(ev.tentative?' is-tbd':'')+'"'+tap+'>'+
-      '<div class="tev-head"><span class="tev-time">'+esc(ev.time||'시간 미정')+'</span><span class="tev-kind">'+(TYICON[ty]||'')+esc(TYPE[ty]||'')+'</span>'+(ev.tentative?'<b class="pill pill--tbd">미정</b>':'')+
+      '<div class="tev-head"><span class="tev-time">'+esc(ev.time||'시간 미정')+'</span><span class="tev-kind">'+(TYICON[ty]||'')+esc(TYPE[ty]||'')+'</span>'+(ev.tentative?'<b class="pill pill--tbd">미정 · 확정 전</b>':'')+
         (isCur?'<b class="pill pill--now">지금</b>':'')+(isNext?'<b class="pill pill--next">다음, '+esc(inHow(now,next.time))+'</b>':'')+(past?'<span class="tev-done">지난 일정</span>':'')+'</div>'+
       headHtml(ev,'h3','')+
       '<div class="tev-more">'+(ev.placeOrig?'<p class="tev-memo tev-orig">현지 이름: '+esc(ev.placeOrig)+'</p>':'')+memoHtml(ev.memo,'tev-memo')+
@@ -1960,7 +1961,12 @@ document.addEventListener('click',function(e){
     case 'sp-del': SP.items=SP.items.filter(function(x){return x.id!==id;}); spSave(); render(); var evd=el.getAttribute('data-ev'), lg=el.getAttribute('data-leg'); if(lg) legSheet(lg); else if(evd) spSheet(evd); toast('지웠어요'); break;
     case 'leg-open': legSheet(id); break;
     case 'leg-edit': legEdit(id); break;
-    case 'tbd-toggle': var tb=el.getAttribute('aria-pressed')!=='true'; el.setAttribute('aria-pressed',tb); el.parentNode.querySelector('input[name=tentative]').value=tb?'1':''; break;
+    case 'tbd-toggle':
+      var tb=el.getAttribute('aria-pressed')!=='true'; el.setAttribute('aria-pressed',tb); el.parentNode.querySelector('input[name=tentative]').value=tb?'1':'';
+      // an existing stop changes right away; a new one gets it when saved
+      var tf=el.closest('form'), tid=tf&&tf.getAttribute('data-id'), tev=tid&&findEv(tid);
+      if(tev){ commit(function(){ if(tb) tev.ev.tentative=true; else delete tev.ev.tentative; },true); markDirty('event',tid,'upsert'); toast(tb?'미정으로 바꿨어요':'확정으로 바꿨어요'); }
+      break;
     case 'dirty-reset': if(armed!=='dirty'){ armed='dirty'; el.textContent=hasBase()?'한 번 더 누르면 고치기 전으로 되돌려요':'한 번 더 누르면 목록을 비워요'; return; } armed=null; if(hasBase()) revertDirty(); else { clearDirty(); render(); toast('고친 내용 목록을 비웠어요'); } break;
     case 'sheet-close': closeSheet(); break;
     case 'copy': copyText(el.getAttribute('data-v')); break;
