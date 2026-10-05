@@ -476,11 +476,10 @@ ul.tev-memo{font-size:14px;color:var(--muted)}
 .ev--move .ev-body{border-left-style:solid}
 .tev-head .pill{border:0}
 /* list/map toggle + map */
-.view-toggle{float:right;margin-top:2px;margin-left:10px}
-.view-toggle .seg{display:grid;grid-template-columns:repeat(6,1fr);border-radius:12px}
-.view-toggle .seg label{grid-column:span 2}
-.view-toggle .seg label:nth-child(-n+2){grid-column:span 3}
-.view-toggle .seg span{flex:1;padding:6px 8px;white-space:nowrap}
+.vbar{display:grid;grid-template-columns:repeat(5,1fr);gap:3px;margin:12px 16px 0;padding:4px;border:1px solid var(--line);border-radius:14px;background:var(--surface)}
+.vbar button{display:flex;flex-direction:column;align-items:center;gap:2px;min-width:0;padding:6px 0 5px;border:0;border-radius:10px;background:none;color:var(--muted);font:inherit;font-size:12px;font-weight:700;letter-spacing:-.02em;white-space:nowrap;cursor:pointer}
+.vbar button svg{width:19px;height:19px}
+.vbar button[aria-pressed="true"]{background:var(--vc);color:var(--vt)}
 .seg--sm span{min-width:0;padding:6px 12px;font-size:13px}
 .seg--sm{border-radius:999px}
 .mapbar{display:flex;align-items:center;gap:10px;margin:10px 16px 0}
@@ -613,7 +612,7 @@ var SEED = JSON.parse($('#trip-data').textContent);
 var state = (function(){ try{ var s=localStorage.getItem(LS_STATE); if(s){ var o=JSON.parse(s); if(o&&Array.isArray(o.days)) return o; } }catch(e){} return JSON.parse(JSON.stringify(SEED)); })();
 var mode = 'local';
 var SS_UI = 'kyosaka:ui';
-var APP_VER = 76;   // shown at the bottom of 정보 (and used by the 새로고침 button); bump on every change
+var APP_VER = 77;   // shown at the bottom of 정보 (and used by the 새로고침 button); bump on every change
 /* family view: read-only copy of what the owner shared (?family link, remembered on this phone) */
 var LS_SHARED='kyosaka:shared', SHARED=null;
 var FAMILY=(function(){
@@ -889,9 +888,11 @@ function renderPlan(){
     (mode==='readonly'?'<span class="ro-note">보기 전용</span>':'')+'</header>'+
     '<div class="route"><div class="route-cities"><span class="rc-k">교토 2박</span><span class="rc-m">이동</span><span class="rc-o">오사카 2박</span></div>'+
     '<div class="stations" role="tablist" aria-label="날짜">'+stations+'</div></div>'+
+    // one row for what to show: the day's plan or one of the maps
+    '<nav class="vbar" aria-label="보기">'+[['list','일정표',ICON.plan,'var(--ink)'],['map','일정지도',ICON.pin,'#2E4E97'],['sight','구경지도',TYICON.sight,'#3E6A48'],['food','밥지도',TYICON.food,'#B1501D'],['bread','빵지도',TYICON.cafe,'#8A5A2B']].map(function(o){
+        return '<button data-act="pview" data-v="'+o[0]+'" aria-pressed="'+(pv===o[0])+'" style="--vc:'+o[3]+';--vt:'+(o[0]==='list'?'var(--bg)':'#fff')+'">'+o[2]+'<span>'+o[1]+'</span></button>'; }).join('')+'</nav>'+
     '<section class="day day--'+d.city+'">'+
-    '<div class="day-head"><div class="view-toggle"><div class="seg seg--sm">'+[['list','일정표'],['map','지도'],['sight','구경지도'],['food','밥지도'],['bread','빵지도']].map(function(o){
-        return '<label><input type="radio" name="pview" data-act="pview" data-v="'+o[0]+'"'+(pv===o[0]?' checked':'')+'><span>'+o[1]+'</span></label>'; }).join('')+'</div></div>'+
+    '<div class="day-head">'+
       (PL[pv]?'<h2>'+PL[pv].head+'</h2></div>':
       '<p class="day-date">'+(live?'오늘, ':'')+esc(md(d.date)+' '+wd(d.date)+'요일, '+cityName)+'</p><h2>'+(canEdit()?'<button class="day-title-btn" data-act="day-title" aria-label="이 날 제목 고치기">'+esc(d.title||'제목 없음')+ICON.edit+'</button>':esc(d.title))+'</h2></div>')+
     (PL[pv]?renderPlaceView(pv):pv==='map'?renderMapView():dayList(d)+(canEdit()?'<div class="pad"><button class="add wide" data-act="ev-add">일정 추가</button></div>':''))+
