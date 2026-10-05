@@ -553,6 +553,9 @@ ul.tev-memo{font-size:14px;color:var(--muted)}
 .tlist .tev[data-act]{cursor:pointer}
 .tlist .tev[data-act]:active{filter:brightness(.97)}
 .pl-btns{display:flex;gap:6px;flex:none}
+.field > span.pl-pick-h{display:flex;align-items:center;justify-content:space-between;gap:8px}
+.pl-pick-h .seg{flex:none;display:inline-flex}
+.pl-pick-h .seg span{padding:4px 12px}
 .ver-row{display:flex;align-items:center;gap:8px}
 .ver-btn{padding:2px 9px;border:1px solid var(--line);border-radius:999px;background:var(--surface);color:var(--muted);font:inherit;font-size:12px;font-weight:700;cursor:pointer}
 /* hotel on top of today */
@@ -613,7 +616,7 @@ var SEED = JSON.parse($('#trip-data').textContent);
 var state = (function(){ try{ var s=localStorage.getItem(LS_STATE); if(s){ var o=JSON.parse(s); if(o&&Array.isArray(o.days)) return o; } }catch(e){} return JSON.parse(JSON.stringify(SEED)); })();
 var mode = 'local';
 var SS_UI = 'kyosaka:ui';
-var APP_VER = 78;   // shown at the bottom of 정보 (and used by the 새로고침 button); bump on every change
+var APP_VER = 79;   // shown at the bottom of 정보 (and used by the 새로고침 button); bump on every change
 /* family view: read-only copy of what the owner shared (?family link, remembered on this phone) */
 var LS_SHARED='kyosaka:shared', SHARED=null;
 var FAMILY=(function(){
@@ -1581,12 +1584,19 @@ function plForm(k,id){
     '<button type="button" class="btn btn-ghost" data-act="sheet-close">취소</button><button type="submit" class="btn btn-primary">저장</button></div></form>');
 }
 function plShare(k){ return PLD[k].map(function(b){ var x=pick(b,['id','city','name','nameOrig','map','memo','lat','lng','about']), g=ggCached(gQuery(plEv(k,b))); if(g){ x.lat=g.lat; x.lng=g.lng; } return x; }); }
-function plPick(k,ev){
-  var P=PL[k], L=PLD[k];
-  return '<div class="pl-pick" data-k="'+k+'"'+(ev.type===P.ev?'':' hidden')+'>'+(L.length?selectField(P.unit+' 고르기',P.fld,ev[P.fld]||'',[['','직접 입력']].concat(L.map(function(b){return [b.id,'['+(plCity(b)==='osaka'?'오사카':'교토')+'] '+b.name];})))
-    :'<p class="sub">'+P.unit+' 리스트가 비어 있어요. 일정 탭 → '+P.t+' 지도에서 먼저 추가하면 여기서 고를 수 있어요.</p>')+'</div>';
+// pick from the 구경/밥/빵 list, one city at a time (days 1–2 Kyoto, 3–5 Osaka unless the place picked says otherwise)
+function dayCity(i){ return i<=1?'kyoto':'osaka'; }
+function plOptions(k,city,sel){
+  return '<option value="">직접 입력</option>'+PLD[k].filter(function(b){ return plCity(b)===city; }).map(function(b){
+    return '<option value="'+esc(b.id)+'"'+(b.id===sel?' selected':'')+'>'+esc(b.name)+'</option>'; }).join('');
 }
-/* ---------- map view (Leaflet + OpenStreetMap; coordinates cached on this phone) ---------- */
+function plPick(k,ev,dayIdx){
+  var P=PL[k], L=PLD[k], cur=ev[P.fld]&&findPl(k,ev[P.fld]), city=cur?plCity(cur):dayCity(dayIdx);
+  if(!L.length) return '<div class="pl-pick" data-k="'+k+'"'+(ev.type===P.ev?'':' hidden')+'><p class="sub">'+P.unit+' 리스트가 비어 있어요. 일정 탭 → '+P.t+'지도에서 먼저 추가하면 여기서 고를 수 있어요.</p></div>';
+  return '<div class="pl-pick" data-k="'+k+'"'+(ev.type===P.ev?'':' hidden')+'><div class="field"><span class="pl-pick-h">'+P.unit+' 고르기'+
+    '<span class="seg seg--sm">'+PLCITY.map(function(c){ return '<label><input type="radio" name="plc-'+k+'" value="'+c[0]+'"'+(city===c[0]?' checked':'')+'><span>'+c[1]+'</span></label>'; }).join('')+'</span></span>'+
+    '<select name="'+P.fld+'">'+plOptions(k,city,ev[P.fld]||'')+'</select></div></div>';
+}/* ---------- map view (Leaflet + OpenStreetMap; coordinates cached on this phone) ---------- */
 var MAP=null, MAPLAYER=null, LEAFLET_P=null;
 function loadLeaflet(){
   if(window.L) return Promise.resolve(window.L);
@@ -1779,7 +1789,7 @@ function evForm(id,preset){
   openSheet('<form data-form="ev" data-id="'+(id||'')+'"><h2>'+(id?'일정 고치기':'일정 추가')+'</h2>'+
     '<div class="two">'+selectField('날짜','day',String(dayIdx),state.days.map(function(d,i){return [String(i),mdw(d.date)];}))+field('시간','time',ev.time,'time')+'</div>'+
     selectField('종류','type',ev.type||'sight',Object.keys(TYPE).map(function(k){return [k,TYPE[k]];}))+
-    plPick('sight',ev)+plPick('food',ev)+plPick('bread',ev)+
+    plPick('sight',ev,dayIdx)+plPick('food',ev,dayIdx)+plPick('bread',ev,dayIdx)+
     field('장소','place',ev.place||ev.title,'text',' required placeholder="예: 킨카쿠지"')+
     field('현지 이름','placeOrig',ev.placeOrig,'text',' placeholder="예: 金閣寺 (선택)"')+
     '<label class="field"><span>지도 검색어</span><input name="map" value="'+esc(ev.map||'')+'" placeholder="예: Kinkaku-ji"><small>지도 버튼과 일정 탭 지도가 모두 이 검색어로 찾아요. '+(gKey()?'구글 지도처럼 한글 가게 이름도 잘 찾아요. 체인점은 지점명까지 적어 주세요.':'영어나 일본어로 적으면 더 정확해요. 정보 탭에서 구글 위치 찾기를 켜면 한글 이름도 잘 찾아요.')+' 구글 지도에서 길게 눌러 나온 좌표(예: 34.9671, 135.7727)를 붙여넣으면 정확히 그 지점에 찍혀요. 비워두면 장소 이름으로 찾아요.</small></label>'+
@@ -1969,6 +1979,9 @@ document.addEventListener('click',function(e){
 document.addEventListener('change',function(e){
   var inp=e.target, ef=inp.closest&&inp.closest('form[data-form="ev"]');
   if(ef&&inp.name==='type'){ ef.querySelectorAll('.pl-pick').forEach(function(pk){ pk.hidden=inp.value!==PL[pk.getAttribute('data-k')].ev; }); return; }
+  // city switch inside a pick list, or a new date: show that city's places
+  if(ef&&/^plc-/.test(inp.name)){ var ck=inp.name.slice(4), cs=ef.querySelector('select[name="'+PL[ck].fld+'"]'); if(cs) cs.innerHTML=plOptions(ck,inp.value,cs.value); return; }
+  if(ef&&inp.name==='day'){ var dc=dayCity(+inp.value); PLK.forEach(function(k){ var r=ef.querySelector('input[name="plc-'+k+'"][value="'+dc+'"]'), s=ef.querySelector('select[name="'+PL[k].fld+'"]'); if(r&&s&&!s.value){ r.checked=true; s.innerHTML=plOptions(k,dc,''); } }); return; }
   var pkk=ef&&PLK.filter(function(k){ return PL[k].fld===inp.name; })[0];
   if(pkk){ var b=findPl(pkk,inp.value); if(b){ ef.place.value=b.name; ef.placeOrig.value=b.nameOrig||''; ef.map.value=b.map||''; } return; } if(inp.matches&&inp.matches('[data-import="ckphoto"]')){ var cf=inp.files; qrAdd('ck:'+inp.getAttribute('data-id'),cf); inp.value=''; return; }
   if(inp.matches&&inp.matches('[data-import="qr"]')){ var fs=inp.files; qrAdd(inp.getAttribute('data-id'),fs); inp.value=''; return; }
