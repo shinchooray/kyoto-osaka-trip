@@ -1,5 +1,5 @@
 // 앱 화면을 휴대폰에 저장해 두고, 인터넷이 없어도 열리게 합니다.
-const CACHE = 'kyosaka-v5';
+const CACHE = 'kyosaka-v6';
 const SHELL = ['./', './index.html', './manifest.webmanifest', './icon-192.png', './icon-512.png', './apple-touch-icon.png'];
 
 self.addEventListener('install', (e) => {
@@ -59,10 +59,15 @@ self.addEventListener('fetch', (e) => {
   }
 
   // 저장본을 바로 보여주고, 인터넷이 되면 서버에 새 버전이 있는지 꼭 확인해서 바꿔둠
+  // 앱 화면은 주소(?family 등)와 상관없이 늘 './index.html' 한 곳에 저장하고 꺼냄
+  const nav = req.mode === 'navigate';
   e.respondWith(caches.open(CACHE).then((c) =>
-    c.match(req, { ignoreSearch: true }).then((hit) => {
+    (nav ? c.match('./index.html') : c.match(req, { ignoreSearch: true })).then((hit) => {
       const net = fetch(req, { cache: 'no-cache' }).then((res) => {
-        if (res.ok) { c.put(req, res.clone()); if (req.mode === 'navigate') c.put('./index.html', res.clone()); }
+        if (res.ok) {
+          if (nav) { c.put('./index.html', res.clone()); c.put('./', res.clone()); }
+          else c.put(req, res.clone());
+        }
         return res;
       }).catch(() => null);
       if (hit) { e.waitUntil(net); return hit; }
