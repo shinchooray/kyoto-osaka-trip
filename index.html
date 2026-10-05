@@ -552,6 +552,7 @@ ul.tev-memo{font-size:14px;color:var(--muted)}
 .pl-hint{margin:-4px 20px 6px;font-size:12px;color:var(--muted)}
 .tlist .tev[data-act]{cursor:pointer}
 .tlist .tev[data-act]:active{filter:brightness(.97)}
+.pl-btns{display:flex;gap:6px;flex:none}
 .ver-row{display:flex;align-items:center;gap:8px}
 .ver-btn{padding:2px 9px;border:1px solid var(--line);border-radius:999px;background:var(--surface);color:var(--muted);font:inherit;font-size:12px;font-weight:700;cursor:pointer}
 /* hotel on top of today */
@@ -612,7 +613,7 @@ var SEED = JSON.parse($('#trip-data').textContent);
 var state = (function(){ try{ var s=localStorage.getItem(LS_STATE); if(s){ var o=JSON.parse(s); if(o&&Array.isArray(o.days)) return o; } }catch(e){} return JSON.parse(JSON.stringify(SEED)); })();
 var mode = 'local';
 var SS_UI = 'kyosaka:ui';
-var APP_VER = 77;   // shown at the bottom of 정보 (and used by the 새로고침 button); bump on every change
+var APP_VER = 78;   // shown at the bottom of 정보 (and used by the 새로고침 button); bump on every change
 /* family view: read-only copy of what the owner shared (?family link, remembered on this phone) */
 var LS_SHARED='kyosaka:shared', SHARED=null;
 var FAMILY=(function(){
@@ -724,20 +725,26 @@ function routeCard(d,ev,kind){
   return '<div class="rt2 rt2--'+kind+(r.how==='walk'?' rt2--walk':'')+'">'+head+'</div>';
 }
 function catBadge(c){ return '<span class="cat cat--'+esc(CAT[c]?c:'etc')+'">'+esc(CAT[c]||'기타')+'</span>'; }
-function aboutOf(ev){ var a=ev&&ev.about; return a&&(a.intro||a.history||(a.facts&&a.facts.length))?a:null; }
-function aboutSheet(id){
-  var f=findEv(id); if(!f) return; var ev=f.ev, a=aboutOf(ev); if(!a) return;
+function aboutRaw(a){ return a&&(a.intro||a.history||(a.facts&&a.facts.length)||(a.highlights&&a.highlights.length))?a:null; }
+// a stop's own story, or the story of the 구경/밥/빵 list place it was picked from
+function aboutOf(ev){
+  if(!ev) return null; var a=aboutRaw(ev.about); if(a) return a;
+  for(var i=0;i<PLK.length;i++){ var k=PLK[i], id=ev[PL[k].fld]; if(id){ var b=findPl(k,id); if(b&&aboutRaw(b.about)) return b.about; } }
+  return null;
+}
+function aboutHtml(title,a){
   var facts=Array.isArray(a.facts)?a.facts.filter(Boolean):[], hl=Array.isArray(a.highlights)?a.highlights.filter(Boolean):[];
   var paras=String(a.history||'').split(/\n+/).filter(Boolean);
-  openSheet('<p class="about-kicker">이곳 이야기</p><h2>'+esc(ev.place||ev.title)+'</h2>'+
+  return '<p class="about-kicker">이곳 이야기</p><h2>'+esc(title)+'</h2>'+
     (a.intro?'<p class="about-intro">'+esc(a.intro)+'</p>':'')+
     (paras.length?'<h3 class="about-h">기원과 역사</h3>'+paras.map(function(p){return '<p class="about-p">'+esc(p)+'</p>';}).join(''):'')+
     (hl.length?'<h3 class="about-h">꼭 볼 것</h3><ul class="about-ul">'+hl.map(function(x){return '<li>'+esc(x)+'</li>';}).join('')+'</ul>':'')+
     (facts.length?'<h3 class="about-h">재밌는 이야기</h3><ul class="about-ul">'+facts.map(function(x){return '<li>'+esc(x)+'</li>';}).join('')+'</ul>':'')+
     (a.tip?'<div class="about-tip"><b>알아두면 좋아요</b><p>'+esc(a.tip)+'</p></div>':'')+
-    '<div class="actions"><button class="btn btn-primary" data-act="sheet-close">닫기</button></div>');
+    '<div class="actions"><button class="btn btn-primary" data-act="sheet-close">닫기</button></div>';
 }
-function showPlace(ev){ var p=String(ev.place||'').trim(), t=String(ev.title||''); if(!p) return false; var k=p.replace(/\s+/g,''); return t.replace(/\s+/g,'').indexOf(k)<0 && !/^\d|[0-9]{3}-?[0-9]{4}/.test(p); }
+function aboutSheet(id){ var f=findEv(id); if(!f) return; var a=aboutOf(f.ev); if(a) openSheet(aboutHtml(f.ev.place||f.ev.title,a)); }
+function plAboutSheet(k,id){ var b=findPl(k,id); if(b&&aboutRaw(b.about)) openSheet(aboutHtml(b.name,b.about)); }function showPlace(ev){ var p=String(ev.place||'').trim(), t=String(ev.title||''); if(!p) return false; var k=p.replace(/\s+/g,''); return t.replace(/\s+/g,'').indexOf(k)<0 && !/^\d|[0-9]{3}-?[0-9]{4}/.test(p); }
 function costText(r){ var c=r&&r.cost; if(!c||!(+c.amount>0)) return ''; var n=Math.round(+c.amount).toLocaleString('ko-KR'); return (c.cur==='JPY'?'¥'+n:n+'원')+(c.when==='onsite'?' (현장 결제)':' (결제 완료)'); }
 function memoLines(t){
   return String(t||'').replace(/([.!?。])\s+/g,'$1\n').replace(/\s+\/\s+/g,'\n').split(/\n+/)
@@ -979,6 +986,7 @@ function changesText(){
     '- bakeries: 가보고 싶은 빵집 리스트야(id, city, name, nameOrig, map, memo). city는 kyoto(교토) 또는 osaka(오사카). 이걸로 통째로 바꾸고, 백업의 state 안에 bakeries로 꼭 넣어줘. 빵집을 추가해 달라고 하면 여기에 넣으면 돼.\n'+
     '- restaurants: 가보고 싶은 식당 리스트야. 형식과 규칙은 bakeries와 똑같고, 백업의 state 안에 restaurants로 꼭 넣어줘.\n'+
     '- sights: 가보고 싶은 구경할 곳 리스트야. 형식과 규칙은 bakeries와 똑같고, 백업의 state 안에 sights로 꼭 넣어줘. 리스트에 있는 곳을 구경(type sight) 일정으로 넣을 때는 spot에 그 id를 넣어줘.\n'+
+    '- sights 항목에는 about(이곳 이야기)을 넣어줘: {intro: 한두 문장 소개, history: 기원과 역사(문단은 줄바꿈), highlights: [꼭 볼 것], facts: [재밌는 이야기], tip: 알아두면 좋은 것}. 그 장소 설명은 memo가 아니라 about에 넣고, memo는 내가 부탁한 짧은 메모만.\n'+
     '- 다른 내용은 건드리지 마. 반영한 뒤 무엇을 바꿨는지 짧게 알려주고, 끝에 백업 코드 블록을 붙여줘.\n\n'+
     JSON.stringify(payload);
 }
@@ -1133,10 +1141,10 @@ function shareData(){
   var days=state.days.map(function(d){
     return {date:d.date,city:d.city,title:d.title,items:d.items.map(function(ev){
       var stay=ev.type==='stay'||isHotelEv(ev);
-      var it=pick(ev,stay?['id','time','type','title','place','placeOrig']:['id','time','type','title','place','placeOrig','map','memo','lat','lng']);
+      var it=pick(ev,stay?['id','time','type','title','place','placeOrig']:['id','time','type','title','place','placeOrig','map','memo','lat','lng','spot','restaurant','bakery']);
       var gv=stay?null:ggCached(gQuery(ev)); if(gv){ it.lat=gv.lat; it.lng=gv.lng; }
       if(ev.route) it.route=pick(ev.route,['how','min']);
-      if(!stay&&aboutOf(ev)) it.about=pick(ev.about,['intro','history','highlights','facts','tip']);
+      if(!stay&&aboutRaw(ev.about)) it.about=pick(ev.about,['intro','history','highlights','facts','tip']);
       return it;
     })};
   });
@@ -1517,7 +1525,7 @@ function renderPlaceView(k){
     return '<div class="row pl-row" data-pl="'+k+'" data-id="'+b.id+'"><span class="pl-n" style="background:'+P.col+'">'+(i+1)+'</span><div class="row-main"'+(canEdit()?' data-act="pl-edit" data-k="'+k+'" data-id="'+b.id+'" style="cursor:pointer"':'')+'><div class="row-title">'+esc(b.name)+'</div>'+
       (b.nameOrig?'<div class="row-sub">'+esc(b.nameOrig)+'</div>':'')+(b.memo?'<div class="row-sub">'+esc(b.memo)+'</div>':'')+
       (uses.length?'<div class="pl-uses">'+uses.map(function(u){ return '<span class="pl-use" style="--pc:'+P.col+'">'+esc(md(u.d.date)+(u.ev.time?' '+u.ev.time:''))+'</span>'; }).join('')+'</div>':'')+'</div>'+
-      '<a class="mini" href="'+esc(mapUrl(q))+'" target="_blank" rel="noopener">'+ICON.pin+'지도</a>'+'</div>';
+      '<div class="pl-btns">'+(aboutRaw(b.about)?'<button class="mini" data-act="plabout" data-k="'+k+'" data-id="'+b.id+'">'+ICON.book+'이야기</button>':'')+'<a class="mini" href="'+esc(mapUrl(q))+'" target="_blank" rel="noopener">'+ICON.pin+'지도</a></div></div>';
   }).join('');
   return '<div class="mapbar"><div class="seg seg--sm">'+PLCITY.map(function(c){ var n=PLD[k].filter(function(b){return plCity(b)===c[0];}).length; return '<label><input type="radio" name="plcity" data-act="plcity" data-k="'+k+'" data-v="'+c[0]+'"'+(plCur(k)===c[0]?' checked':'')+'><span>'+c[1]+' '+n+'</span></label>'; }).join('')+'</div><span class="map-status" id="map-status"></span></div>'+
     '<div id="tripmap" class="tripmap"></div><div id="map-miss" class="map-miss"></div>'+
@@ -1572,7 +1580,7 @@ function plForm(k,id){
     '<div class="actions">'+(id?'<button type="button" class="btn btn-danger" data-act="del-pl" data-k="'+k+'" data-id="'+esc(id)+'">삭제</button>':'')+
     '<button type="button" class="btn btn-ghost" data-act="sheet-close">취소</button><button type="submit" class="btn btn-primary">저장</button></div></form>');
 }
-function plShare(k){ return PLD[k].map(function(b){ var x=pick(b,['id','city','name','nameOrig','map','memo','lat','lng']), g=ggCached(gQuery(plEv(k,b))); if(g){ x.lat=g.lat; x.lng=g.lng; } return x; }); }
+function plShare(k){ return PLD[k].map(function(b){ var x=pick(b,['id','city','name','nameOrig','map','memo','lat','lng','about']), g=ggCached(gQuery(plEv(k,b))); if(g){ x.lat=g.lat; x.lng=g.lng; } return x; }); }
 function plPick(k,ev){
   var P=PL[k], L=PLD[k];
   return '<div class="pl-pick" data-k="'+k+'"'+(ev.type===P.ev?'':' hidden')+'>'+(L.length?selectField(P.unit+' 고르기',P.fld,ev[P.fld]||'',[['','직접 입력']].concat(L.map(function(b){return [b.id,'['+(plCity(b)==='osaka'?'오사카':'교토')+'] '+b.name];})))
@@ -1922,6 +1930,7 @@ document.addEventListener('click',function(e){
     case 'res-add': resForm(null); break;
     case 'day-title': dayTitleForm(); break;
     case 'about': aboutSheet(id); break;
+    case 'plabout': plAboutSheet(el.getAttribute('data-k'),id); break;
     case 'memo-toggle': var li=el.closest('li'); if(li) li.classList.toggle('memo-open'); break;
     case 'tev-toggle': if(el.classList.contains('open')&&canEdit()) evForm(id); else el.classList.toggle('open'); break;
     case 'sp-open': spSheet(id,el.getAttribute('data-d')||''); break;
