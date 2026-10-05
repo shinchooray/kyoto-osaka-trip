@@ -611,6 +611,7 @@ var SEED = JSON.parse($('#trip-data').textContent);
 var state = (function(){ try{ var s=localStorage.getItem(LS_STATE); if(s){ var o=JSON.parse(s); if(o&&Array.isArray(o.days)) return o; } }catch(e){} return JSON.parse(JSON.stringify(SEED)); })();
 var mode = 'local';
 var SS_UI = 'kyosaka:ui';
+var APP_VER = 74;   // shown at the bottom of 정보 (and used by the 새로고침 button); bump on every change
 /* family view: read-only copy of what the owner shared (?family link, remembered on this phone) */
 var LS_SHARED='kyosaka:shared', SHARED=null;
 var FAMILY=(function(){
@@ -859,7 +860,7 @@ function banner(){
   if(!navigator.onLine) return '<div class="banner">인터넷이 없어요. 저장된 내용을 보여주고 있어요.</div>';
   if(FAMILY&&!SHARED) return '<div class="banner">아직 받은 일정이 없어요. 인터넷에 연결된 상태로 다시 열어 주세요.</div>';
   if(!isStandalone() && !hintOff) return '<div class="banner"><span>홈 화면에 추가해서 쓰면 인터넷 없이도 열려요. 추가한 뒤에는 홈 화면 아이콘으로만 여세요.</span><button class="x" data-act="hint-off" aria-label="닫기">×</button></div>';
-  if(FAMILY) return '<div class="banner banner--fam"><span>가족 보기 · '+esc(whenText(SHARED.publishedAt))+' 공유된 일정이에요</span></div>';
+  if(FAMILY) return '<div class="banner banner--fam"><span>가족 보기 · '+esc(whenText(SHARED.publishedAt))+' 공유된 일정이에요</span><button class="ver-btn" data-act="app-refresh">새로고침</button></div>';
   return '';
 }
 window.addEventListener('online',function(){render();}); window.addEventListener('offline',function(){render();});
@@ -1025,7 +1026,7 @@ function renderInfo(){
         return '<button class="row" data-act="share-prep"><div class="row-main"><div class="row-title">가족 앱에 공유하기</div><div class="row-sub">'+sub+'</div></div>'+ICON.chev+'</button>'+
           (lsGet(LS_GHTOKEN)?'<button class="row" data-act="share-auto"><div class="row-main"><div class="row-title">자동 공유 '+(auto?'켜짐':'꺼짐')+'</div><div class="row-sub">눌러서 '+(auto?'끄기':'켜기')+'</div></div></button>':''); })()+
       '<button class="row" data-act="share-link"><div class="row-main"><div class="row-title">가족용 주소 보내기</div><div class="row-sub">가족이 이 주소로 열고 홈 화면에 추가하면, 공유한 내용이 자동으로 보여요</div></div>'+ICON.chev+'</button>'+
-    '</div><p class="foot">QR 이미지는 이 휴대폰에 따로 저장돼서 백업을 가져와도 지워지지 않아요. 가족에게는 QR 화면의 보내기로 나눠 주세요.</p><p class="foot">모든 내용은 이 휴대폰 안에만 저장돼요. 인터넷 없이도 열리지만, 지도와 길찾기는 인터넷이 필요해요.</p><p class="foot ver-row">앱 버전 73<button class="ver-btn" data-act="app-refresh">새로고침</button></p>'+
+    '</div><p class="foot">QR 이미지는 이 휴대폰에 따로 저장돼서 백업을 가져와도 지워지지 않아요. 가족에게는 QR 화면의 보내기로 나눠 주세요.</p><p class="foot">모든 내용은 이 휴대폰 안에만 저장돼요. 인터넷 없이도 열리지만, 지도와 길찾기는 인터넷이 필요해요.</p><p class="foot ver-row">앱 버전 '+APP_VER+'<button class="ver-btn" data-act="app-refresh">새로고침</button></p>'+
     '';
 }
 
@@ -1253,11 +1254,11 @@ function autoShareNow(){
 function appRefresh(btn){
   if(!navigator.onLine){ toast('인터넷이 연결되면 새 버전을 받을 수 있어요'); return; }
   btn.disabled=true; btn.textContent='확인 중…';
-  var cur=+((String(btn.parentNode.textContent).match(/앱 버전 (\d+)/)||[])[1]||0);
+  var cur=APP_VER;
   var upd=(navigator.serviceWorker&&navigator.serviceWorker.getRegistration)?navigator.serviceWorker.getRegistration().then(function(r){ return r&&r.update(); }).catch(function(){}):Promise.resolve();
   var get=fetch('./index.html?fresh='+Date.now(),{cache:'no-store'}).then(function(r){ return r.ok?r.text():''; }).catch(function(){ return ''; });
   Promise.all([upd,get]).then(function(x){
-    var v=+((String(x[1]).match(/앱 버전 (\d+)/)||[])[1]||0);
+    var v=+((String(x[1]).match(/var APP_VER = (\d+)/)||[])[1]||0);
     ssSet('kyosaka:toast',v>cur?'앱 버전 '+v+'(으)로 바꿨어요':'지금이 최신 버전이에요');
     stashUI(); location.reload();
   });
