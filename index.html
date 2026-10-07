@@ -627,7 +627,7 @@ var SEED = JSON.parse($('#trip-data').textContent);
 var state = (function(){ try{ var s=localStorage.getItem(LS_STATE); if(s){ var o=JSON.parse(s); if(o&&Array.isArray(o.days)) return o; } }catch(e){} return JSON.parse(JSON.stringify(SEED)); })();
 var mode = 'local';
 var SS_UI = 'kyosaka:ui';
-var APP_VER = 86;   // shown at the bottom of 정보 (and used by the 새로고침 button); bump on every change
+var APP_VER = 87;   // shown at the bottom of 정보 (and used by the 새로고침 button); bump on every change
 /* family view: read-only copy of what the owner shared (?family link, remembered on this phone) */
 var LS_SHARED='kyosaka:shared', SHARED=null;
 var FAMILY=(function(){
@@ -951,7 +951,7 @@ function renderRes(){
     body+(canEdit()?'<div class="pad"><button class="add wide" data-act="res-add">직접 입력해서 추가</button></div>':'');
 }
 
-var CAPTURE_CHAT='https://claude.ai/chat/81adfd72-ac0c-4aaa-8b9a-b4b129dbb2f8';
+var CAPTURE_CHAT='https://claude.ai/chat/13c6a363-0ae3-4666-90c0-e323607fcc88';
 var LS_DIRTY='kyosaka:dirty';
 function dirtyList(){ try{ return JSON.parse(localStorage.getItem(LS_DIRTY)||'[]'); }catch(e){ return []; } }
 function markDirty(kind,id,op,snap){
