@@ -555,7 +555,9 @@ ul.tev-memo{font-size:14px;color:var(--muted)}
 .pl-btns{display:flex;gap:6px;flex:none}
 .tev-name{display:flex;align-items:center;flex-wrap:wrap;gap:4px 10px}
 .tlist .tev-name h3{margin-right:0}
-.tev-story{flex:none;display:inline-flex;align-items:center;gap:3px;margin-top:6px;padding:2px 9px;border:1px solid var(--line);border-radius:999px;background:var(--surface);font-size:12.5px;font-weight:700;color:var(--dot);cursor:pointer}
+.tev-story{flex:none;display:inline-flex;align-items:center;gap:3px;margin-top:6px;padding:2px 9px;border:1px solid var(--line);border-radius:999px;background:var(--surface);font-size:12.5px;font-weight:700;color:#3E6A48;border-color:color-mix(in srgb,#3E6A48 35%,var(--line));cursor:pointer}
+:root[data-theme="dark"] .tev-story{color:#8FC29A}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]) .tev-story{color:#8FC29A}}
 .tev-story svg{width:14px;height:14px}
 .tev-head .tev-map{margin-left:auto;display:inline-flex;align-items:center;gap:3px;font-size:13px;font-weight:600;color:var(--dot);text-decoration:none}
 .tev-head .tev-map svg{width:14px;height:14px}
@@ -631,7 +633,7 @@ var SEED = JSON.parse($('#trip-data').textContent);
 var state = (function(){ try{ var s=localStorage.getItem(LS_STATE); if(s){ var o=JSON.parse(s); if(o&&Array.isArray(o.days)) return o; } }catch(e){} return JSON.parse(JSON.stringify(SEED)); })();
 var mode = 'local';
 var SS_UI = 'kyosaka:ui';
-var APP_VER = 88;   // shown at the bottom of 정보 (and used by the 새로고침 button); bump on every change
+var APP_VER = 89;   // shown at the bottom of 정보 (and used by the 새로고침 button); bump on every change
 /* family view: read-only copy of what the owner shared (?family link, remembered on this phone) */
 var LS_SHARED='kyosaka:shared', SHARED=null;
 var FAMILY=(function(){
