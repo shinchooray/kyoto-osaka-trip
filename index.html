@@ -553,6 +553,8 @@ ul.tev-memo{font-size:14px;color:var(--muted)}
 .tlist .tev[data-act]{cursor:pointer}
 .tlist .tev[data-act]:active{filter:brightness(.97)}
 .pl-btns{display:flex;gap:6px;flex:none}
+.tev-head .tev-map{display:inline-flex;align-items:center;gap:3px;font-size:13px;font-weight:600;color:var(--dot);text-decoration:none}
+.tev-head .tev-map svg{width:14px;height:14px}
 /* 미정 (not decided yet) */
 .tlist .tev.is-tbd{border:2px dashed var(--muted);border-left:5px dashed var(--muted);background:transparent;opacity:.5;box-shadow:none}
 .pill--tbd{background:transparent;color:var(--muted);border:1px dashed var(--muted)}
@@ -625,7 +627,7 @@ var SEED = JSON.parse($('#trip-data').textContent);
 var state = (function(){ try{ var s=localStorage.getItem(LS_STATE); if(s){ var o=JSON.parse(s); if(o&&Array.isArray(o.days)) return o; } }catch(e){} return JSON.parse(JSON.stringify(SEED)); })();
 var mode = 'local';
 var SS_UI = 'kyosaka:ui';
-var APP_VER = 84;   // shown at the bottom of 정보 (and used by the 새로고침 button); bump on every change
+var APP_VER = 85;   // shown at the bottom of 정보 (and used by the 새로고침 button); bump on every change
 /* family view: read-only copy of what the owner shared (?family link, remembered on this phone) */
 var LS_SHARED='kyosaka:shared', SHARED=null;
 var FAMILY=(function(){
@@ -1109,12 +1111,14 @@ function dayList(d){
   if(live){ d.items.forEach(function(ev){ if(!ev.time) return; if(ev.time<=now) cur=ev; else if(!next) next=ev; }); }
   var items=d.items.map(function(ev){
     var q=evQuery(ev), past=live&&ev.time&&cur&&ev.time<cur.time, isCur=cur===ev, isNext=live&&ev===next, ty=ev.type||'sight';
-    var acts=((ev.memo||ev.placeOrig)?'<button class="act act--memo" data-act="memo-toggle">'+ICON.note+'<span>메모</span></button>':'')+(q?'<a class="act" href="'+esc(mapUrl(q))+'" target="_blank" rel="noopener">'+ICON.pin+'지도</a>':'')+
-      (aboutOf(ev)?'<button class="act act--story" data-act="about" data-id="'+ev.id+'">'+ICON.book+'이곳 이야기</button>':'')+spChip(ev,d.date);
+    // under the name: story, money spent, memo (only when there is one); the map link sits up by the type
+    var acts=(aboutOf(ev)?'<button class="act act--story" data-act="about" data-id="'+ev.id+'">'+ICON.book+'이곳 이야기</button>':'')+spChip(ev,d.date)+
+      (ev.memo?'<button class="act act--memo" data-act="memo-toggle">'+ICON.note+'<span>메모</span></button>':'');
+    var mapA=q?'<a class="act tev-map" href="'+esc(mapUrl(q))+'" target="_blank" rel="noopener">'+ICON.pin+'지도</a>':'';
     var tap=past?' data-act="tev-toggle" data-id="'+ev.id+'"':(canEdit()?' data-act="ev-edit" data-id="'+ev.id+'" role="button" tabindex="0"':'');
     return (legOf(d,ev)?'<li class="tev-route'+(past?' is-past':'')+'">'+routeCard(d,ev,'today')+'</li>':'')+
       '<li class="tev tev--'+esc(ty)+(past?' is-past':'')+(isCur?' is-cur':'')+(ev.tentative?' is-tbd':'')+'"'+tap+'>'+
-      '<div class="tev-head"><span class="tev-time">'+esc(ev.time||'시간 미정')+'</span><span class="tev-kind">'+(TYICON[ty]||'')+esc(TYPE[ty]||'')+'</span>'+(ev.tentative?'<b class="pill pill--tbd">미정</b>':'')+
+      '<div class="tev-head"><span class="tev-time">'+esc(ev.time||'시간 미정')+'</span><span class="tev-kind">'+(TYICON[ty]||'')+esc(TYPE[ty]||'')+'</span>'+mapA+(ev.tentative?'<b class="pill pill--tbd">미정</b>':'')+
         (isCur?'<b class="pill pill--now">지금</b>':'')+(isNext?'<b class="pill pill--next">다음, '+esc(inHow(now,next.time))+'</b>':'')+(past?'<span class="tev-done">지난 일정</span>':'')+'</div>'+
       headHtml(ev,'h3','')+
       '<div class="tev-more">'+(ev.placeOrig?'<p class="tev-memo tev-orig">현지 이름: '+esc(ev.placeOrig)+'</p>':'')+memoHtml(ev.memo,'tev-memo')+
