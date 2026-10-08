@@ -643,7 +643,7 @@ var SEED = JSON.parse($('#trip-data').textContent);
 var state = (function(){ try{ var s=localStorage.getItem(LS_STATE); if(s){ var o=JSON.parse(s); if(o&&Array.isArray(o.days)) return o; } }catch(e){} return JSON.parse(JSON.stringify(SEED)); })();
 var mode = 'local';
 var SS_UI = 'kyosaka:ui';
-var APP_VER = 92;   // shown at the bottom of 정보 (and used by the 새로고침 button); bump on every change
+var APP_VER = 93;   // shown at the bottom of 정보 (and used by the 새로고침 button); bump on every change
 /* family view: read-only copy of what the owner shared (?family link, remembered on this phone) */
 var LS_SHARED='kyosaka:shared', SHARED=null;
 var FAMILY=(function(){
@@ -1322,7 +1322,15 @@ function gh(path,opt,tok){
   return fetch('https://api.github.com/repos/'+GH_REPO+path,opt).then(function(r){ if(!r.ok&&r.status!==404) throw r; return r; });
 }
 function b64(s){ var b=new TextEncoder().encode(s), out=''; for(var i=0;i<b.length;i+=0x8000) out+=String.fromCharCode.apply(null,b.subarray(i,i+0x8000)); return btoa(out); }
+// GitHub can hand back the previous file version for a moment right after a save, so quick saves in a row
+// used to clash (409). Keep the version from our own last save, and on a clash fetch it fresh and try again.
+var SHARE_SHA=null, shareQueue=Promise.resolve();
 function sharePublish(o){
+  var run=shareQueue.then(function(){ return sharePut(o,0); });
+  shareQueue=run.catch(function(){});   // one upload at a time
+  return run;
+}
+function sharePut(o,attempt){
   var tok=lsGet(LS_GHTOKEN);
   return gh('/git/ref/heads/'+GH_BRANCH,{},tok).then(function(r){
     if(r.ok) return;
@@ -1330,17 +1338,21 @@ function sharePublish(o){
     return gh('/git/ref/heads/main',{},tok).then(function(m){ if(!m.ok) throw m; return m.json(); }).then(function(j){
       return gh('/git/refs',{method:'POST',body:JSON.stringify({ref:'refs/heads/'+GH_BRANCH,sha:j.object.sha})},tok);
     });
-  }).then(function(){ return gh('/contents/'+GH_FILE+'?ref='+GH_BRANCH,{},tok); })
-  .then(function(r){ return r.ok?r.json():null; })
+  }).then(function(){ return SHARE_SHA?{sha:SHARE_SHA}:gh('/contents/'+GH_FILE+'?ref='+GH_BRANCH+'&t='+Date.now(),{},tok).then(function(r){ return r.ok?r.json():null; }); })
   .then(function(cur){
     var body={message:'가족 공유 업데이트',content:b64(JSON.stringify(o)),branch:GH_BRANCH}; if(cur&&cur.sha) body.sha=cur.sha;
     return gh('/contents/'+GH_FILE,{method:'PUT',body:JSON.stringify(body)},tok);
   }).then(function(r){
     if(!r.ok) throw r;
+    return r.json().then(function(j){ SHARE_SHA=j&&j.content&&j.content.sha||null; }).catch(function(){ SHARE_SHA=null; });
+  }).then(function(){
     lsSet(LS_PUBAT,o.publishedAt); lsSet(LS_SHAREHASH,hashStr(shareSig(o)));
+  }).catch(function(e){
+    var s=e&&e.status;
+    if((s===409||s===422)&&attempt<3){ SHARE_SHA=null; return new Promise(function(res){ setTimeout(res,1500*(attempt+1)); }).then(function(){ return sharePut(o,attempt+1); }); }
+    throw e;
   });
-}
-function shareGo(btn){
+}function shareGo(btn){
   var o=pendingShare; if(!lsGet(LS_GHTOKEN)){ tokenSheet(); return; } if(!o) return;
   if(btn){ btn.disabled=true; btn.textContent='올리는 중…'; }
   sharePublish(o).then(function(){
