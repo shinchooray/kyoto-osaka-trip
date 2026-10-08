@@ -643,7 +643,7 @@ var SEED = JSON.parse($('#trip-data').textContent);
 var state = (function(){ try{ var s=localStorage.getItem(LS_STATE); if(s){ var o=JSON.parse(s); if(o&&Array.isArray(o.days)) return o; } }catch(e){} return JSON.parse(JSON.stringify(SEED)); })();
 var mode = 'local';
 var SS_UI = 'kyosaka:ui';
-var APP_VER = 94;   // shown at the bottom of 정보 (and used by the 새로고침 button); bump on every change
+var APP_VER = 95;   // shown at the bottom of 정보 (and used by the 새로고침 button); bump on every change
 /* family view: read-only copy of what the owner shared (?family link, remembered on this phone) */
 var LS_SHARED='kyosaka:shared', SHARED=null;
 var FAMILY=(function(){
@@ -1014,38 +1014,25 @@ function changesText(){
   // keep events in on-screen order so candidate order survives the round trip
   function pos(c){ if(c.kind!=='event'||c.op!=='upsert') return 1e9; var f=findEv(c.item.id); return f?f.day*1000+f.idx:1e9; }
   ch=ch.map(function(c,i){return {c:c,i:i,p:pos(c)};}).sort(function(a,b){return a.p-b.p||a.i-b.i;}).map(function(x){return x.c;});
-  var payload={app:'kyosaka',type:'offline-changes',exportedAt:new Date().toISOString(),changes:ch,checklist:state.checklist,bakeries:PLD.bread,restaurants:PLD.food,sights:PLD.sight};
-  return '오프라인 앱에서 직접 고친 내용이야. 아래 JSON을 여행 앱 데이터에 반영해줘.\n'+
-    '- changes: upsert는 같은 id가 있으면 그 항목을 이 내용으로 바꾸고(event는 date의 날짜로 옮기고 시간순 정렬), 없으면 새로 추가해. delete는 그 id를 지워. kind가 day면 그 날짜의 제목(title)만 바꿔.\n'+
-    '- reservation 칸: 항공·교통은 no(편명/열차 이름), from, to(출발·도착 공항이나 역), arrTime(도착 시각), seat(좌석). 숙소는 date(체크인), endDate(체크아웃), map, address, phone. 식당은 map, address, phone. 입장권·투어는 map. cost는 {amount, cur(KRW/JPY), when(before/onsite)}.\n'+
-    '- route는 how(train=대중교통, walk=도보, taxi=택시, flight=비행기, etc=직접 입력)와 min(예상 분)만 있으면 돼. how가 etc면 label에 이동 수단 이름(예: 케이블카)을 넣어줘. 길 안내는 앱이 구글 지도로 보여주고, 교통비는 내가 앱에서 직접 적어.\n'+
-    '- routeStale:true인 일정은 앞 일정이나 그 장소가 바뀌어서 시간·교통비가 안 맞을 수 있어. 앞 일정에서 이 일정까지의 how, min을 새로 확인하고 routeStale은 지워줘.\n'+
-    '- tentative:true인 일정은 아직 확정 안 된 미정 일정이야. 그대로 두고, 확정됐다고 하면 tentative를 지워줘.\n'+
-    '- 새 일정을 추가할 때 memo는 내가 따로 부탁하지 않으면 비워둬.\n'+
-    '- event에 lat/lng가 없으면 원래 있던 lat/lng도 지워. 지도 검색어(map)로 위치를 다시 찾게 하려는 거야.\n'+
-    '- type이 cafe인 일정은 빵집이야(bakery는 빵집 리스트의 id). type이 food인 일정의 restaurant는 식당 리스트의 id야.\n'+
-    '- checklist: 이 목록(순서, 이름, 체크 상태)으로 통째로 바꿔.\n'+
-    '- bakeries: 가보고 싶은 빵집 리스트야(id, city, name, nameOrig, map, memo). city는 kyoto(교토) 또는 osaka(오사카). 이걸로 통째로 바꾸고, 백업의 state 안에 bakeries로 꼭 넣어줘. 빵집을 추가해 달라고 하면 여기에 넣으면 돼.\n'+
-    '- restaurants: 가보고 싶은 식당 리스트야. 형식과 규칙은 bakeries와 똑같고, 백업의 state 안에 restaurants로 꼭 넣어줘.\n'+
-    '- sights: 가보고 싶은 구경할 곳 리스트야. 형식과 규칙은 bakeries와 똑같고, 백업의 state 안에 sights로 꼭 넣어줘. 리스트에 있는 곳을 구경(type sight) 일정으로 넣을 때는 spot에 그 id를 넣어줘.\n'+
-    '- sights 항목에는 about(이곳 이야기)을 넣어줘: {intro: 한두 문장 소개, history: 기원과 역사(문단은 줄바꿈), highlights: [꼭 볼 것], facts: [재밌는 이야기], tip: 알아두면 좋은 것}. 그 장소 설명은 memo가 아니라 about에 넣고, memo는 내가 부탁한 짧은 메모만.\n'+
-    '- 다른 내용은 건드리지 마. 반영한 뒤 무엇을 바꿨는지 짧게 알려주고, 끝에 전체 백업 대신 "바뀐 것만" 담은 patch 코드 블록을 붙여줘. 전체 백업은 내가 달라고 할 때만 줘.\n'+
-    '- patch 형식: {"app":"kyosaka","type":"patch","changes":[...]}. changes 항목:\n'+
-    '  · 일정 추가/통째로 바꾸기: {"kind":"event","op":"upsert","date":"YYYY-MM-DD","item":{id, time, type, title, place, ...}}\n'+
-    '  · 일정 일부만 바꾸기: {"kind":"event","op":"update","id":"e12","set":{"time":"13:00"},"unset":["lat","lng"]} (다른 날로 옮기면 "date"도 넣기)\n'+
-    '  · 일정 지우기: {"kind":"event","op":"delete","id":"e12"}\n'+
-    '  · 예약: kind "reservation"으로 upsert/update/delete (date 필요 없음)\n'+
-    '  · 날짜 제목: {"kind":"day","date":"YYYY-MM-DD","title":"..."}\n'+
-    '  · 리스트: kind "sight" / "restaurant" / "bakery"로 upsert/update/delete (item은 리스트 항목 형식)\n'+
-    '  · 준비물 추가: {"kind":"checklist","items":[{id,text,done}]}\n'+
-    '- 이 patch에는 이번에 바뀐 것만 넣어. 내가 위에서 보낸 changes는 이미 내 폰에 들어 있으니 다시 넣지 않아도 돼.\n\n'+
-    JSON.stringify(payload);
-}
+  // send only what changed: no long 이곳 이야기 texts, and lists/checklist only when they changed
+  function noAbout(o){ var c=Object.assign({},o); delete c.about; return c; }
+  ch.forEach(function(c){ if(c.item) c.item=noAbout(c.item); });
+  var payload={app:'kyosaka',type:'offline-changes',changes:ch}, kinds={};
+  dirtyList().forEach(function(d){ kinds[d.kind]=1; });
+  var base=null; try{ base=JSON.parse(lsGet(LS_BASE)||'null'); }catch(e){}
+  if(!base||JSON.stringify(base.state&&base.state.checklist)!==JSON.stringify(state.checklist)) payload.checklist=state.checklist;
+  PLK.forEach(function(k){ if(kinds['pl-'+k]) payload[PL[k].key]=PLD[k].map(noAbout); });
+  return '오프라인 앱에서 직접 고친 내용이야. 최신 규칙대로 반영하고, 답장 끝에 바뀐 것만 담은 patch 코드 블록을 붙여줘.\n'+
+    '- changes: upsert는 같은 id가 있으면 바꾸고 없으면 추가(event는 date의 날짜로 옮기고 시간순 정렬), delete는 지우기, kind가 day면 그 날짜 제목만 바꾸기.\n'+
+    '- about(이곳 이야기)은 길어서 빼고 보냈어. 기존 about은 그대로 둬.\n'+
+    '- checklist나 sights/restaurants/bakeries가 들어 있으면 그 목록(순서 포함)으로 맞춰줘. 항목의 about은 기존 것을 유지해. 안 들어 있으면 안 바뀐 거야.\n'+
+    '- 내가 보낸 changes는 이미 내 폰에 들어 있으니 patch에 다시 넣지 마.\n\n'+
+    JSON.stringify(payload);}
 function sendChanges(){
   var t=changesText(), n=dirtyList().length;
   var ok=quietCopyText(t);
   try{ localStorage.setItem('kyosaka:dirtyCopiedAt',String(Date.now())); }catch(e){}
-  openSheet('<h2>'+(ok?'복사했어요':'직접 복사해 주세요')+'</h2><p class="sub">'+(n?'고친 내용 '+n+'건과 준비물, 빵·밥 지도 목록이 담겨 있어요. ':'준비물, 빵·밥 지도 목록이 담겨 있어요. ')+'2 전용 채팅에 붙여넣고 보내면, Claude가 반영한 뒤 백업을 보내줘요. 그 백업을 3으로 가져오면 끝이에요.</p>'+
+  openSheet('<h2>'+(ok?'복사했어요':'직접 복사해 주세요')+'</h2><p class="sub">'+(n?'고친 내용 '+n+'건이 담겨 있어요. ':'바뀐 내용이 없어요. ')+'2 전용 채팅에 붙여넣고 보내면, Claude가 반영한 뒤 바뀐 것만 보내줘요. 그걸 3으로 가져오면 끝이에요.</p>'+
     (ok?'':'<label class="field"><span>보낼 내용</span><textarea readonly class="bk-area">'+esc(t)+'</textarea></label>')+
     '<div class="actions"><button class="btn btn-ghost" data-act="sheet-close">닫기</button><a class="btn btn-primary btn-link" data-close-sheet href="'+CAPTURE_CHAT+'" target="_blank" rel="noopener">전용 채팅 열기</a></div>');
   if(!ok){ var ta=document.querySelector('.bk-area'); if(ta){ ta.focus(); ta.select(); } }
