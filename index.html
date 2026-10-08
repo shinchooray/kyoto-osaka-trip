@@ -643,7 +643,7 @@ var SEED = JSON.parse($('#trip-data').textContent);
 var state = (function(){ try{ var s=localStorage.getItem(LS_STATE); if(s){ var o=JSON.parse(s); if(o&&Array.isArray(o.days)) return o; } }catch(e){} return JSON.parse(JSON.stringify(SEED)); })();
 var mode = 'local';
 var SS_UI = 'kyosaka:ui';
-var APP_VER = 95;   // shown at the bottom of 정보 (and used by the 새로고침 button); bump on every change
+var APP_VER = 96;   // shown at the bottom of 정보 (and used by the 새로고침 button); bump on every change
 /* family view: read-only copy of what the owner shared (?family link, remembered on this phone) */
 var LS_SHARED='kyosaka:shared', SHARED=null;
 var FAMILY=(function(){
@@ -666,6 +666,9 @@ function pruneRoutes(s){
     var n={}; if(r.how) n.how=r.how; if(r.min!=null&&r.min!=='') n.min=r.min; if(r.how==='etc'&&r.label) n.label=r.label;
     var keys=Object.keys(r); if(keys.length!==Object.keys(n).length){ changed=true; ev.route=(n.how||n.min)?n:null; }
   }); });
+  // leftovers no screen uses any more: the old 일본어 주소 (moved into 주소) and the old 가족 메모
+  (s.reservations||[]).forEach(function(r){ if('addressJa' in r){ if(!r.address&&r.addressJa) r.address=r.addressJa; delete r.addressJa; changed=true; } });
+  if('notes' in s){ delete s.notes; changed=true; }
   return changed;
 }
 if(!FAMILY&&pruneRoutes(state)) saveLocal();
@@ -895,12 +898,22 @@ function render(){
   var html = ui.tab==='res'?renderRes():ui.tab==='info'?renderInfo():ui.tab==='check'?renderCheck():ui.tab==='spend'?renderSpend():renderPlan();
   var tabs=[['plan','일정'],['spend','경비'],['res','예약'],['check','준비물'],['info','정보']];
   if(FAMILY) tabs=tabs.slice(0,3);
-  setTimeout(function(){ if(ui.tab==='spend') fitLines(); if(ui.tab==='plan'&&ui.pview==='map') drawMap(); else if(ui.tab==='plan'&&PL[ui.pview]) drawPlaceMap(ui.pview); else if(MAP){ try{MAP.remove();}catch(e){} MAP=null; } },0);
+  // the same map still on screen: carry the live map over the redraw and only refresh its pins
+  var key=mapViewKey(), keepBox=(MAP&&key&&key===MAP_KEY)?document.getElementById('tripmap'):null;
   $('#app').innerHTML = '<main class="main">'+banner()+html+'</main>'+
     '<nav class="tabs" aria-label="메뉴"><div class="tabs-in" role="tablist" style="grid-template-columns:repeat('+tabs.length+',1fr)">'+
     tabs.map(function(t){return '<button class="tab" role="tab" aria-selected="'+(ui.tab===t[0])+'" data-act="tab" data-v="'+t[0]+'">'+ICON[t[0]]+'<span>'+t[1]+'</span></button>';}).join('')+
     '</div></nav>';
+  var nb=keepBox&&document.getElementById('tripmap'); if(nb) nb.replaceWith(keepBox); else keepBox=null;
+  setTimeout(function(){
+    if(ui.tab==='spend') fitLines();
+    if(keepBox&&MAP) MAP.invalidateSize();
+    if(ui.tab==='plan'&&ui.pview==='map') drawMap(!!keepBox); else if(ui.tab==='plan'&&PL[ui.pview]) drawPlaceMap(ui.pview,!!keepBox);
+    else if(MAP){ try{MAP.remove();}catch(e){} MAP=null; MAP_KEY=null; }
+  },0);
 }
+var MAP_KEY=null;
+function mapViewKey(){ if(ui.tab!=='plan') return null; var pv=ui.pview||'list'; if(pv==='map') return 'map:'+(ui.mapAll?'all':ui.day); if(PL[pv]) return 'pl:'+pv+':'+plCur(pv); return null; }
 
 function isStandalone(){ try{ return window.navigator.standalone===true || window.matchMedia('(display-mode: standalone)').matches; }catch(e){ return false; } }
 var hintOff=false; try{ hintOff=localStorage.getItem('kyosaka:hint')==='off'; }catch(e){}
@@ -1249,7 +1262,7 @@ function shareData(){
   var res=state.reservations.map(function(r){ return pick(r,['id','cat','title','nameOrig','date','time','endDate','cost','map','no','from','to','arrTime']); });
   var sp={rate:SP.rate,items:SP.items.map(function(x){ return pick(x,['id','date','ev','leg','cat','amount','cur','memo','unit','count']); })};
   return {app:'kyosaka',type:'family-share',publishedAt:new Date().toISOString(),
-    state:{v:state.v,trip:pick(state.trip,['title','start','end','members']),days:days,reservations:res,checklist:[],notes:''},spend:sp,
+    state:{v:state.v,trip:pick(state.trip,['title','start','end','members']),days:days,reservations:res,checklist:[]},spend:sp,
     bakeries:plShare('bread'),restaurants:plShare('food'),sights:plShare('sight')};
 }
 // only things that must not go public: booking/ticket codes (letters+digits mixed), long numbers,
@@ -1358,11 +1371,17 @@ function autoOn(){ return !FAMILY&&!!lsGet(LS_GHTOKEN)&&lsGet(LS_AUTOSHARE)!=='o
 function hashStr(s){ var h=0; for(var i=0;i<s.length;i++) h=(h*31+s.charCodeAt(i))|0; return String(h); }
 function shareSig(o){ var c=Object.assign({},o); delete c.publishedAt; return JSON.stringify(c); }
 function warnSig(o){ return shareLines(o).filter(function(x){return x.w;}).map(function(x){return x.t;}).sort().join('\n'); }
-function shareBlocked(){ var o=shareData(), w=warnSig(o); return !!w&&w!==(lsGet(LS_SHAREOK)||''); }
-function autoShareSoon(){ if(!autoOn()) return; clearTimeout(autoT); autoT=setTimeout(autoShareNow,4000); }
+function shareBlocked(){
+  var ok=lsGet(LS_SHAREOK)||'';
+  if(!shareBlockMemo||shareBlockMemo.ver!==SHARE_VER||shareBlockMemo.ok!==ok){ var w=warnSig(shareData()); shareBlockMemo={ver:SHARE_VER,ok:ok,v:!!w&&w!==ok}; }
+  return shareBlockMemo.v;
+}
+var SHARE_VER=0, shareBlockMemo=null;
+function autoShareSoon(){ SHARE_VER++; if(!autoOn()) return; clearTimeout(autoT); autoT=setTimeout(autoShareNow,12000); }
 function autoShareNow(){
   clearTimeout(autoT); autoT=null;
-  if(!autoOn()||autoBusy||!navigator.onLine) return;
+  if(!autoOn()||!navigator.onLine) return;
+  if(autoBusy){ autoShareSoon(); return; }   // still uploading: try again after it
   var o=shareData(); if(hashStr(shareSig(o))===lsGet(LS_SHAREHASH)) return;
   var w=warnSig(o);
   if(w&&w!==(lsGet(LS_SHAREOK)||'')){
@@ -1659,7 +1678,7 @@ function drawPlaceMap(k,keepView){
     if(keep){ MAPLAYER.clearLayers(); }
     else {
     if(MAP){ try{ MAP.remove(); }catch(e){} MAP=null; }
-    MAP=L.map('tripmap',{zoomControl:true,attributionControl:true}).setView([34.85,135.6],9);
+    MAP=L.map('tripmap',{zoomControl:true,attributionControl:true}).setView([34.85,135.6],9); MAP_KEY=mapViewKey();
     L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19,attribution:'© OpenStreetMap'}).addTo(MAP);
     MAPLAYER=L.layerGroup().addTo(MAP);
     }
@@ -1824,17 +1843,20 @@ function renderMapView(){
 var DAYCOL=['#3E6A48','#5E8A3A','#1F6F8B','#2E4E97','#6B4FA0'];
 var MAPRUN=0;
 function inArea(c){ return c.lat>33.4&&c.lat<36.3&&c.lng>134.0&&c.lng<137.0; }
-function drawMap(){
+function drawMap(keepView){
   var box=document.getElementById('tripmap'); if(!box) return;
   var st=document.getElementById('map-status');
   if(!navigator.onLine&&!window.L){ box.innerHTML='<div class="map-off">인터넷이 연결되면 지도를 볼 수 있어요</div>'; return; }
   loadLeaflet().then(function(L){
     if(!document.getElementById('tripmap')) return;
+    var keep=keepView&&MAP&&MAP.getContainer()===box;
+    if(!keep){
     if(MAP){ try{ MAP.remove(); }catch(e){} MAP=null; }
-    MAP=L.map('tripmap',{zoomControl:true,attributionControl:true}).setView([34.95,135.65],10);
+    MAP=L.map('tripmap',{zoomControl:true,attributionControl:true}).setView([34.95,135.65],10); MAP_KEY=mapViewKey();
     L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19,attribution:'© OpenStreetMap'}).addTo(MAP);
     MAPLAYER=L.layerGroup().addTo(MAP);
     MAP.on('popupopen',function(pe){ var a=pe.popup.getElement().querySelector('[data-pop-edit]'); if(a) a.onclick=function(ev){ ev.preventDefault(); evForm(a.getAttribute('data-pop-edit')); }; });
+    }
     var days=ui.mapAll?state.days.map(function(_,i){return i;}):[ui.day];
     var pts=mapPoints(days), found=[], miss=[], done=0, run=++MAPRUN;
     if(st) st.textContent=pts.length?'위치 찾는 중… 0/'+pts.length:'';
@@ -1845,12 +1867,12 @@ function drawMap(){
         // places outside Kyoto/Osaka (e.g. the airport back home) are left off the map
         done++; if(c&&inArea(c)) found.push({p:p,c:c}); else if(!c) miss.push(p);
         if(st) st.textContent=done<pts.length?'위치 찾는 중… '+done+'/'+pts.length:(miss.length?miss.length+'곳은 위치를 못 찾았어요':'');
-        if(done===pts.length) placeMarkers(L,found,miss);
+        if(done===pts.length) placeMarkers(L,found,miss,keep);
       });
     });
   }).catch(function(){ box.innerHTML='<div class="map-off">지도를 불러오지 못했어요. 인터넷 연결을 확인해 주세요</div>'; });
 }
-function placeMarkers(L,found,miss){
+function placeMarkers(L,found,miss,keep){
   if(!MAP) return;
   MAPLAYER.clearLayers();
   found.sort(function(a,b){ return a.p.day-b.p.day||a.p.n-b.p.n; });
@@ -1867,7 +1889,7 @@ function placeMarkers(L,found,miss){
     (byDay[f.p.day]=byDay[f.p.day]||[]).push([f.c.lat,f.c.lng]); bounds.push([f.c.lat,f.c.lng]);
   });
   Object.keys(byDay).forEach(function(k){ if(byDay[k].length>1) L.polyline(byDay[k],{color:ui.mapAll?DAYCOL[k%DAYCOL.length]:'#2E4E97',weight:3,opacity:.7,dashArray:'6 6'}).addTo(MAPLAYER); });
-  if(bounds.length===1) MAP.setView(bounds[0],15); else if(bounds.length) MAP.fitBounds(bounds,{padding:[30,30]});
+  if(!keep){ if(bounds.length===1) MAP.setView(bounds[0],15); else if(bounds.length) MAP.fitBounds(bounds,{padding:[30,30]}); }
   var mm=document.getElementById('map-miss');
   var fb=found.filter(function(f){ return f.p.ev.map&&f.c.via&&f.c.via!=='map'; });
   function box(title,list){ return list.length?'<div class="row"><div class="row-main"><div class="row-k">'+title+'</div>'+list.map(function(p){return '<div class="row-sub">'+esc((p.ev.time||'')+' '+evName(p.ev)+(title.indexOf('검색어')>=0?' ('+p.ev.map+')':''))+'</div>';}).join('')+'</div></div>':''; }
