@@ -559,6 +559,8 @@ ul.tev-memo{font-size:14px;color:var(--muted)}
 .res-codes{display:flex;flex-wrap:wrap;gap:6px;margin-top:14px}
 .field > span.res-lab{display:flex;align-items:center;justify-content:space-between;gap:8px}
 .how-label[hidden]{display:none}
+[data-sec][hidden]{display:none}
+.res-when{margin-top:8px;display:inline-flex}
 .tev-name{display:flex;align-items:center;flex-wrap:wrap;gap:4px 10px}
 .tlist .tev-name h3{margin-right:0}
 .tev-story{flex:none;display:inline-flex;align-items:center;gap:3px;margin-top:6px;padding:2px 9px;border:1px solid var(--line);border-radius:999px;background:var(--surface);font-size:12.5px;font-weight:700;color:#3E6A48;border-color:color-mix(in srgb,#3E6A48 35%,var(--line));cursor:pointer}
@@ -641,7 +643,7 @@ var SEED = JSON.parse($('#trip-data').textContent);
 var state = (function(){ try{ var s=localStorage.getItem(LS_STATE); if(s){ var o=JSON.parse(s); if(o&&Array.isArray(o.days)) return o; } }catch(e){} return JSON.parse(JSON.stringify(SEED)); })();
 var mode = 'local';
 var SS_UI = 'kyosaka:ui';
-var APP_VER = 91;   // shown at the bottom of 정보 (and used by the 새로고침 button); bump on every change
+var APP_VER = 92;   // shown at the bottom of 정보 (and used by the 새로고침 button); bump on every change
 /* family view: read-only copy of what the owner shared (?family link, remembered on this phone) */
 var LS_SHARED='kyosaka:shared', SHARED=null;
 var FAMILY=(function(){
@@ -751,7 +753,9 @@ function routeCard(d,ev,kind){
   var to=evQuery(ev), from=prevQuery(d,ev);
   var go=to&&r.how!=='flight'?'<a class="rt-go" href="'+esc(routeUrl(from,to,r.how))+'" target="_blank" rel="noopener">경로 보기 ↗</a>':'';
   // fare is what you actually paid: tap to write it, it goes into 경비 > 교통
-  var L=spForLeg(ev.id), fare=L.length?spSumText(spSum(L)):'';
+  // on the line: per person (or per taxi); tap for the totals
+  var L=spForLeg(ev.id), raw=SP.items.filter(function(x){ return x.leg===ev.id; }), fare='';
+  if(L.length){ if(raw.length&&raw.every(function(x){ return +x.unit>0; })){ var uc=raw[0].cur==='KRW'?'KRW':'JPY'; fare=(r.how==='taxi'?'1대 ':'1인 ')+money(raw.reduce(function(s,x){ return s+(+x.unit); },0),uc); } else fare=spSumText(spSum(L)); }
   var fb=r.how==='walk'&&!fare?'':canEdit()?'<button class="rt-fare'+(fare?' has':'')+'" data-act="leg-open" data-id="'+ev.id+'">'+esc(fare||'+ 교통비')+'</button>':(fare?'<span class="rt-fare has">'+esc(fare)+'</span>':'');
   var head='<div class="rt-ft">'+(kind!=='row'?'<span class="rt-ic sm">'+howIcon(r.how)+'</span>':'')+
     (canEdit()?'<button class="rt-ft-t rt-edit" data-act="leg-edit" data-id="'+ev.id+'" aria-label="이동 수단과 시간 고치기">':'<span class="rt-ft-t">')+'<b class="rt-to">'+esc(howName(r))+'</b>'+(r.min?'<span class="rt-min">'+esc(r.min)+'분</span>':'')+(canEdit()?'</button>':'</span>')+fb+go+'</div>';
@@ -851,7 +855,7 @@ function resRange(r){
   if(!r.date) return '날짜 없음';
   var s = mdw(r.date);
   if(r.endDate && r.endDate>r.date){ s += ' – '+mdw(r.endDate); if(r.cat==='hotel') s += ', '+between(r.date,r.endDate)+'박'; }
-  if(r.time) s += ' '+r.time;
+  if(r.time) s += ' '+r.time+(r.arrTime?' → '+r.arrTime:'');
   return s;
 }
 
@@ -949,7 +953,7 @@ function sortedRes(){
 }
 
 function resRow(r){
-  var sub=[]; if(r.app) sub.push(r.app); if(r.confirm){ var cps=confirmParts(r.confirm); sub.push(cps.length>2?'예약번호 '+cps.length+'개':'예약번호 '+confirmCodes(r.confirm)); }
+  var sub=[]; if(r.no) sub.push(r.no); if(r.from||r.to) sub.push((r.from||'')+' → '+(r.to||'')); if(r.app) sub.push(r.app); if(r.confirm){ var cps=confirmParts(r.confirm); sub.push(cps.length>2?'예약번호 '+cps.length+'개':'예약번호 '+confirmCodes(r.confirm)); }
   return '<button class="row" data-act="res-open" data-id="'+r.id+'"><div class="row-main">'+
     '<div class="row-k">'+catBadge(r.cat)+(r.date?'<span class="row-when">'+esc(resRange(r))+'</span>':'')+'</div>'+
     '<div class="row-title">'+esc(r.title)+'</div>'+
@@ -1013,6 +1017,7 @@ function changesText(){
   var payload={app:'kyosaka',type:'offline-changes',exportedAt:new Date().toISOString(),changes:ch,checklist:state.checklist,bakeries:PLD.bread,restaurants:PLD.food,sights:PLD.sight};
   return '오프라인 앱에서 직접 고친 내용이야. 아래 JSON을 여행 앱 데이터에 반영해줘.\n'+
     '- changes: upsert는 같은 id가 있으면 그 항목을 이 내용으로 바꾸고(event는 date의 날짜로 옮기고 시간순 정렬), 없으면 새로 추가해. delete는 그 id를 지워. kind가 day면 그 날짜의 제목(title)만 바꿔.\n'+
+    '- reservation 칸: 항공·교통은 no(편명/열차 이름), from, to(출발·도착 공항이나 역), arrTime(도착 시각), seat(좌석). 숙소는 date(체크인), endDate(체크아웃), map, address, phone. 식당은 map, address, phone. 입장권·투어는 map. cost는 {amount, cur(KRW/JPY), when(before/onsite)}.\n'+
     '- route는 how(train=대중교통, walk=도보, taxi=택시, flight=비행기, etc=직접 입력)와 min(예상 분)만 있으면 돼. how가 etc면 label에 이동 수단 이름(예: 케이블카)을 넣어줘. 길 안내는 앱이 구글 지도로 보여주고, 교통비는 내가 앱에서 직접 적어.\n'+
     '- routeStale:true인 일정은 앞 일정이나 그 장소가 바뀌어서 시간·교통비가 안 맞을 수 있어. 앞 일정에서 이 일정까지의 how, min을 새로 확인하고 routeStale은 지워줘.\n'+
     '- tentative:true인 일정은 아직 확정 안 된 미정 일정이야. 그대로 두고, 확정됐다고 하면 tentative를 지워줘.\n'+
@@ -1254,8 +1259,8 @@ function shareData(){
       return it;
     })};
   });
-  var res=state.reservations.map(function(r){ return pick(r,['id','cat','title','nameOrig','date','time','endDate','cost','map']); });
-  var sp={rate:SP.rate,items:SP.items.map(function(x){ return pick(x,['id','date','ev','leg','cat','amount','cur','memo']); })};
+  var res=state.reservations.map(function(r){ return pick(r,['id','cat','title','nameOrig','date','time','endDate','cost','map','no','from','to','arrTime']); });
+  var sp={rate:SP.rate,items:SP.items.map(function(x){ return pick(x,['id','date','ev','leg','cat','amount','cur','memo','unit','count']); })};
   return {app:'kyosaka',type:'family-share',publishedAt:new Date().toISOString(),
     state:{v:state.v,trip:pick(state.trip,['title','start','end','members']),days:days,reservations:res,checklist:[],notes:''},spend:sp,
     bakeries:plShare('bread'),restaurants:plShare('food'),sights:plShare('sight')};
@@ -1531,7 +1536,7 @@ function legSheet(evId){
   var list=spForLeg(evId), taxi=(ev.route&&ev.route.how)==='taxi', people=(state.trip.members||[]).length||5;
   var rows=list.map(function(x){ return '<div class="sp-row"><span class="sp-m">'+spText(x.memo||'')+'</span><b>'+esc(money(x.amount,x.cur))+'</b><button class="x" data-act="sp-del" data-id="'+x.id+'" data-leg="'+esc(evId)+'" aria-label="지우기">×</button></div>'; }).join('');
   openSheet('<form data-form="leg" data-ev="'+esc(evId)+'"><p class="about-kicker">교통비</p><h2>'+esc((from?from+' → ':'')+to)+'</h2>'+
-    (rows?'<div class="sp-list">'+rows+'</div>':'')+
+    (rows?'<div class="sp-list">'+rows+'<div class="sp-row sp-sub"><span>합계</span><b>'+esc(spSumText(spSum(list)))+'</b></div></div>':'')+
     // per person (or per taxi) × how many = total
     '<div class="two">'+
       '<label class="field"><span>'+(taxi?'1대 요금':'1인 요금')+'</span><input name="unit" type="text" inputmode="numeric" pattern="[0-9,]*" placeholder="0" autocomplete="off" required></label>'+
@@ -1915,7 +1920,7 @@ function resDetail(id){
   var r=findRes(id); if(!r) return;
   function kv(k,v,btn,big){return '<div class="kv"><div class="kv-main"><div class="kv-k">'+k+'</div><div class="kv-v'+(v?'':' empty')+(big&&v?' big':'')+'">'+esc(v||'아직 없음')+'</div></div>'+(v&&btn?btn:'')+'</div>';}
   if(!canEdit()){
-    openSheet('<h2>'+esc(r.title)+'</h2><p class="sub">'+catBadge(r.cat)+' '+esc(resRange(r))+'</p>'+(r.nameOrig?kv('현지 이름',r.nameOrig):'')+
+    openSheet('<h2>'+esc(r.title)+'</h2><p class="sub">'+catBadge(r.cat)+' '+esc(resRange(r))+'</p>'+(r.nameOrig?kv('현지 이름',r.nameOrig):'')+(r.no?kv((RES_UI[r.cat]||{}).no||'편명',r.no):'')+(r.from||r.to?kv('구간',(r.from||'')+' → '+(r.to||'')):'')+
       (costText(r)?kv('결제 금액',costText(r)):'')+qrSection(r)+
       '<p class="sub">예약번호와 주소는 공유되지 않아요.</p><div class="actions"><button class="btn btn-primary" data-act="sheet-close">닫기</button></div>');
     return;
@@ -1935,27 +1940,53 @@ function resDetail(id){
   openSheet(html);
 }
 
-// a booking opens straight into its editable form; quick buttons (copy, map, taxi, call) sit by their fields
+// a booking opens straight into its editable form, showing only the fields that fit its kind
+var RES_UI={
+  flight:{date:'날짜',time:'출발 시각',no:'편명',noPh:'예: TW327',from:'출발 공항',to:'도착 공항',fromPh:'예: 청주',toPh:'예: 간사이 T1',show:'no trip arr seat'},
+  rail:{date:'날짜',time:'출발 시각',no:'열차 이름',noPh:'예: 하루카 30호',from:'출발역',to:'도착역',fromPh:'예: 간사이공항',toPh:'예: 교토',show:'no trip arr seat'},
+  hotel:{date:'체크인 날짜',time:'체크인 시간',end:'체크아웃 날짜',show:'end place addr phone'},
+  food:{date:'날짜',time:'예약 시간',show:'place addr phone'},
+  ticket:{date:'날짜',time:'시간',show:'place'},
+  etc:{date:'시작하는 날',time:'시간',end:'끝나는 날',show:'end'}
+};
+function resFormApply(f){
+  var u=RES_UI[f.cat.value]||RES_UI.etc, show=' '+u.show+' ';
+  f.querySelectorAll('[data-sec]').forEach(function(el){ el.hidden=show.indexOf(' '+el.getAttribute('data-sec')+' ')<0; });
+  f.querySelectorAll('[data-lab]').forEach(function(el){ var k=el.getAttribute('data-lab'); if(u[k]) el.textContent=u[k]; });
+  ['no','from','to'].forEach(function(k){ var i=f.querySelector('[name="'+k+'"]'); if(i&&u[k+'Ph']) i.placeholder=u[k+'Ph']; });
+  var two=f.querySelector('.res-dates'); if(two) two.classList.toggle('two',show.indexOf(' end ')>=0);
+}
 function resForm(id){
   var r=id?findRes(id):{cat:'food',title:'',date:state.days[ui.day].date,time:'',endDate:'',confirm:'',app:'',address:'',phone:'',link:'',memo:''};
-  var codes=confirmParts(r.confirm), L=id?appLink(r):null;
+  var L=id?appLink(r):null, c=r.cost||{}, D=' min="2026-10-01" max="2026-10-31"';
+  function sec(name,html){ return '<div data-sec="'+name+'">'+html+'</div>'; }
+  function lab(k,t){ return '<span data-lab="'+k+'">'+t+'</span>'; }
   openSheet('<form data-form="res" data-id="'+(id||'')+'"><h2>'+(id?esc(r.title):'예약 추가')+'</h2>'+(id?'<p class="sub">'+catBadge(r.cat)+' '+esc(resRange(r))+'</p>'+qrSection(r):'')+
-    '<div class="two">'+selectField('종류','cat',r.cat,Object.keys(CAT).map(function(k){return [k,CAT[k]];}))+field('시간','time',r.time,'time')+'</div>'+
-    field('이름','title',r.title,'text',' required placeholder="예: 교토 숙소, 저녁 식당"')+
+    selectField('종류','cat',r.cat,Object.keys(CAT).map(function(k){return [k,CAT[k]];}))+
+    field('이름','title',r.title,'text',' required placeholder="예: 가는 비행기, 교토 숙소, 저녁 식당"')+
     field('현지 이름','nameOrig',r.nameOrig,'text',' placeholder="원래 이름 (선택)"')+
-    '<div class="two">'+field('날짜','date',r.date,'date',' min="2026-10-01" max="2026-10-31"')+field('끝나는 날 (체크아웃)','endDate',r.endDate,'date',' min="2026-10-01" max="2026-10-31"')+'</div>'+
-    (codes.length?'<div class="res-codes">'+codes.map(function(p){ return '<button type="button" class="mini" data-act="copy" data-v="'+esc(p.code)+'">'+esc(p.code)+' 복사</button>'; }).join('')+'</div>':'')+
-    '<label class="field"><span>예약번호</span><textarea name="confirm" class="short" autocomplete="off" autocapitalize="characters" placeholder="ABC123 (2명, HONG GILDONG, KIM MINJI)">'+esc(r.confirm||'')+'</textarea><small>번호가 여러 개면 한 줄에 하나씩, 번호 (인원, 이름) 형식으로 적어요. 예: XYZ789 (1명, HONG GILDONG)</small></label>'+
+    sec('no','<label class="field">'+lab('no','편명')+'<input name="no" value="'+esc(r.no||'')+'" autocomplete="off"></label>')+
+    sec('trip','<div class="two"><label class="field">'+lab('from','출발')+'<input name="from" value="'+esc(r.from||'')+'"></label><label class="field">'+lab('to','도착')+'<input name="to" value="'+esc(r.to||'')+'"></label></div>')+
+    '<div class="res-dates"><label class="field">'+lab('date','날짜')+'<input name="date" type="date" value="'+esc(r.date||'')+'"'+D+'></label>'+
+      sec('end','<label class="field">'+lab('end','끝나는 날')+'<input name="endDate" type="date" value="'+esc(r.endDate||'')+'"'+D+'></label>')+'</div>'+
+    '<div class="two"><label class="field">'+lab('time','시간')+'<input name="time" type="time" value="'+esc(r.time||'')+'"></label>'+
+      sec('arr','<label class="field"><span>도착 시각</span><input name="arrTime" type="time" value="'+esc(r.arrTime||'')+'"></label>')+'</div>'+
+    sec('seat','<label class="field"><span>좌석</span><input name="seat" value="'+esc(r.seat||'')+'" placeholder="예: 7호차 3A~3E"></label>')+
+    '<label class="field"><span>예약번호</span><textarea name="confirm" class="short" autocomplete="off" autocapitalize="characters" placeholder="ABC123 (2명, HONG GILDONG, KIM MINJI)">'+esc(r.confirm||'')+'</textarea><small>번호가 여러 개면 한 줄에 하나씩, 번호 (인원, 이름) 형식으로 적어요.</small></label>'+
     '<label class="field"><span class="res-lab">예약한 곳'+(L?'<a class="mini" href="'+esc(L.url)+'" target="_blank" rel="noopener">'+(L.kind==='search'?'찾아보기':'열기')+'</a>':'')+'</span><input name="app" value="'+esc(r.app||'')+'" placeholder="예: 아고다, 트리니티항공, 클룩"></label>'+
-    '<label class="field"><span>예약한 곳 링크</span><input name="link" type="url" value="'+esc(r.link||'')+'" placeholder="https://"><small>비워두면 아고다, 트립닷컴처럼 잘 알려진 곳은 공식 사이트로 자동 연결돼요. 앱이 깔려 있으면 앱으로 열려요.</small></label>'+
-    '<label class="field"><span class="res-lab">지도 검색어<button type="button" class="mini" data-act="res-map">'+ICON.pin+'지도</button></span><input name="map" value="'+esc(r.map||r.title||'')+'" placeholder="비워두면 이름으로 찾아요"><small>구글 지도에서 이 검색어로 찾아요. 이름만 넣어도 돼요.</small></label>'+
-    '<label class="field"><span class="res-lab">주소<button type="button" class="mini" data-act="res-taxi">기사님께 보여주기</button></span><textarea name="address" class="short" placeholder="예약 확인 메일의 주소 (일본어면 택시에 그대로 보여줘요)">'+esc(r.address||r.addressJa||'')+'</textarea></label>'+
-    '<label class="field"><span class="res-lab">전화번호'+(r.phone?'<a class="mini" href="tel:'+esc(String(r.phone).replace(/[^+\d]/g,''))+'">전화</a>':'')+'</span><input name="phone" type="tel" value="'+esc(r.phone||'')+'"></label>'+
+    '<label class="field"><span>예약한 곳 링크</span><input name="link" type="url" value="'+esc(r.link||'')+'" placeholder="https://"><small>비워두면 아고다, 트립닷컴처럼 잘 알려진 곳은 공식 사이트로 자동 연결돼요.</small></label>'+
+    '<label class="field"><span>결제 금액</span><div class="sp-amt"><input name="costAmt" type="text" inputmode="numeric" pattern="[0-9,]*" value="'+esc(c.amount||'')+'" placeholder="0">'+
+      '<div class="seg"><label><input type="radio" name="costCur" value="KRW"'+(c.cur!=='JPY'?' checked':'')+'><span>원</span></label><label><input type="radio" name="costCur" value="JPY"'+(c.cur==='JPY'?' checked':'')+'><span>엔</span></label></div></div>'+
+      '<div class="seg res-when"><label><input type="radio" name="costWhen" value="before"'+(c.when!=='onsite'?' checked':'')+'><span>미리 결제</span></label><label><input type="radio" name="costWhen" value="onsite"'+(c.when==='onsite'?' checked':'')+'><span>현장 결제</span></label></div>'+
+      '<small>경비 탭에 자동으로 합산돼요.</small></label>'+
+    sec('place','<label class="field"><span class="res-lab">지도 검색어<button type="button" class="mini" data-act="res-map">'+ICON.pin+'지도</button></span><input name="map" value="'+esc(r.map||r.title||'')+'" placeholder="비워두면 이름으로 찾아요"><small>구글 지도에서 이 검색어로 찾아요. 이름만 넣어도 돼요.</small></label>')+
+    sec('addr','<label class="field"><span class="res-lab">주소<button type="button" class="mini" data-act="res-taxi">기사님께 보여주기</button></span><textarea name="address" class="short" placeholder="예약 확인 메일의 주소 (일본어면 택시에 그대로 보여줘요)">'+esc(r.address||r.addressJa||'')+'</textarea></label>')+
+    sec('phone','<label class="field"><span class="res-lab">전화번호'+(r.phone?'<a class="mini" href="tel:'+esc(String(r.phone).replace(/[^+\d]/g,''))+'">전화</a>':'')+'</span><input name="phone" type="tel" value="'+esc(r.phone||'')+'"></label>')+
     areaField('메모','memo',r.memo,'한 줄에 하나씩 항목: 내용. 예: 수하물: 위탁 15kg')+
     '<div class="actions">'+(id?'<button type="button" class="btn btn-danger" data-act="del-res" data-id="'+id+'">삭제</button>':'')+
     '<button type="button" class="btn btn-ghost" data-act="sheet-close">취소</button><button type="submit" class="btn btn-primary">저장</button></div></form>');
+  resFormApply(document.querySelector('form[data-form="res"]'));
 }
-
 function dayTitleForm(){
   var d=state.days[ui.day]; if(!d) return;
   openSheet('<form data-form="day-title"><h2>'+esc(mdw(d.date))+' 제목</h2>'+field('제목','title',d.title,'text',' required autocomplete="off" placeholder="예: 여우 신사와 대나무숲"')+
@@ -2107,6 +2138,7 @@ document.addEventListener('click',function(e){
 });
 document.addEventListener('change',function(e){
   var inp=e.target, ef=inp.closest&&inp.closest('form[data-form="ev"]');
+  if(inp.name==='cat'&&inp.form&&inp.form.getAttribute('data-form')==='res'){ resFormApply(inp.form); return; }
   if(inp.name==='rhow'&&inp.form){ var hl=inp.form.querySelector('.how-label'); if(hl) hl.hidden=inp.value!=='etc'; return; }
   if(ef&&inp.name==='type'){ ef.querySelectorAll('.pl-pick').forEach(function(pk){ pk.hidden=inp.value!==PL[pk.getAttribute('data-k')].ev; }); return; }
   // city switch inside a pick list, or a new date: show that city's places
@@ -2303,7 +2335,13 @@ document.addEventListener('submit',function(e){
     closeSheet();
     commit(function(s){
       var prev=id?findRes(id):null;
-      var r=Object.assign({},prev||{},{id:id||uid('r'),cat:v.cat,title:v.title,nameOrig:v.nameOrig,date:v.date,time:v.time,endDate:v.endDate,confirm:v.confirm,app:v.app,map:v.map,address:v.address,phone:v.phone,link:v.link,memo:v.memo}); delete r.addressJa;
+      var r=Object.assign({},prev||{},{id:id||uid('r'),cat:v.cat,title:v.title,nameOrig:v.nameOrig,date:v.date,time:v.time,confirm:v.confirm,app:v.app,link:v.link,memo:v.memo}); delete r.addressJa;
+      // only the fields shown for this kind are taken from the form; hidden ones keep what they had
+      var show=' '+(RES_UI[v.cat]||RES_UI.etc).show+' ', SEC={no:['no'],trip:['from','to'],arr:['arrTime'],seat:['seat'],end:['endDate'],place:['map'],addr:['address'],phone:['phone']};
+      Object.keys(SEC).forEach(function(k){ if(show.indexOf(' '+k+' ')>=0) SEC[k].forEach(function(fl){ r[fl]=v[fl]||''; }); });
+      if(show.indexOf(' end ')<0) r.endDate='';
+      var ca=parseFloat(String(v.costAmt||'').replace(/[^0-9.]/g,''));
+      if(ca>0) r.cost={amount:ca,cur:(f.querySelector('input[name=costCur]:checked')||{}).value==='JPY'?'JPY':'KRW',when:(f.querySelector('input[name=costWhen]:checked')||{}).value==='onsite'?'onsite':'before'}; else delete r.cost;
       var i=-1; s.reservations.forEach(function(x,j){if(x.id===r.id) i=j;});
       if(i>=0) s.reservations[i]=r; else s.reservations.push(r);
       markDirty('reservation',r.id,'upsert');
