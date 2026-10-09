@@ -304,9 +304,12 @@ textarea.short{min-height:64px}
 .sp-cat[open] .sp-open::after{transform:rotate(-135deg);margin-top:3px}
 .sp-cat-list{background:var(--bg);border-top:1px solid var(--line)}
 .sp-cat-list .sp-row:first-child{border-top:0}
-.dt-box{border:1px solid var(--line);border-radius:12px;margin:14px 0 0;padding:2px 12px 0;min-width:0}
+.dt-box{border:1px solid var(--line);border-radius:12px;margin:14px 0 0;padding:4px 12px 14px;min-width:0}
+.dt-box .two{grid-template-columns:minmax(0,1fr) minmax(0,1fr)}
+.dt-box input{display:block;min-width:0;max-width:100%;min-height:46px;line-height:1.3}
+.dt-box input::-webkit-date-and-time-value{text-align:left}
 .dt-box legend{font-size:13px;font-weight:600;color:var(--muted);padding:0 4px}
-.dt-box .field{margin-top:8px}
+.dt-box .field{margin-top:8px;min-width:0}
 .dt-box .dt-2[hidden]{display:none}
 .nm-wrap .res-lab .nm-seg{margin-left:auto}
 .nm-wrap>.nm-seg{margin:0 0 6px}
@@ -536,7 +539,7 @@ var SEED = JSON.parse($('#trip-data').textContent);
 var state = (function(){ try{ var s=localStorage.getItem(LS_STATE); if(s){ var o=JSON.parse(s); if(o&&Array.isArray(o.days)) return o; } }catch(e){} return JSON.parse(JSON.stringify(SEED)); })();
 var mode = 'local';
 var SS_UI = 'kyosaka:ui';
-var APP_VER = 104;   // shown at the bottom of 정보 (and used by the 새로고침 button); bump on every change
+var APP_VER = 105;   // shown at the bottom of 정보 (and used by the 새로고침 button); bump on every change
 /* family view: read-only copy of what the owner shared (?family link, remembered on this phone) */
 var LS_SHARED='kyosaka:shared', SHARED=null;
 var FAMILY=(function(){
@@ -1878,7 +1881,26 @@ function nameSeg(r){
 }
 document.addEventListener('change',function(e){ var t=e.target; if(t.name!=='nmLang') return; var w=t.closest('.nm-wrap'); if(!w) return;
   w.querySelectorAll('[data-nm]').forEach(function(el){ el.hidden=el.getAttribute('data-nm')!==t.value; });
-  var inp=w.querySelector('input[data-nm="'+t.value+'"]'); if(inp&&!inp.value) inp.focus(); });
+  var inp=w.querySelector('input[data-nm="'+t.value+'"]'); if(inp&&!inp.value){ inp.focus(); nameFill(inp.closest('form'),inp,t.value); } });
+// places only (숙소, 식당, 입장권): ask Google for the name in that language and keep it on the booking
+function nameFill(f,inp,lang){
+  if(!f||lang==='ko'||!gKey()||['hotel','food','ticket'].indexOf(f.cat.value)<0) return;
+  var q=(mapWord(f.map&&f.map.value)||f.nameOrig.value||f.title.value).trim(); if(!q) return;
+  var ph=inp.placeholder; inp.placeholder='구글에서 찾는 중…';
+  ggName(q,lang).then(function(n){ inp.placeholder=ph; if(!n||inp.value) return; inp.value=n;
+    var r=findRes(f.getAttribute('data-id')); if(r){ r[inp.name]=n; saveLocal(); markDirty('reservation',r.id,'upsert'); autoShareSoon(); }
+    toast('구글 지도 이름으로 채웠어요'); });
+}
+function ggName(q,lang){
+  var key=GG_KEY+'nm:'+lang+':'+q, c=null; try{ c=JSON.parse(localStorage.getItem(key)||'null'); }catch(e){} if(c) return Promise.resolve(c);
+  if(!navigator.onLine) return Promise.resolve('');
+  return fetch('https://places.googleapis.com/v1/places:searchText',{method:'POST',
+    headers:{'Content-Type':'application/json','X-Goog-Api-Key':gKey(),'X-Goog-FieldMask':'places.displayName'},
+    body:JSON.stringify({textQuery:q,languageCode:lang,regionCode:'JP',pageSize:1,locationBias:{rectangle:{low:{latitude:33.4,longitude:134.0},high:{latitude:36.3,longitude:137.0}}}})})
+    .then(function(r){ return r.ok?r.json():null; })
+    .then(function(j){ var n=j&&j.places&&j.places[0]&&j.places[0].displayName&&j.places[0].displayName.text||''; if(n){ try{ localStorage.setItem(key,JSON.stringify(n)); }catch(e){} } return n; })
+    .catch(function(){ return ''; });
+}
 // family phones: look only
 function resDetail(id){
   var r=findRes(id); if(!r) return;
@@ -1928,8 +1950,7 @@ function resForm(id){
       '<div class="seg"><label><input type="radio" name="costCur" value="KRW"'+(c.cur!=='JPY'?' checked':'')+'><span>원</span></label><label><input type="radio" name="costCur" value="JPY"'+(c.cur==='JPY'?' checked':'')+'><span>엔</span></label></div></div>'+
       '<div class="seg res-when"><label><input type="radio" name="costWhen" value="before"'+(c.when!=='onsite'?' checked':'')+'><span>미리 결제</span></label><label><input type="radio" name="costWhen" value="onsite"'+(c.when==='onsite'?' checked':'')+'><span>현장 결제</span></label></div>'+
       '<small>경비 탭에 자동으로 합산돼요.</small></label>'+
-    '<div class="two"><label class="field"><span class="res-lab">예약한 곳'+(L?'<a class="mini" href="'+esc(L.url)+'" target="_blank" rel="noopener">'+(L.kind==='search'?'찾아보기':'열기')+'</a>':'')+'</span><input name="app" value="'+esc(r.app||'')+'" placeholder="예: 아고다, 클룩"></label>'+
-      '<label class="field"><span>링크</span><input name="link" type="url" value="'+esc(r.link||'')+'" placeholder="https:// (선택)"></label></div>'+
+    '<label class="field"><span class="res-lab">예약 링크'+(L?'<a class="mini" href="'+esc(L.url)+'" target="_blank" rel="noopener">'+(L.kind==='search'?'찾아보기':'열기')+'</a>':'')+'</span><input name="link" type="url" value="'+esc(r.link||'')+'" placeholder="https://"></label>'+
     '<label class="field"><span>예약번호</span><textarea name="confirm" class="short" autocomplete="off" autocapitalize="characters" placeholder="ABC123 (2명, HONG GILDONG, KIM MINJI)">'+esc(r.confirm||'')+'</textarea><small>번호가 여러 개면 한 줄에 하나씩, 번호 (인원, 이름) 형식으로 적어요.</small></label>'+
     '<div class="actions">'+(id?'<button type="button" class="btn btn-danger" data-act="del-res" data-id="'+id+'">삭제</button>':'')+
     '<button type="button" class="btn btn-ghost" data-act="sheet-close">취소</button><button type="submit" class="btn btn-primary">저장</button></div></form>');
@@ -2275,7 +2296,7 @@ document.addEventListener('submit',function(e){
     closeSheet();
     commit(function(s){
       var prev=id?findRes(id):null;
-      var r=Object.assign({},prev||{},{id:id||uid('r'),cat:v.cat,title:v.title,nameOrig:v.nameOrig,nameEn:v.nameEn,date:v.date,time:v.time,confirm:v.confirm,app:v.app,link:v.link}); delete r.address; delete r.addressJa; delete r.phone;
+      var r=Object.assign({},prev||{},{id:id||uid('r'),cat:v.cat,title:v.title,nameOrig:v.nameOrig,nameEn:v.nameEn,date:v.date,time:v.time,confirm:v.confirm,link:v.link}); delete r.address; delete r.addressJa; delete r.phone;
       // only the fields shown for this kind are taken from the form; hidden ones keep what they had
       var show=' '+(RES_UI[v.cat]||RES_UI.etc).show+' ', SEC={no:['no'],trip:['from','to'],arr:['arrTime'],seat:['seat'],end:['endDate'],place:['map']};
       Object.keys(SEC).forEach(function(k){ if(show.indexOf(' '+k+' ')>=0) SEC[k].forEach(function(fl){ r[fl]=v[fl]||''; }); });
