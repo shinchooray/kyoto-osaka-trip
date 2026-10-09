@@ -541,7 +541,7 @@ var SEED = JSON.parse($('#trip-data').textContent);
 var state = (function(){ try{ var s=localStorage.getItem(LS_STATE); if(s){ var o=JSON.parse(s); if(o&&Array.isArray(o.days)) return o; } }catch(e){} return JSON.parse(JSON.stringify(SEED)); })();
 var mode = 'local';
 var SS_UI = 'kyosaka:ui';
-var APP_VER = 111;   // shown at the bottom of 정보 (and used by the 새로고침 button); bump on every change
+var APP_VER = 112;   // shown at the bottom of 정보 (and used by the 새로고침 button); bump on every change
 /* family view: read-only copy of what the owner shared (?family link, remembered on this phone) */
 var LS_SHARED='kyosaka:shared', SHARED=null;
 var FAMILY=(function(){
@@ -1175,7 +1175,7 @@ function shareData(){
   var days=state.days.map(function(d){
     return {date:d.date,city:d.city,title:d.title,items:d.items.map(function(ev){
       var stay=ev.type==='stay'||isHotelEv(ev);
-      var it=pick(ev,stay?['id','time','type','title','place','placeOrig']:['id','time','type','title','place','placeOrig','map','memo','lat','lng','spot','restaurant','bakery','tentative']);
+      var it=pick(ev,stay?['id','time','type','title','place','placeOrig','placeEn']:['id','time','type','title','place','placeOrig','placeEn','map','memo','lat','lng','spot','restaurant','bakery','tentative']);
       var gv=stay?null:ggCached(gQuery(ev)); if(gv){ it.lat=gv.lat; it.lng=gv.lng; }
       if(ev.route) it.route=pick(ev.route,['how','min']);
       if(!stay&&aboutRaw(ev.about)) it.about=pick(ev.about,['intro','history','highlights','facts','tip']);
@@ -1914,9 +1914,11 @@ function evForm(id,preset){
     '<div class="two">'+selectField('날짜','day',String(dayIdx),state.days.map(function(d,i){return [String(i),mdw(d.date)];}))+field('시간','time',ev.time,'time')+'</div>'+
     selectField('종류','type',ev.type||'sight',Object.keys(TYPE).map(function(k){return [k,TYPE[k]];}))+
     plPick('sight',ev,dayIdx)+plPick('food',ev,dayIdx)+plPick('bread',ev,dayIdx)+
-    field('장소','place',ev.place||ev.title,'text',' required placeholder="예: 킨카쿠지"')+
-    field('현지 이름','placeOrig',ev.placeOrig,'text',' placeholder="예: 金閣寺 (선택)"')+
-    '<label class="field"><span>지도 검색어</span><input name="map" value="'+esc(ev.map||ev.place||ev.title||'')+'" data-was="'+esc(ev.place||ev.title||'')+'" placeholder="비워두면 장소 이름으로 찾아요"><small>장소 이름이 미리 들어가 있어요. 지도 버튼과 일정 탭 지도가 모두 이 검색어로 찾아요. '+(gKey()?'구글 지도처럼 한글 가게 이름도 잘 찾아요. 체인점은 지점명까지 적어 주세요.':'영어나 일본어로 적으면 더 정확해요. 정보 탭에서 구글 위치 찾기를 켜면 한글 이름도 잘 찾아요.')+' 잘 안 찾아지면 구글 지도의 공유 링크를 붙여넣으세요. 링크가 있으면 지도 버튼은 그 링크를 바로 열고, 일정 지도도 링크를 먼저 따라요. 좌표(예: 34.9671, 135.7727)를 붙여넣으면 정확히 그 지점에 찍혀요.</small></label>'+
+    '<div class="field nm-wrap"><span class="res-lab">이름'+nameSeg(ev)+'</span>'+
+      '<input name="place" data-nm="ko" value="'+esc(ev.place||ev.title||'')+'" placeholder="예: 킨카쿠지" autocomplete="off">'+
+      '<input name="placeOrig" data-nm="ja" value="'+esc(ev.placeOrig||'')+'" placeholder="예: 金閣寺 (선택)" autocomplete="off" hidden>'+
+      '<input name="placeEn" data-nm="en" value="'+esc(ev.placeEn||'')+'" placeholder="예: Kinkaku-ji (선택)" autocomplete="off" hidden></div>'+
+    '<label class="field"><span>지도 검색어</span><input name="map" value="'+esc(ev.map||ev.place||ev.title||'')+'" data-was="'+esc(ev.place||ev.title||'')+'" placeholder="비워두면 장소 이름으로 찾아요"><small>한국 이름이 미리 들어가 있어요. 지도 버튼과 일정 탭 지도가 모두 이 검색어로 찾아요. '+(gKey()?'구글 지도처럼 한글 가게 이름도 잘 찾아요. 체인점은 지점명까지 적어 주세요.':'영어나 일본어로 적으면 더 정확해요. 정보 탭에서 구글 위치 찾기를 켜면 한글 이름도 잘 찾아요.')+' 잘 안 찾아지면 구글 지도의 공유 링크를 붙여넣으세요. 링크가 있으면 지도 버튼은 그 링크를 바로 열고, 일정 지도도 링크를 먼저 따라요. 좌표(예: 34.9671, 135.7727)를 붙여넣으면 정확히 그 지점에 찍혀요.</small></label>'+
     areaField('메모','memo',ev.memo)+
     '<div class="actions">'+(id?'<button type="button" class="btn btn-danger" data-act="del-ev" data-id="'+id+'">삭제</button>':'')+
     '<button type="button" class="btn btn-ghost" data-act="sheet-close">취소</button><button type="submit" class="btn btn-primary">저장</button></div></form>');
@@ -1932,12 +1934,13 @@ document.addEventListener('change',function(e){ var t=e.target; if(t.name!=='nmL
 // places only (숙소, 식당, 입장권): ask Google for the name in that language and keep it on the booking
 function nameFill(f,inp,lang){
   var kind=f&&f.getAttribute('data-form'); if(!f||lang==='ko'||!gKey()) return;
-  if(kind==='res'?['hotel','food','ticket'].indexOf(f.cat.value)<0:kind!=='place') return;
-  var ko=f.querySelector('input[data-nm="ko"]'), q=(mapWord(f.map&&f.map.value)||f.nameOrig.value||ko.value).trim(); if(!q) return;
+  if(kind==='res'?['hotel','food','ticket'].indexOf(f.cat.value)<0:(kind!=='place'&&kind!=='ev')) return;
+  var ko=f.querySelector('input[data-nm="ko"]'), ja=f.querySelector('input[data-nm="ja"]'), q=(mapWord(f.map&&f.map.value)||ja.value||ko.value).trim(); if(!q) return;
   var ph=inp.placeholder; inp.placeholder='구글에서 찾는 중…';
   ggName(q,lang).then(function(n){ inp.placeholder=ph; if(!n||inp.value) return; inp.value=n;
     var id=f.getAttribute('data-id');
     if(kind==='res'){ var r=findRes(id); if(r){ r[inp.name]=n; saveLocal(); markDirty('reservation',r.id,'upsert'); autoShareSoon(); } }
+    else if(kind==='ev'){ var fe=id&&findEv(id); if(fe){ fe.ev[inp.name]=n; saveLocal(); markDirty('event',fe.ev.id,'upsert'); autoShareSoon(); } }
     else { var pk=f.getAttribute('data-k'), b=id&&findPl(pk,id); if(b){ b[inp.name]=n; plSave(pk); markDirty('pl-'+pk,'all','upsert'); } }
     toast('구글 지도 이름으로 채웠어요'); });
 }
@@ -2156,7 +2159,7 @@ document.addEventListener('change',function(e){
   if(ef&&/^plc-/.test(inp.name)){ var ck=inp.name.slice(4), cs=ef.querySelector('select[name="'+PL[ck].fld+'"]'); if(cs) cs.innerHTML=plOptions(ck,inp.value,cs.value); return; }
   if(ef&&inp.name==='day'){ var dc=dayCity(+inp.value); PLK.forEach(function(k){ var r=ef.querySelector('input[name="plc-'+k+'"][value="'+dc+'"]'), s=ef.querySelector('select[name="'+PL[k].fld+'"]'); if(r&&s&&!s.value){ r.checked=true; s.innerHTML=plOptions(k,dc,''); } }); return; }
   var pkk=ef&&PLK.filter(function(k){ return PL[k].fld===inp.name; })[0];
-  if(pkk){ var b=findPl(pkk,inp.value); if(b){ ef.place.value=b.name; ef.placeOrig.value=b.nameOrig||''; ef.map.value=b.map||b.name; ef.map.setAttribute('data-was',b.name); } return; } if(inp.matches&&inp.matches('[data-import="ckphoto"]')){ var cf=inp.files; qrAdd('ck:'+inp.getAttribute('data-id'),cf); inp.value=''; return; }
+  if(pkk){ var b=findPl(pkk,inp.value); if(b){ ef.place.value=b.name; ef.placeOrig.value=b.nameOrig||''; ef.placeEn.value=b.nameEn||''; ef.map.value=b.map||b.name; ef.map.setAttribute('data-was',b.name); } return; } if(inp.matches&&inp.matches('[data-import="ckphoto"]')){ var cf=inp.files; qrAdd('ck:'+inp.getAttribute('data-id'),cf); inp.value=''; return; }
   if(inp.matches&&inp.matches('[data-import="qr"]')){ var fs=inp.files; qrAdd(inp.getAttribute('data-id'),fs); inp.value=''; return; }
 });
 var qrTouch=null;
@@ -2306,13 +2309,13 @@ document.addEventListener('submit',function(e){
     plSave(pk);
     // scheduled visits follow the place's name and map search
     var linked=plUses(pk,bk.id);
-    commit(function(){ linked.forEach(function(u){ var ev=u.ev; if(ev.place!==bk.name||(ev.map||'')!==bk.map||(ev.placeOrig||'')!==bk.nameOrig){ delete ev.lat; delete ev.lng; flagRoute(ev); flagRoute(u.d.items[u.d.items.indexOf(ev)+1]); } ev.title=ev.place=bk.name; ev.placeOrig=bk.nameOrig; ev.map=bk.map; }); },true);
+    commit(function(){ linked.forEach(function(u){ var ev=u.ev; if(ev.place!==bk.name||(ev.map||'')!==bk.map||(ev.placeOrig||'')!==bk.nameOrig){ delete ev.lat; delete ev.lng; flagRoute(ev); flagRoute(u.d.items[u.d.items.indexOf(ev)+1]); } ev.title=ev.place=bk.name; ev.placeOrig=bk.nameOrig; ev.placeEn=bk.nameEn||''; ev.map=bk.map; }); },true);
     linked.forEach(function(u){ markDirty('event',u.ev.id,'upsert'); }); markDirty('pl-'+pk,'all','upsert');
     toast('저장했어요'); return;
   }
   if(kind==='day-title'){ if(!v.title) return; var dd=state.days[ui.day]; closeSheet(); commit(function(){ dd.title=v.title; }); markDirty('day',dd.date,'upsert'); return; }
   if(kind==='ev'){
-    if(!v.place) return;
+    if(!v.place){ var ko=f.querySelector('input[name=nmLang][value=ko]'); if(ko){ ko.checked=true; ko.dispatchEvent(new Event('change',{bubbles:true})); } f.place.focus(); toast('이름을 넣어 주세요'); return; }
     v.map=mapIn(v.map,v.place); if(v.map===String(v.place).trim()) v.map='';
     var dayIdx=+v.day; closeSheet(); ui.day=dayIdx; var savedEv=null, synced=0;
     commit(function(s){
@@ -2321,7 +2324,7 @@ document.addEventListener('submit',function(e){
       var locChanged=(item.map||'')!==v.map||(item.place||'')!==v.place||(item.placeOrig||'')!==v.placeOrig;
       if(locChanged){ delete item.lat; delete item.lng; }
       var moved=!old||locChanged||old.day!==dayIdx||(old.ev.time||'')!==v.time;
-      item.time=v.time; item.type=v.type; item.title=v.place; item.place=v.place; item.placeOrig=v.placeOrig; item.map=v.map; item.memo=v.memo;
+      item.time=v.time; item.type=v.type; item.title=v.place; item.place=v.place; item.placeOrig=v.placeOrig; item.placeEn=v.placeEn; item.map=v.map; item.memo=v.memo;
       if(v.tentative==='1') item.tentative=true; else delete item.tentative;
       PLK.forEach(function(k){ var P=PL[k]; if(v.type===P.ev&&v[P.fld]&&findPl(k,v[P.fld])) item[P.fld]=v[P.fld]; else delete item[P.fld]; });
       // the route is edited from 가는 길 now; forms without route fields leave it as it is
@@ -2341,13 +2344,14 @@ document.addEventListener('submit',function(e){
       if(old){ var o=old.ev; s.reservations.forEach(function(r){ if(!samePlace(o,r)) return; var ch=false;
         if(o.place!==item.place){ r.title=item.place; ch=true; }
         if((o.placeOrig||'')!==(item.placeOrig||'')){ r.nameOrig=item.placeOrig; ch=true; }
+        if((o.placeEn||'')!==(item.placeEn||'')){ r.nameEn=item.placeEn; ch=true; }
         if(mapOwn(o.map,o.place)!==mapOwn(item.map,item.place)){ r.map=item.map; ch=true; }
         if(r.cat!=='hotel'){ if(old.day!==dayIdx){ r.date=target.date; ch=true; } if((o.time||'')!==(item.time||'')){ r.time=item.time; ch=true; } }
         if(ch){ synced++; markDirty('reservation',r.id,'upsert'); } });
         // other visits to the same booked place (e.g. the hotel on other nights) keep the same name too
         var placeCh=o.place!==item.place||(o.placeOrig||'')!==(item.placeOrig||'')||mapOwn(o.map,o.place)!==mapOwn(item.map,item.place);
         if(synced&&placeCh) s.days.forEach(function(d){ d.items.forEach(function(x){ if(x===item||!(x.place===o.place||(o.placeOrig&&x.placeOrig===o.placeOrig))) return;
-          x.title=x.place=item.place; x.placeOrig=item.placeOrig; x.map=item.map; delete x.lat; delete x.lng; markDirty('event',x.id,'upsert'); }); }); }
+          x.title=x.place=item.place; x.placeOrig=item.placeOrig; x.placeEn=item.placeEn; x.map=item.map; delete x.lat; delete x.lng; markDirty('event',x.id,'upsert'); }); }); }
     });
     if(savedEv) markDirty('event',savedEv,'upsert');
     if(synced) setTimeout(function(){ toast('예약 탭에도 같이 바꿨어요'); },50);
@@ -2373,9 +2377,10 @@ document.addEventListener('submit',function(e){
       markDirty('reservation',r.id,'upsert');
       if(!prev||SYNC_RES.indexOf(r.cat)<0) return;
       var links=[]; s.days.forEach(function(d){ d.items.forEach(function(ev){ if(samePlace(ev,prev)) links.push({d:d,ev:ev}); }); });
-      links.forEach(function(u){ var ev=u.ev, loc=false, tm=false;
+      links.forEach(function(u){ var ev=u.ev, loc=false, tm=false, nm=false;
         if(prev.title!==r.title){ ev.title=ev.place=r.title; loc=true; }
         if((prev.nameOrig||'')!==(r.nameOrig||'')){ ev.placeOrig=r.nameOrig||''; loc=true; }
+        if((prev.nameEn||'')!==(r.nameEn||'')){ ev.placeEn=r.nameEn||''; nm=true; }
         if(mapOwn(prev.map,prev.title)!==mapOwn(r.map,r.title)){ ev.map=mapOwn(r.map,r.title); loc=true; }
         // one visit only: a booked meal or ticket also moves its time and day
         if(r.cat!=='hotel'&&links.length===1){
@@ -2385,7 +2390,8 @@ document.addEventListener('submit',function(e){
           else u.d.items=sortItems(u.d.items);
         }
         if(loc){ delete ev.lat; delete ev.lng; }
-        if(loc||tm){ flagRoute(ev); rsynced++; markDirty('event',ev.id,'upsert'); }
+        if(loc||tm){ flagRoute(ev); }
+        if(loc||tm||nm){ rsynced++; markDirty('event',ev.id,'upsert'); }
       });
     });
     if(rsynced) setTimeout(function(){ toast('일정 탭에도 같이 바꿨어요'); },50);
