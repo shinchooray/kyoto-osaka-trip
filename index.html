@@ -312,10 +312,16 @@ textarea.short{min-height:64px}
 .sp-cat[open] .sp-open::after{transform:rotate(-135deg);margin-top:3px}
 .sp-cat-list{background:var(--bg);border-top:1px solid var(--line)}
 .sp-cat-list .sp-row:first-child{border-top:0}
-.sp-subh{display:flex;align-items:baseline;gap:6px;padding:9px 14px 5px;font-size:12px;font-weight:700;color:var(--muted);border-top:1px solid var(--line)}
-.sp-subh:first-child{border-top:0}
-.sp-subh b{margin-left:auto;font-size:12px;color:var(--ink)}
-.sp-subh+.sp-row{border-top:0}
+.sp-subd{border-top:1px solid var(--line)}
+.sp-subd:first-child{border-top:0}
+.sp-cat .sp-subd>summary.sp-subh{display:flex;align-items:center;gap:6px;padding:11px 14px;font-size:13px;font-weight:700;color:var(--ink);cursor:pointer;list-style:none}
+.sp-subh::-webkit-details-marker{display:none}
+.sp-subh small{font-size:11.5px;font-weight:500;color:var(--muted)}
+.sp-subh b{margin-left:auto;font-size:13px}
+.sp-subv{flex:none;width:6px;height:6px;margin:-3px 2px 0 4px;border-right:2px solid var(--muted);border-bottom:2px solid var(--muted);transform:rotate(45deg);transition:transform .15s}
+.sp-subd[open] .sp-subv{transform:rotate(-135deg);margin-top:3px}
+.sp-subd[open]>summary{background:var(--card)}
+.sp-subh+.sp-row{border-top:1px solid var(--line)}
 .memo-ul{list-style:none;padding:0;margin:6px 0 0}
 .memo-ul li{position:relative;padding-left:14px;margin-top:3px;line-height:1.5}
 .memo-ul li:first-child{margin-top:0}
@@ -529,7 +535,7 @@ var SEED = JSON.parse($('#trip-data').textContent);
 var state = (function(){ try{ var s=localStorage.getItem(LS_STATE); if(s){ var o=JSON.parse(s); if(o&&Array.isArray(o.days)) return o; } }catch(e){} return JSON.parse(JSON.stringify(SEED)); })();
 var mode = 'local';
 var SS_UI = 'kyosaka:ui';
-var APP_VER = 98;   // shown at the bottom of 정보 (and used by the 새로고침 button); bump on every change
+var APP_VER = 99;   // shown at the bottom of 정보 (and used by the 새로고침 button); bump on every change
 /* family view: read-only copy of what the owner shared (?family link, remembered on this phone) */
 var LS_SHARED='kyosaka:shared', SHARED=null;
 var FAMILY=(function(){
@@ -783,12 +789,14 @@ function render(){
   var tabs=[['plan','일정'],['spend','경비'],['res','예약'],['check','준비물'],['info','정보']];
   if(FAMILY) tabs=tabs.slice(0,3);
   // the same map still on screen: carry the live map over the redraw and only refresh its pins
+  var opened=[].map.call(document.querySelectorAll('#app details[open][data-k]'),function(e){return e.getAttribute('data-k');});
   var key=mapViewKey(), keepBox=(MAP&&key&&key===MAP_KEY)?document.getElementById('tripmap'):null;
   $('#app').innerHTML = '<main class="main">'+banner()+html+'</main>'+
     '<nav class="tabs" aria-label="메뉴"><div class="tabs-in" role="tablist" style="grid-template-columns:repeat('+tabs.length+',1fr)">'+
     tabs.map(function(t){return '<button class="tab" role="tab" aria-selected="'+(ui.tab===t[0])+'" data-act="tab" data-v="'+t[0]+'">'+ICON[t[0]]+'<span>'+t[1]+'</span></button>';}).join('')+
     '</div></nav>';
   var nb=keepBox&&document.getElementById('tripmap'); if(nb) nb.replaceWith(keepBox); else keepBox=null;
+  opened.forEach(function(k){ var d=document.querySelector('#app details[data-k="'+k+'"]'); if(d) d.open=true; });
   setTimeout(function(){
     if(ui.tab==='spend') fitLines();
     if(keepBox&&MAP) MAP.invalidateSize();
@@ -1481,7 +1489,7 @@ function renderSpend(){
   var max=byCat.length?byCat[0].t.total:1;
   var catHtml=byCat.length?'<div class="list sp-cats">'+byCat.map(function(c){ var pct=s.total?Math.round(c.t.total/s.total*100):0;
     var items=all.filter(function(x){return x.cat===c.k;}).sort(function(a,b){return (a.date||'0')<(b.date||'0')?-1:(a.date||'0')>(b.date||'0')?1:0;});
-    return '<details class="sp-cat"><summary><div class="sp-cat-top"><span class="cat cat--'+c.k+'">'+esc(c.n)+'</span><span class="sp-cnt">'+items.length+'건</span><b>'+esc(krwShort(c.t.total))+'</b><small>'+pct+'%</small></div><div class="sp-bar"><span class="sp-fill sp-fill--'+c.k+'" style="width:'+Math.max(3,Math.round(c.t.total/max*100))+'%"></span></div><div class="sp-cat-raw">'+esc(spSumText(c.t))+'<span class="sp-open">내역 보기</span></div></summary>'+
+    return '<details class="sp-cat" data-k="cat:'+c.k+'"><summary><div class="sp-cat-top"><span class="cat cat--'+c.k+'">'+esc(c.n)+'</span><span class="sp-cnt">'+items.length+'건</span><b>'+esc(krwShort(c.t.total))+'</b><small>'+pct+'%</small></div><div class="sp-bar"><span class="sp-fill sp-fill--'+c.k+'" style="width:'+Math.max(3,Math.round(c.t.total/max*100))+'%"></span></div><div class="sp-cat-raw">'+esc(spSumText(c.t))+'<span class="sp-open">내역 보기</span></div></summary>'+
       '<div class="sp-cat-list">'+(c.k==='transit'?transitGroups(items):items.map(function(x){return entryRow(x,true);}).join(''))+'</div></details>'; }).join('')+'</div>':'<div class="list"><div class="text-block empty">아직 기록이 없어요. 오늘 탭의 일정마다 있는 "+ 쓴 돈"을 눌러 기록해 보세요.</div></div>';
   // rows that come from a booking open that booking (its 결제 금액 is where they are edited)
   function preRow(x){
@@ -1498,7 +1506,7 @@ function renderSpend(){
   function transitGroups(items){
     return [['res','예약'],['pub','대중교통'],['taxi','택시'],['etc','기타 교통']].map(function(g){
       var l=items.filter(function(x){return transitKind(x)===g[0];}); if(!l.length) return '';
-      return '<div class="sp-subh"><span>'+g[1]+'</span><small>'+l.length+'건</small><b>'+esc(spSumText(spSum(l)))+'</b></div>'+l.map(function(x){return entryRow(x,true);}).join('');
+      return '<details class="sp-subd" data-k="transit:'+g[0]+'"><summary class="sp-subh"><span>'+g[1]+'</span><small>'+l.length+'건</small><b>'+esc(spSumText(spSum(l)))+'</b><i class="sp-subv"></i></summary>'+l.map(function(x){return entryRow(x,true);}).join('')+'</details>';
     }).join('');
   }
   function entryRow(x,withDate){
