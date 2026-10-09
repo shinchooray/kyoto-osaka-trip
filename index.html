@@ -318,6 +318,8 @@ textarea.short{min-height:64px}
 .sp-subh::-webkit-details-marker{display:none}
 .sp-subh small{font-size:11.5px;font-weight:500;color:var(--muted)}
 .sp-subh b{margin-left:auto;font-size:13px}
+.sp-subh .sp-pp{margin-left:auto;font-size:12px;font-weight:600;color:var(--osaka)}
+.sp-subh .sp-pp+b{margin-left:8px}
 .sp-subv{flex:none;width:6px;height:6px;margin:-3px 2px 0 4px;border-right:2px solid var(--muted);border-bottom:2px solid var(--muted);transform:rotate(45deg);transition:transform .15s}
 .sp-subd[open] .sp-subv{transform:rotate(-135deg);margin-top:3px}
 .sp-subd[open]>summary{background:var(--card)}
@@ -535,7 +537,7 @@ var SEED = JSON.parse($('#trip-data').textContent);
 var state = (function(){ try{ var s=localStorage.getItem(LS_STATE); if(s){ var o=JSON.parse(s); if(o&&Array.isArray(o.days)) return o; } }catch(e){} return JSON.parse(JSON.stringify(SEED)); })();
 var mode = 'local';
 var SS_UI = 'kyosaka:ui';
-var APP_VER = 99;   // shown at the bottom of 정보 (and used by the 새로고침 button); bump on every change
+var APP_VER = 100;   // shown at the bottom of 정보 (and used by the 새로고침 button); bump on every change
 /* family view: read-only copy of what the owner shared (?family link, remembered on this phone) */
 var LS_SHARED='kyosaka:shared', SHARED=null;
 var FAMILY=(function(){
@@ -1408,7 +1410,7 @@ function money(a,cur){ var n=Math.round(+a||0).toLocaleString('ko-KR'); return c
 function krwShort(n){ n=Math.round(n); if(n>=10000){ var m=Math.round(n/1000)/10; return '약 '+(m%1===0?m.toFixed(0):m.toFixed(1))+'만 원'; } return '약 '+n.toLocaleString('ko-KR')+'원'; }
 function resCost(r){ var c=r&&r.cost; if(!c||!(+c.amount>0)) return null; return {amount:+c.amount,cur:c.cur==='JPY'?'JPY':'KRW',when:c.when==='onsite'?'onsite':'before'}; }
 function spAll(){
-  var out=SP.items.map(function(x){ return {id:x.id,date:x.date||'',ev:x.ev||'',leg:x.leg||'',cat:x.cat||'etc',amount:+x.amount||0,cur:x.cur==='KRW'?'KRW':'JPY',memo:x.memo||'',auto:false}; });
+  var out=SP.items.map(function(x){ return {id:x.id,date:x.date||'',ev:x.ev||'',leg:x.leg||'',cat:x.cat||'etc',amount:+x.amount||0,cur:x.cur==='KRW'?'KRW':'JPY',memo:x.memo||'',unit:+x.unit||0,count:+x.count||0,auto:false}; });
   state.reservations.forEach(function(r){ var c=resCost(r); if(!c) return;
     out.push({id:'res:'+r.id,res:r.id,date:c.when==='onsite'?(r.date||''):'',ev:'',cat:RES2SP[r.cat]||'etc',amount:c.amount,cur:c.cur,memo:r.title,auto:true}); });
   return out;
@@ -1503,10 +1505,13 @@ function renderSpend(){
     if(how==='train'||how==='bus'||how==='transit'||(!how&&/대중교통|전철|지하철|버스|JR|IC/.test(x.memo))) return 'pub';
     return 'etc';
   }
+  // one person's share: the 1인 요금 written with the fare, else the amount split over everyone
+  function perHead(l){ var n=(state.trip.members||[]).length||5;
+    return '1인 '+spSumText(spSum(l.map(function(x){ return {cur:x.cur,amount:x.unit&&x.count?x.unit:x.amount/n}; }))); }
   function transitGroups(items){
     return [['res','예약'],['pub','대중교통'],['taxi','택시'],['etc','기타 교통']].map(function(g){
       var l=items.filter(function(x){return transitKind(x)===g[0];}); if(!l.length) return '';
-      return '<details class="sp-subd" data-k="transit:'+g[0]+'"><summary class="sp-subh"><span>'+g[1]+'</span><small>'+l.length+'건</small><b>'+esc(spSumText(spSum(l)))+'</b><i class="sp-subv"></i></summary>'+l.map(function(x){return entryRow(x,true);}).join('')+'</details>';
+      return '<details class="sp-subd" data-k="transit:'+g[0]+'"><summary class="sp-subh"><span>'+g[1]+'</span><small>'+l.length+'건</small>'+(g[0]==='pub'?'<small class="sp-pp">'+esc(perHead(l))+'</small>':'')+'<b>'+esc(spSumText(spSum(l)))+'</b><i class="sp-subv"></i></summary>'+l.map(function(x){return entryRow(x,true);}).join('')+'</details>';
     }).join('');
   }
   function entryRow(x,withDate){
