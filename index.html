@@ -535,7 +535,7 @@ var SEED = JSON.parse($('#trip-data').textContent);
 var state = (function(){ try{ var s=localStorage.getItem(LS_STATE); if(s){ var o=JSON.parse(s); if(o&&Array.isArray(o.days)) return o; } }catch(e){} return JSON.parse(JSON.stringify(SEED)); })();
 var mode = 'local';
 var SS_UI = 'kyosaka:ui';
-var APP_VER = 102;   // shown at the bottom of 정보 (and used by the 새로고침 button); bump on every change
+var APP_VER = 103;   // shown at the bottom of 정보 (and used by the 새로고침 button); bump on every change
 /* family view: read-only copy of what the owner shared (?family link, remembered on this phone) */
 var LS_SHARED='kyosaka:shared', SHARED=null;
 var FAMILY=(function(){
@@ -588,7 +588,23 @@ function todayJST(){
   catch(e){return new Date().toISOString().slice(0,10);}
 }
 function canEdit(){return mode!=='readonly';}
-function mapUrl(q){return 'https://www.google.com/maps/search/?api=1&query='+encodeURIComponent(q);}
+function mapUrl(q){ var l=gLink(q); return l||'https://www.google.com/maps/search/?api=1&query='+encodeURIComponent(q); }
+// a Google Maps link in 지도 검색어 wins: 지도 buttons open it as is, and the map pin uses the spot it points to
+var GLINK=/https?:\/\/(?:maps\.app\.goo\.gl|goo\.gl\/maps|(?:www\.)?google\.[a-z.]+\/maps|maps\.google\.[a-z.]+)\S*/i;
+function gLink(s){ var m=String(s||'').match(GLINK); return m?m[0]:''; }
+function linkLL(u){
+  var m=u.match(/!3d(-?\d+\.\d+)!4d(-?\d+\.\d+)/)||u.match(/@(-?\d+\.\d+),(-?\d+\.\d+)/)||u.match(/[?&](?:q|query|ll|destination)=(-?\d+\.\d+)(?:,|%2C)\s*(-?\d+\.\d+)/i);
+  return m?{lat:+m[1],lng:+m[2]}:null;
+}
+function linkName(u){
+  var m=u.match(/\/maps\/(?:place|search)\/([^\/@?]+)/)||u.match(/[?&](?:q|query)=([^&]+)/);
+  if(!m) return ''; var s=''; try{ s=decodeURIComponent(m[1].replace(/\+/g,' ')); }catch(e){ s=m[1]; }
+  return /^-?\d+\.\d+\s*,\s*-?\d+\.\d+$/.test(s.trim())?'':s.trim();
+}
+// the words to search with: what is written next to the link, else the name inside the link
+function mapWord(m){ m=String(m||''); var l=gLink(m); if(!l) return m; return m.replace(l,' ').replace(/\s+/g,' ').trim()||linkName(l); }
+// a short share link with nothing else gets the name in front, so the map still has words to search with
+function mapIn(m,name){ m=String(m||'').replace(/\s+/g,' ').trim(); var l=gLink(m); if(l&&!mapWord(m)&&!linkLL(l)&&name) m=String(name).trim()+' '+l; return m; }
 // 입력 전 = nothing written beyond what the empty seed already has (name, dates, the hint memo)
 var RES_FILLED=['confirm','app','link','nameOrig','time','no','from','to','arrTime','seat','address','phone'];
 function isMissing(r){ return mode!=='readonly' && !resCost(r) && !RES_FILLED.some(function(k){ return String(r[k]||'').trim(); }); }
@@ -614,7 +630,9 @@ function prevQuery(d,ev){
   var h=null; state.reservations.forEach(function(r){ if(r.cat==='hotel'&&r.date&&r.endDate&&r.date<d.date&&d.date<=r.endDate) h=r; });
   return h?hotelQ(h):'';
 }
-function routeUrl(from,to,how){ var m=how==='walk'?'walking':(how==='taxi'?'driving':'transit'); return 'https://www.google.com/maps/dir/?api=1'+(from?'&origin='+encodeURIComponent(from):'')+'&destination='+encodeURIComponent(to)+'&travelmode='+m; }
+function routeUrl(from,to,how){
+  function q(x){ var l=gLink(x); if(!l) return x; var c=linkLL(l); return c?c.lat+','+c.lng:mapWord(x); }
+  from=q(from); to=q(to); var m=how==='walk'?'walking':(how==='taxi'?'driving':'transit'); return 'https://www.google.com/maps/dir/?api=1'+(from?'&origin='+encodeURIComponent(from):'')+'&destination='+encodeURIComponent(to)+'&travelmode='+m; }
 var HOW_ICON={
   train:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="3" width="14" height="14" rx="3"/><path d="M5 11h14M9 21l1.5-4M15 21l-1.5-4"/><circle cx="9" cy="14" r=".8" fill="currentColor"/><circle cx="15" cy="14" r=".8" fill="currentColor"/></svg>',
   bus:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="3" width="16" height="15" rx="3"/><path d="M4 10h16M7 18v2M17 18v2"/><circle cx="8" cy="14" r=".8" fill="currentColor"/><circle cx="16" cy="14" r=".8" fill="currentColor"/></svg>',
@@ -1627,7 +1645,7 @@ function plForm(k,id){
     selectField('지역','city',id?plCity(b):b.city,PLCITY)+
     field('이름','name',b.name,'text',' required placeholder="'+P.ph+'"')+
     field('현지 이름','nameOrig',b.nameOrig,'text',' placeholder="'+P.ph2+'"')+
-    '<label class="field"><span>지도 검색어</span><input name="map" value="'+esc(b.map||'')+'" placeholder="비워두면 이름으로 찾아요"><small>구글 지도에서 길게 눌러 나온 좌표(예: 35.0094, 135.7640)를 넣으면 정확히 그 지점에 찍혀요.</small></label>'+
+    '<label class="field"><span>지도 검색어</span><input name="map" value="'+esc(b.map||'')+'" placeholder="비워두면 이름으로 찾아요"><small>잘 안 찾아지면 구글 지도의 공유 링크를 붙여넣으세요. 링크가 있으면 지도 버튼은 그 링크를 바로 열어요. 좌표(예: 35.0094, 135.7640)를 넣으면 정확히 그 지점에 찍혀요.</small></label>'+
     areaField('메모','memo',b.memo,P.memo)+
     '<div class="actions">'+(id?'<button type="button" class="btn btn-danger" data-act="del-pl" data-k="'+k+'" data-id="'+esc(id)+'">삭제</button>':'')+
     '<button type="button" class="btn btn-ghost" data-act="sheet-close">취소</button><button type="submit" class="btn btn-primary">저장</button></div></form>');
@@ -1663,8 +1681,8 @@ function geoQueries(ev){
   state.reservations.forEach(function(r){ if(r.cat==='hotel'&&(r.title===ev.place||(ev.map&&(r.address===ev.map||r.addressJa===ev.map)))) hotel=r; });
   function add(q,via){ q=String(q||'').replace(/\s+/g,' ').trim(); if(q.length<2) return;
     out.push({q:q,via:via}); var s=q.replace(/[\uAC00-\uD7A3]+/g,' ').replace(/\s+/g,' ').trim(); if(s!==q&&s.length>1) out.push({q:s,via:via}); }
-  if(ev.map) add(ev.map,'map');
-  if(hotel){ add(hotel.map,'hotel'); add(hotel.title,'hotel'); add(hotel.address,'hotel'); }
+  if(ev.map) add(mapWord(ev.map),'map');
+  if(hotel){ add(mapWord(hotel.map),'hotel'); add(hotel.title,'hotel'); add(hotel.address,'hotel'); }
   add(ev.place,'name'); add(ev.placeOrig,'name');
   return out;
 }
@@ -1711,8 +1729,8 @@ var LS_GKEY='kyosaka:gkey', GG_KEY='kyosaka:gg:', ggWarned=false;
 function gKey(){ return FAMILY?'':(lsGet(LS_GKEY)||''); }
 function gQuery(ev){
   var hotel=null; state.reservations.forEach(function(r){ if(r.cat==='hotel'&&r.title===ev.place) hotel=r; });
-  if(ev.map) return ev.map;
-  if(hotel) return hotelQ(hotel);
+  if(ev.map) return mapWord(ev.map);
+  if(hotel) return mapWord(hotelQ(hotel));
   return ev.place||ev.placeOrig||'';
 }
 function ggCached(q){ try{ var v=localStorage.getItem(GG_KEY+q); return v?JSON.parse(v):undefined; }catch(e){ return undefined; } }
@@ -1736,6 +1754,8 @@ function ggLookup(q){
 function evCoord(ev){
   var m=String(ev.map||'').match(/^\s*(-?\d{1,2}\.\d+)\s*,\s*(-?\d{2,3}\.\d+)\s*$/);
   if(m) return Promise.resolve({lat:+m[1],lng:+m[2],via:'map'});
+  var h=ev.map?null:hotelOfEv(ev), l=gLink(ev.map||(h&&h.map)), c=l&&linkLL(l);
+  if(c&&inArea(c)) return Promise.resolve({lat:c.lat,lng:c.lng,via:'map'});
   if(gKey()) return ggLookup(gQuery(ev)).then(function(v){ return v?{lat:v.lat,lng:v.lng,via:ev.map?'map':'name'}:evCoordFree(ev); });
   return evCoordFree(ev);
 }
@@ -1845,7 +1865,7 @@ function evForm(id,preset){
     plPick('sight',ev,dayIdx)+plPick('food',ev,dayIdx)+plPick('bread',ev,dayIdx)+
     field('장소','place',ev.place||ev.title,'text',' required placeholder="예: 킨카쿠지"')+
     field('현지 이름','placeOrig',ev.placeOrig,'text',' placeholder="예: 金閣寺 (선택)"')+
-    '<label class="field"><span>지도 검색어</span><input name="map" value="'+esc(ev.map||ev.place||ev.title||'')+'" data-was="'+esc(ev.place||ev.title||'')+'" placeholder="비워두면 장소 이름으로 찾아요"><small>장소 이름이 미리 들어가 있어요. 지도 버튼과 일정 탭 지도가 모두 이 검색어로 찾아요. '+(gKey()?'구글 지도처럼 한글 가게 이름도 잘 찾아요. 체인점은 지점명까지 적어 주세요.':'영어나 일본어로 적으면 더 정확해요. 정보 탭에서 구글 위치 찾기를 켜면 한글 이름도 잘 찾아요.')+' 구글 지도에서 길게 눌러 나온 좌표(예: 34.9671, 135.7727)를 붙여넣으면 정확히 그 지점에 찍혀요.</small></label>'+
+    '<label class="field"><span>지도 검색어</span><input name="map" value="'+esc(ev.map||ev.place||ev.title||'')+'" data-was="'+esc(ev.place||ev.title||'')+'" placeholder="비워두면 장소 이름으로 찾아요"><small>장소 이름이 미리 들어가 있어요. 지도 버튼과 일정 탭 지도가 모두 이 검색어로 찾아요. '+(gKey()?'구글 지도처럼 한글 가게 이름도 잘 찾아요. 체인점은 지점명까지 적어 주세요.':'영어나 일본어로 적으면 더 정확해요. 정보 탭에서 구글 위치 찾기를 켜면 한글 이름도 잘 찾아요.')+' 잘 안 찾아지면 구글 지도의 공유 링크를 붙여넣으세요. 링크가 있으면 지도 버튼은 그 링크를 바로 열고, 일정 지도도 링크를 먼저 따라요. 좌표(예: 34.9671, 135.7727)를 붙여넣으면 정확히 그 지점에 찍혀요.</small></label>'+
     areaField('메모','memo',ev.memo)+
     '<div class="actions">'+(id?'<button type="button" class="btn btn-danger" data-act="del-ev" data-id="'+id+'">삭제</button>':'')+
     '<button type="button" class="btn btn-ghost" data-act="sheet-close">취소</button><button type="submit" class="btn btn-primary">저장</button></div></form>');
@@ -1914,7 +1934,7 @@ function resForm(id){
       '<div class="seg"><label><input type="radio" name="costCur" value="KRW"'+(c.cur!=='JPY'?' checked':'')+'><span>원</span></label><label><input type="radio" name="costCur" value="JPY"'+(c.cur==='JPY'?' checked':'')+'><span>엔</span></label></div></div>'+
       '<div class="seg res-when"><label><input type="radio" name="costWhen" value="before"'+(c.when!=='onsite'?' checked':'')+'><span>미리 결제</span></label><label><input type="radio" name="costWhen" value="onsite"'+(c.when==='onsite'?' checked':'')+'><span>현장 결제</span></label></div>'+
       '<small>경비 탭에 자동으로 합산돼요.</small></label>'+
-    sec('place','<label class="field"><span class="res-lab">지도 검색어<button type="button" class="mini" data-act="res-map">'+ICON.pin+'지도</button></span><input name="map" value="'+esc(r.map||r.title||'')+'" placeholder="비워두면 이름으로 찾아요"><small>구글 지도에서 이 검색어로 찾아요. 이름만 넣어도 돼요.</small></label>')+
+    sec('place','<label class="field"><span class="res-lab">지도 검색어<button type="button" class="mini" data-act="res-map">'+ICON.pin+'지도</button></span><input name="map" value="'+esc(r.map||r.title||'')+'" placeholder="비워두면 이름으로 찾아요"><small>구글 지도에서 이 검색어로 찾아요. 이름만 넣어도 되고, 구글 지도 공유 링크를 넣으면 그 링크를 바로 열어요.</small></label>')+
     sec('addr','<label class="field"><span class="res-lab">주소<button type="button" class="mini" data-act="res-taxi">기사님께 보여주기</button></span><textarea name="address" class="short" placeholder="예약 확인 메일의 주소 (일본어면 택시에 그대로 보여줘요)">'+esc(r.address||r.addressJa||'')+'</textarea></label>')+
     sec('phone','<label class="field"><span class="res-lab">전화번호'+(r.phone?'<a class="mini" href="tel:'+esc(String(r.phone).replace(/[^+\d]/g,''))+'">전화</a>':'')+'</span><input name="phone" type="tel" value="'+esc(r.phone||'')+'"></label>')+
     areaField('메모','memo',r.memo,'한 줄에 하나씩 항목: 내용. 예: 수하물: 위탁 15kg')+
@@ -2221,7 +2241,7 @@ document.addEventListener('submit',function(e){
   if(kind==='ck-rename'){ var rid=f.getAttribute('data-id'); if(!v.text) return; closeSheet(); ckDirty(); commit(function(s){ s.checklist.forEach(function(x){ if(x.id===rid) x.text=v.text; }); }); return; }
   if(kind==='check'){ if(!v.text) return; ckDirty(); commit(function(s){s.checklist.push({id:uid('c'),text:v.text,done:false});}); return; }
   if(kind==='place'){
-    if(!v.name) return; closeSheet();
+    if(!v.name) return; closeSheet(); v.map=mapIn(v.map,v.name);
     var pk=f.getAttribute('data-k'), bk=id?findPl(pk,id):null;
     if(bk){ if((bk.map||'')!==v.map||bk.name!==v.name||(bk.nameOrig||'')!==v.nameOrig){ delete bk.lat; delete bk.lng; } bk.name=v.name; bk.nameOrig=v.nameOrig; bk.map=v.map; bk.memo=v.memo; bk.city=v.city; }
     else { bk={id:uid(pk==='bread'?'b':'f'),city:v.city,name:v.name,nameOrig:v.nameOrig,map:v.map,memo:v.memo}; PLD[pk].push(bk); }
@@ -2236,7 +2256,7 @@ document.addEventListener('submit',function(e){
   if(kind==='day-title'){ if(!v.title) return; var dd=state.days[ui.day]; closeSheet(); commit(function(){ dd.title=v.title; }); markDirty('day',dd.date,'upsert'); return; }
   if(kind==='ev'){
     if(!v.place) return;
-    if(String(v.map||'').trim()===String(v.place).trim()) v.map='';
+    v.map=mapIn(v.map,v.place); if(v.map===String(v.place).trim()) v.map='';
     var dayIdx=+v.day; closeSheet(); ui.day=dayIdx; var savedEv=null;
     commit(function(s){
       var old=id?findEv(id):null, item=old?JSON.parse(JSON.stringify(old.ev)):{id:uid('e')};
@@ -2266,7 +2286,7 @@ document.addEventListener('submit',function(e){
     return;
   }
   if(kind==='res'){
-    if(!v.title) return;
+    if(!v.title) return; v.map=mapIn(v.map,v.title);
     if(v.endDate && v.date && v.endDate<v.date) v.endDate='';
     closeSheet();
     commit(function(s){
