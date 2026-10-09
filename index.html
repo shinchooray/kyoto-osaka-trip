@@ -539,7 +539,7 @@ var SEED = JSON.parse($('#trip-data').textContent);
 var state = (function(){ try{ var s=localStorage.getItem(LS_STATE); if(s){ var o=JSON.parse(s); if(o&&Array.isArray(o.days)) return o; } }catch(e){} return JSON.parse(JSON.stringify(SEED)); })();
 var mode = 'local';
 var SS_UI = 'kyosaka:ui';
-var APP_VER = 107;   // shown at the bottom of 정보 (and used by the 새로고침 button); bump on every change
+var APP_VER = 108;   // shown at the bottom of 정보 (and used by the 새로고침 button); bump on every change
 /* family view: read-only copy of what the owner shared (?family link, remembered on this phone) */
 var LS_SHARED='kyosaka:shared', SHARED=null;
 var FAMILY=(function(){
@@ -613,7 +613,7 @@ function mapIn(m,name){ m=String(m||'').replace(/\s+/g,' ').trim(); var l=gLink(
 function navOf(q,name){ var l=gLink(q); if(!l) return q; var c=linkLL(l); return c?c.lat+','+c.lng:(mapWord(q)||name||''); }
 function evNav(ev){ return navOf(evQuery(ev),ev.place||ev.title); }
 // 입력 전 = nothing written beyond what the empty seed already has (name, dates, the hint memo)
-var RES_FILLED=['confirm','app','link','nameOrig','time','no','from','to','arrTime','seat','nameEn'];
+var RES_FILLED=['confirm','app','link','nameOrig','time','no','from','to','arrTime','seat','nameEn','endTime'];
 function isMissing(r){ return mode!=='readonly' && !resCost(r) && !RES_FILLED.some(function(k){ return String(r[k]||'').trim(); }); }
 function confirmParts(c){
   return String(c||'').split(/\n|\s\/\s/).map(function(x){return x.trim();}).filter(Boolean).map(function(line){
@@ -738,9 +738,9 @@ function hotelTop(d){
   var h=hotelTonight(d.date), out=null; state.reservations.forEach(function(r){ if(r.cat==='hotel'&&r.endDate===d.date) out=r; });
   var x=h||out; if(!x) return '';
   // just a note on top; the day's plan starts below. Tap it for the booking.
-  var label=h?(h.date===d.date?'오늘 밤 · 체크인':'오늘 밤'):'오늘 체크아웃';
+  var label=h?(h.date===d.date?'오늘 밤 · 체크인':'오늘 밤'):'오늘 체크아웃'+(out.endTime?' '+out.endTime:'');
   return '<button class="htop-s" data-act="res-open" data-id="'+x.id+'">'+TYICON.stay+'<span class="htop-k">'+esc(label)+'</span><b>'+esc(x.title)+'</b>'+
-    (h&&out&&out.id!==h.id?'<small>체크아웃 · '+esc(out.title)+'</small>':'')+ICON.chev+'</button>';
+    (h&&out&&out.id!==h.id?'<small>체크아웃'+(out.endTime?' '+esc(out.endTime):'')+' · '+esc(out.title)+'</small>':'')+ICON.chev+'</button>';
 }
 function startNode(d,mode){
   var di=state.days.indexOf(d); if(di<=0) return '';
@@ -1180,7 +1180,7 @@ function shareData(){
       return it;
     })};
   });
-  var res=state.reservations.map(function(r){ return pick(r,['id','cat','title','nameOrig','nameEn','date','time','endDate','cost','map','no','from','to','arrTime']); });
+  var res=state.reservations.map(function(r){ return pick(r,['id','cat','title','nameOrig','nameEn','date','time','endDate','endTime','cost','map','no','from','to','arrTime']); });
   var sp={rate:SP.rate,items:SP.items.map(function(x){ return pick(x,['id','date','ev','leg','cat','amount','cur','memo','unit','count']); })};
   return {app:'kyosaka',type:'family-share',publishedAt:new Date().toISOString(),
     state:{v:state.v,trip:pick(state.trip,['title','start','end','members']),days:days,reservations:res,checklist:[]},spend:sp,
@@ -1920,7 +1920,7 @@ function resDetail(id){
 var RES_UI={
   flight:{date:'날짜',time:'출발 시각',no:'편명',noPh:'예: TW327',from:'출발 공항',to:'도착 공항',fromPh:'예: 청주',toPh:'예: 간사이 T1',show:'no trip arr seat'},
   rail:{date:'날짜',time:'출발 시각',no:'열차 이름',noPh:'예: 하루카 30호',from:'출발역',to:'도착역',fromPh:'예: 간사이공항',toPh:'예: 교토',show:'no trip arr seat'},
-  hotel:{date:'체크인 날짜',time:'체크인 시간',end:'체크아웃 날짜',show:'end place'},
+  hotel:{date:'체크인 날짜',time:'체크인 시간',end:'체크아웃 날짜',show:'end endt place'},
   food:{date:'날짜',time:'예약 시간',show:'place'},
   ticket:{date:'날짜',time:'시간',show:'place'},
   etc:{date:'시작하는 날',time:'시간',end:'끝나는 날',show:'end'}
@@ -1930,7 +1930,7 @@ function resFormApply(f){
   f.querySelectorAll('[data-sec]').forEach(function(el){ el.hidden=show.indexOf(' '+el.getAttribute('data-sec')+' ')<0; });
   f.querySelectorAll('[data-lab]').forEach(function(el){ var k=el.getAttribute('data-lab'); if(u[k]) el.textContent=u[k]; });
   ['no','from','to'].forEach(function(k){ var i=f.querySelector('[name="'+k+'"]'); if(i&&u[k+'Ph']) i.placeholder=u[k+'Ph']; });
-  var row2=f.querySelector('.dt-2'); if(row2) row2.hidden=show.indexOf(' end ')<0&&show.indexOf(' arr ')<0;
+  var row2=f.querySelector('.dt-2'); if(row2) row2.hidden=show.indexOf(' end ')<0&&show.indexOf(' arr ')<0&&show.indexOf(' endt ')<0;
 }
 function resForm(id){
   var r=id?findRes(id):{cat:'food',title:'',date:state.days[ui.day].date,time:'',endDate:'',confirm:'',app:'',link:''};
@@ -1950,7 +1950,8 @@ function resForm(id){
       '<div class="two"><label class="field">'+lab('date','날짜')+'<input name="date" type="date" value="'+esc(r.date||'')+'"'+D+'></label>'+
         '<label class="field">'+lab('time','시간')+'<input name="time" type="time" value="'+esc(r.time||'')+'"></label></div>'+
       '<div class="two dt-2">'+sec('end','<label class="field">'+lab('end','끝나는 날')+'<input name="endDate" type="date" value="'+esc(r.endDate||'')+'"'+D+'></label>')+
-        sec('arr','<label class="field"><span>도착 시각</span><input name="arrTime" type="time" value="'+esc(r.arrTime||'')+'"></label>')+'</div></fieldset>'+
+        sec('arr','<label class="field"><span>도착 시각</span><input name="arrTime" type="time" value="'+esc(r.arrTime||'')+'"></label>')+
+        sec('endt','<label class="field"><span>체크아웃 시간</span><input name="endTime" type="time" value="'+esc(r.endTime||'')+'"></label>')+'</div></fieldset>'+
     sec('seat','<label class="field"><span>좌석</span><input name="seat" value="'+esc(r.seat||'')+'" placeholder="예: 7호차 3A~3E"></label>')+
     '<label class="field"><span>결제 금액</span><div class="sp-amt"><input name="costAmt" type="text" inputmode="numeric" pattern="[0-9,]*" value="'+esc(c.amount||'')+'" placeholder="0">'+
       '<div class="seg"><label><input type="radio" name="costCur" value="KRW"'+(c.cur!=='JPY'?' checked':'')+'><span>원</span></label><label><input type="radio" name="costCur" value="JPY"'+(c.cur==='JPY'?' checked':'')+'><span>엔</span></label></div></div>'+
@@ -2315,9 +2316,10 @@ document.addEventListener('submit',function(e){
       var prev=id?findRes(id):null;
       var r=Object.assign({},prev||{},{id:id||uid('r'),cat:v.cat,title:v.title,nameOrig:v.nameOrig,nameEn:v.nameEn,date:v.date,time:v.time,confirm:v.confirm,link:v.link}); delete r.address; delete r.addressJa; delete r.phone;
       // only the fields shown for this kind are taken from the form; hidden ones keep what they had
-      var show=' '+(RES_UI[v.cat]||RES_UI.etc).show+' ', SEC={no:['no'],trip:['from','to'],arr:['arrTime'],seat:['seat'],end:['endDate'],place:['map']};
+      var show=' '+(RES_UI[v.cat]||RES_UI.etc).show+' ', SEC={no:['no'],trip:['from','to'],arr:['arrTime'],seat:['seat'],end:['endDate'],endt:['endTime'],place:['map']};
       Object.keys(SEC).forEach(function(k){ if(show.indexOf(' '+k+' ')>=0) SEC[k].forEach(function(fl){ r[fl]=v[fl]||''; }); });
       if(show.indexOf(' end ')<0) r.endDate='';
+      if(show.indexOf(' endt ')<0) delete r.endTime;
       var ca=parseFloat(String(v.costAmt||'').replace(/[^0-9.]/g,''));
       if(ca>0) r.cost={amount:ca,cur:(f.querySelector('input[name=costCur]:checked')||{}).value==='JPY'?'JPY':'KRW',when:(f.querySelector('input[name=costWhen]:checked')||{}).value==='onsite'?'onsite':'before'}; else delete r.cost;
       var i=-1; s.reservations.forEach(function(x,j){if(x.id===r.id) i=j;});
