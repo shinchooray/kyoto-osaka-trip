@@ -140,12 +140,6 @@ textarea{min-height:92px;resize:vertical;line-height:1.5}
 .btn-primary{background:var(--ink);color:var(--bg)}
 .btn-ghost{background:var(--soft);color:var(--ink)}
 .btn-danger{background:none;color:var(--accent);border:1px solid var(--line);flex:0 0 auto;padding:0 18px}
-.taxi{position:fixed;inset:0;z-index:50;background:#fff;color:#111;display:flex;flex-direction:column;justify-content:center;padding:calc(24px + env(safe-area-inset-top,0px)) 26px calc(24px + env(safe-area-inset-bottom,0px));font-family:"Hiragino Sans","Hiragino Kaku Gothic ProN","Noto Sans JP","Yu Gothic",sans-serif;cursor:pointer}
-.taxi .t1{font-size:22px;margin:0 0 18px;color:#444}
-.taxi .t2{font-size:34px;font-weight:700;line-height:1.3;margin:0}
-.taxi .t3{font-size:24px;line-height:1.45;margin:18px 0 0;font-weight:600;word-break:break-all}
-.taxi .t4{font-size:18px;margin:14px 0 0;color:#444}
-.taxi .close{margin-top:auto;font-family:"IBM Plex Sans KR",sans-serif;color:#666;font-size:15px;text-align:center;padding-top:24px}
 #toast{position:fixed;left:50%;bottom:calc(80px + env(safe-area-inset-bottom,0px));transform:translate(-50%,8px);z-index:60;background:var(--ink);color:var(--bg);padding:10px 18px;border-radius:999px;font-size:14px;font-weight:500;opacity:0;pointer-events:none;transition:opacity .2s,transform .2s;max-width:calc(100% - 40px);text-align:center}
 #toast.show{opacity:1;transform:translate(-50%,0)}
 @media (prefers-reduced-motion: reduce){*,*::before,*::after{transition:none!important;animation:none!important}}
@@ -310,6 +304,13 @@ textarea.short{min-height:64px}
 .sp-cat[open] .sp-open::after{transform:rotate(-135deg);margin-top:3px}
 .sp-cat-list{background:var(--bg);border-top:1px solid var(--line)}
 .sp-cat-list .sp-row:first-child{border-top:0}
+.dt-box{border:1px solid var(--line);border-radius:12px;margin:14px 0 0;padding:2px 12px 0;min-width:0}
+.dt-box legend{font-size:13px;font-weight:600;color:var(--muted);padding:0 4px}
+.dt-box .field{margin-top:8px}
+.dt-box .dt-2[hidden]{display:none}
+.nm-wrap .res-lab .nm-seg{margin-left:auto}
+.nm-wrap>.nm-seg{margin:0 0 6px}
+.nm-wrap h2[hidden],.nm-wrap input[hidden]{display:none}
 .sp-subd{border-top:1px solid var(--line)}
 .sp-subd:first-child{border-top:0}
 .sp-cat .sp-subd>summary.sp-subh{display:flex;align-items:center;gap:6px;padding:11px 14px;font-size:13px;font-weight:700;color:var(--ink);cursor:pointer;list-style:none}
@@ -535,7 +536,7 @@ var SEED = JSON.parse($('#trip-data').textContent);
 var state = (function(){ try{ var s=localStorage.getItem(LS_STATE); if(s){ var o=JSON.parse(s); if(o&&Array.isArray(o.days)) return o; } }catch(e){} return JSON.parse(JSON.stringify(SEED)); })();
 var mode = 'local';
 var SS_UI = 'kyosaka:ui';
-var APP_VER = 103;   // shown at the bottom of 정보 (and used by the 새로고침 button); bump on every change
+var APP_VER = 104;   // shown at the bottom of 정보 (and used by the 새로고침 button); bump on every change
 /* family view: read-only copy of what the owner shared (?family link, remembered on this phone) */
 var LS_SHARED='kyosaka:shared', SHARED=null;
 var FAMILY=(function(){
@@ -558,8 +559,8 @@ function pruneRoutes(s){
     var n={}; if(r.how) n.how=r.how; if(r.min!=null&&r.min!=='') n.min=r.min; if(r.how==='etc'&&r.label) n.label=r.label;
     var keys=Object.keys(r); if(keys.length!==Object.keys(n).length){ changed=true; ev.route=(n.how||n.min)?n:null; }
   }); });
-  // leftovers no screen uses any more: the old 일본어 주소 (moved into 주소) and the old 가족 메모
-  (s.reservations||[]).forEach(function(r){ if('addressJa' in r){ if(!r.address&&r.addressJa) r.address=r.addressJa; delete r.addressJa; changed=true; } });
+  // leftovers no screen uses any more: booking addresses, phone numbers and the old 가족 메모
+  (s.reservations||[]).forEach(function(r){ ['address','addressJa','phone'].forEach(function(k){ if(k in r){ delete r[k]; changed=true; } }); });
   if('notes' in s){ delete s.notes; changed=true; }
   return changed;
 }
@@ -606,7 +607,7 @@ function mapWord(m){ m=String(m||''); var l=gLink(m); if(!l) return m; return m.
 // a short share link with nothing else gets the name in front, so the map still has words to search with
 function mapIn(m,name){ m=String(m||'').replace(/\s+/g,' ').trim(); var l=gLink(m); if(l&&!mapWord(m)&&!linkLL(l)&&name) m=String(name).trim()+' '+l; return m; }
 // 입력 전 = nothing written beyond what the empty seed already has (name, dates, the hint memo)
-var RES_FILLED=['confirm','app','link','nameOrig','time','no','from','to','arrTime','seat','address','phone'];
+var RES_FILLED=['confirm','app','link','nameOrig','time','no','from','to','arrTime','seat','nameEn'];
 function isMissing(r){ return mode!=='readonly' && !resCost(r) && !RES_FILLED.some(function(k){ return String(r[k]||'').trim(); }); }
 function confirmParts(c){
   return String(c||'').split(/\n|\s\/\s/).map(function(x){return x.trim();}).filter(Boolean).map(function(line){
@@ -726,13 +727,13 @@ function hotelLabel(r){
   var c=''; state.days.forEach(function(d){ if(r&&d.date===r.date) c=d.city; });
   return ({kyoto:'교토 ',osaka:'오사카 ',move:'오사카 '}[c]||'')+'숙소';
 }
-function hotelQ(h){ return h.map||h.title||h.address||''; }   // Google finds hotels by name, so the map search word comes first
+function hotelQ(h){ return h.map||h.title||''; }   // Google finds hotels by name, so the map search word comes first
 function hotelOfEv(ev){ var h=null; state.reservations.forEach(function(r){ if(r.cat==='hotel'&&((ev.place&&r.title===ev.place)||(ev.placeOrig&&r.nameOrig===ev.placeOrig))) h=r; }); return h; }
 function isHotelEv(ev){ return state.reservations.some(function(r){ return r.cat==='hotel'&&((ev.place&&r.title===ev.place)||(ev.placeOrig&&r.nameOrig===ev.placeOrig)); }); }
 function hotelTop(d){
   var h=hotelTonight(d.date), out=null; state.reservations.forEach(function(r){ if(r.cat==='hotel'&&r.endDate===d.date) out=r; });
   var x=h||out; if(!x) return '';
-  // just a note on top; the day's plan starts below. Tap it for address, taxi card and booking.
+  // just a note on top; the day's plan starts below. Tap it for the booking.
   var label=h?(h.date===d.date?'오늘 밤 · 체크인':'오늘 밤'):'오늘 체크아웃';
   return '<button class="htop-s" data-act="res-open" data-id="'+x.id+'">'+TYICON.stay+'<span class="htop-k">'+esc(label)+'</span><b>'+esc(x.title)+'</b>'+
     (h&&out&&out.id!==h.id?'<small>체크아웃 · '+esc(out.title)+'</small>':'')+ICON.chev+'</button>';
@@ -987,7 +988,7 @@ function renderInfo(){
   var hotels=state.reservations.filter(function(r){return r.cat==='hotel';});
   var hotelRows=hotels.map(function(h){
     return '<button class="row" data-act="res-open" data-id="'+h.id+'"><div class="row-main"><div class="row-title">'+esc(h.title)+'</div>'+
-      '<div class="row-sub">'+esc(h.address||h.addressJa||'주소를 넣으면 택시 기사님께 보여줄 수 있어요')+'</div></div>'+ICON.chev+'</button>';
+      '<div class="row-sub">'+esc(resRange(h)||'날짜를 넣어 주세요')+'</div></div>'+ICON.chev+'</button>';
   }).join('');
   var sos=[['경찰','110'],['구급차, 화재','119'],['영사콜센터 (24시간, 한국어)','+82-2-3210-0404'],['주오사카 대한민국 총영사관','+81-6-6213-1401']];
 
@@ -1175,7 +1176,7 @@ function shareData(){
       return it;
     })};
   });
-  var res=state.reservations.map(function(r){ return pick(r,['id','cat','title','nameOrig','date','time','endDate','cost','map','no','from','to','arrTime']); });
+  var res=state.reservations.map(function(r){ return pick(r,['id','cat','title','nameOrig','nameEn','date','time','endDate','cost','map','no','from','to','arrTime']); });
   var sp={rate:SP.rate,items:SP.items.map(function(x){ return pick(x,['id','date','ev','leg','cat','amount','cur','memo','unit','count']); })};
   return {app:'kyosaka',type:'family-share',publishedAt:new Date().toISOString(),
     state:{v:state.v,trip:pick(state.trip,['title','start','end','members']),days:days,reservations:res,checklist:[]},spend:sp,
@@ -1373,7 +1374,7 @@ function qrAdd(resId,files){
   var recs=list.map(function(f,i){ return {id:uid('q'),res:resId,blob:f,added:now+i}; });
   qrTx('readwrite',function(st){ recs.forEach(function(r){st.put(r);}); }).then(function(){
     recs.forEach(function(r){ (QR[resId]=QR[resId]||[]).push(r); });
-    toast((resId.indexOf('ck:')===0?'사진 ':'QR ')+recs.length+'장을 저장했어요'); if(resId.indexOf('ck:')!==0) resDetail(resId); render();
+    toast((resId.indexOf('ck:')===0?'사진 ':'QR ')+recs.length+'장을 저장했어요'); if(resId.indexOf('ck:')!==0) resForm(resId); render();
   }).catch(function(){ toast('저장하지 못했어요. 휴대폰 저장 공간을 확인해 주세요'); });
 }
 function qrDelete(q){
@@ -1678,11 +1679,11 @@ function loadLeaflet(){
 }
 function geoQueries(ev){
   var out=[], hotel=null;
-  state.reservations.forEach(function(r){ if(r.cat==='hotel'&&(r.title===ev.place||(ev.map&&(r.address===ev.map||r.addressJa===ev.map)))) hotel=r; });
+  state.reservations.forEach(function(r){ if(r.cat==='hotel'&&r.title===ev.place) hotel=r; });
   function add(q,via){ q=String(q||'').replace(/\s+/g,' ').trim(); if(q.length<2) return;
     out.push({q:q,via:via}); var s=q.replace(/[\uAC00-\uD7A3]+/g,' ').replace(/\s+/g,' ').trim(); if(s!==q&&s.length>1) out.push({q:s,via:via}); }
   if(ev.map) add(mapWord(ev.map),'map');
-  if(hotel){ add(mapWord(hotel.map),'hotel'); add(hotel.title,'hotel'); add(hotel.address,'hotel'); }
+  if(hotel){ add(mapWord(hotel.map),'hotel'); add(hotel.title,'hotel'); }
   add(ev.place,'name'); add(ev.placeOrig,'name');
   return out;
 }
@@ -1871,36 +1872,28 @@ function evForm(id,preset){
     '<button type="button" class="btn btn-ghost" data-act="sheet-close">취소</button><button type="submit" class="btn btn-primary">저장</button></div></form>');
 }
 
+// 한국 이름 is the booking's name; 일본/영어 can be switched in just to look at them
+function nameSeg(r){
+  return '<div class="seg seg--sm nm-seg">'+[['ko','한국'],['ja','일본'],['en','영어']].map(function(x,i){ return '<label><input type="radio" name="nmLang" value="'+x[0]+'"'+(i?'':' checked')+'><span>'+x[1]+'</span></label>'; }).join('')+'</div>';
+}
+document.addEventListener('change',function(e){ var t=e.target; if(t.name!=='nmLang') return; var w=t.closest('.nm-wrap'); if(!w) return;
+  w.querySelectorAll('[data-nm]').forEach(function(el){ el.hidden=el.getAttribute('data-nm')!==t.value; });
+  var inp=w.querySelector('input[data-nm="'+t.value+'"]'); if(inp&&!inp.value) inp.focus(); });
+// family phones: look only
 function resDetail(id){
   var r=findRes(id); if(!r) return;
-  function kv(k,v,btn,big){return '<div class="kv"><div class="kv-main"><div class="kv-k">'+k+'</div><div class="kv-v'+(v?'':' empty')+(big&&v?' big':'')+'">'+esc(v||'아직 없음')+'</div></div>'+(v&&btn?btn:'')+'</div>';}
-  if(!canEdit()){
-    openSheet('<h2>'+esc(r.title)+'</h2><p class="sub">'+catBadge(r.cat)+' '+esc(resRange(r))+'</p>'+(r.nameOrig?kv('현지 이름',r.nameOrig):'')+(r.no?kv((RES_UI[r.cat]||{}).no||'편명',r.no):'')+(r.from||r.to?kv('구간',(r.from||'')+' → '+(r.to||'')):'')+
-      (costText(r)?kv('결제 금액',costText(r)):'')+qrSection(r)+
-      '<p class="sub">예약번호와 주소는 공유되지 않아요.</p><div class="actions"><button class="btn btn-primary" data-act="sheet-close">닫기</button></div>');
-    return;
-  }
-  var html='<h2>'+esc(r.title)+'</h2><p class="sub">'+catBadge(r.cat)+' '+esc(resRange(r))+'</p>'+
-    (r.nameOrig?kv('현지 이름',r.nameOrig):'')+
-    (function(){var ps=confirmParts(r.confirm); if(!ps.length) return kv('예약번호','');
-      return ps.map(function(p,i){return '<div class="kv"><div class="kv-main"><div class="kv-k">예약번호'+(ps.length>1?' '+(i+1):'')+'</div><div class="kv-v big">'+esc(p.code)+'</div>'+(p.note?'<div class="kv-note">'+esc(noteFmt(p.note))+'</div>':'')+'</div><button class="mini" data-act="copy" data-v="'+esc(p.code)+'">복사</button></div>';}).join('');})()+
-    qrSection(r)+
-    (costText(r)?kv('결제 금액',costText(r)):'')+
-    (function(){var L=appLink(r); return kv('예약한 곳',r.app,L?'<a class="mini" href="'+esc(L.url)+'" target="_blank" rel="noopener">'+(L.kind==='search'?'찾아보기':'열기')+'</a>':'');})()+
-    kv('주소',r.address,'<a class="mini" href="'+esc(mapUrl(r.address))+'" target="_blank" rel="noopener">지도</a>')+
-    (r.cat==='hotel'||r.addressJa?kv('일본어 주소',r.addressJa,'<button class="mini" data-act="taxi" data-id="'+r.id+'">기사님께 보여주기</button>'):'')+
-    (r.phone?kv('전화',r.phone,'<a class="mini" href="tel:'+esc(r.phone.replace(/[^+\d]/g,''))+'">전화</a>'):'')+
-    (r.memo?kv('메모',r.memo):'')+
-    '<div class="actions"><button class="btn btn-ghost" data-act="sheet-close">닫기</button>'+(canEdit()?'<button class="btn btn-primary" data-act="res-edit" data-id="'+r.id+'">'+(isMissing(r)?'정보 넣기':'고치기')+'</button>':'')+'</div>';
-  openSheet(html);
+  function kv(k,v){return '<div class="kv"><div class="kv-main"><div class="kv-k">'+k+'</div><div class="kv-v'+(v?'':' empty')+'">'+esc(v||'아직 없음')+'</div></div></div>';}
+  function nm(k,v){ return '<h2 data-nm="'+k+'"'+(k==='ko'?'':' hidden')+'>'+(v?esc(v):'<span class="muted">아직 없음</span>')+'</h2>'; }
+  openSheet('<div class="nm-wrap">'+nameSeg(r)+nm('ko',r.title)+nm('ja',r.nameOrig)+nm('en',r.nameEn)+'</div><p class="sub">'+catBadge(r.cat)+' '+esc(resRange(r))+'</p>'+(r.no?kv((RES_UI[r.cat]||{}).no||'편명',r.no):'')+(r.from||r.to?kv('구간',(r.from||'')+' → '+(r.to||'')):'')+
+    (costText(r)?kv('결제 금액',costText(r)):'')+qrSection(r)+
+    '<p class="sub">예약번호는 공유되지 않아요.</p><div class="actions"><button class="btn btn-primary" data-act="sheet-close">닫기</button></div>');
 }
-
 // a booking opens straight into its editable form, showing only the fields that fit its kind
 var RES_UI={
   flight:{date:'날짜',time:'출발 시각',no:'편명',noPh:'예: TW327',from:'출발 공항',to:'도착 공항',fromPh:'예: 청주',toPh:'예: 간사이 T1',show:'no trip arr seat'},
   rail:{date:'날짜',time:'출발 시각',no:'열차 이름',noPh:'예: 하루카 30호',from:'출발역',to:'도착역',fromPh:'예: 간사이공항',toPh:'예: 교토',show:'no trip arr seat'},
-  hotel:{date:'체크인 날짜',time:'체크인 시간',end:'체크아웃 날짜',show:'end place addr phone'},
-  food:{date:'날짜',time:'예약 시간',show:'place addr phone'},
+  hotel:{date:'체크인 날짜',time:'체크인 시간',end:'체크아웃 날짜',show:'end place'},
+  food:{date:'날짜',time:'예약 시간',show:'place'},
   ticket:{date:'날짜',time:'시간',show:'place'},
   etc:{date:'시작하는 날',time:'시간',end:'끝나는 날',show:'end'}
 };
@@ -1909,35 +1902,35 @@ function resFormApply(f){
   f.querySelectorAll('[data-sec]').forEach(function(el){ el.hidden=show.indexOf(' '+el.getAttribute('data-sec')+' ')<0; });
   f.querySelectorAll('[data-lab]').forEach(function(el){ var k=el.getAttribute('data-lab'); if(u[k]) el.textContent=u[k]; });
   ['no','from','to'].forEach(function(k){ var i=f.querySelector('[name="'+k+'"]'); if(i&&u[k+'Ph']) i.placeholder=u[k+'Ph']; });
-  var two=f.querySelector('.res-dates'); if(two) two.classList.toggle('two',show.indexOf(' end ')>=0);
+  var row2=f.querySelector('.dt-2'); if(row2) row2.hidden=show.indexOf(' end ')<0&&show.indexOf(' arr ')<0;
 }
 function resForm(id){
-  var r=id?findRes(id):{cat:'food',title:'',date:state.days[ui.day].date,time:'',endDate:'',confirm:'',app:'',address:'',phone:'',link:'',memo:''};
+  var r=id?findRes(id):{cat:'food',title:'',date:state.days[ui.day].date,time:'',endDate:'',confirm:'',app:'',link:''};
   var L=id?appLink(r):null, c=r.cost||{}, D=' min="2026-10-01" max="2026-10-31"';
   function sec(name,html){ return '<div data-sec="'+name+'">'+html+'</div>'; }
   function lab(k,t){ return '<span data-lab="'+k+'">'+t+'</span>'; }
   openSheet('<form data-form="res" data-id="'+(id||'')+'"><h2>'+(id?esc(r.title):'예약 추가')+'</h2>'+(id?'<p class="sub">'+catBadge(r.cat)+' '+esc(resRange(r))+'</p>'+qrSection(r):'')+
     selectField('종류','cat',r.cat,Object.keys(CAT).map(function(k){return [k,CAT[k]];}))+
-    field('이름','title',r.title,'text',' required placeholder="예: 가는 비행기, 교토 숙소, 저녁 식당"')+
-    field('현지 이름','nameOrig',r.nameOrig,'text',' placeholder="원래 이름 (선택)"')+
+    '<div class="field nm-wrap"><span class="res-lab">이름'+nameSeg(r)+'</span>'+
+      '<input name="title" data-nm="ko" value="'+esc(r.title||'')+'" placeholder="예: 가는 비행기, 교토 숙소, 저녁 식당" autocomplete="off">'+
+      '<input name="nameOrig" data-nm="ja" value="'+esc(r.nameOrig||'')+'" placeholder="일본 이름 (선택)" autocomplete="off" hidden>'+
+      '<input name="nameEn" data-nm="en" value="'+esc(r.nameEn||'')+'" placeholder="영어 이름 (선택)" autocomplete="off" hidden></div>'+
+    sec('place','<label class="field"><span class="res-lab">지도 검색어<button type="button" class="mini" data-act="res-map">'+ICON.pin+'지도</button></span><input name="map" value="'+esc(r.map||r.title||'')+'" placeholder="비워두면 이름으로 찾아요"><small>구글 지도에서 이 검색어로 찾아요. 이름만 넣어도 되고, 구글 지도 공유 링크를 넣으면 그 링크를 바로 열어요.</small></label>')+
     sec('no','<label class="field">'+lab('no','편명')+'<input name="no" value="'+esc(r.no||'')+'" autocomplete="off"></label>')+
     sec('trip','<div class="two"><label class="field">'+lab('from','출발')+'<input name="from" value="'+esc(r.from||'')+'"></label><label class="field">'+lab('to','도착')+'<input name="to" value="'+esc(r.to||'')+'"></label></div>')+
-    '<div class="res-dates"><label class="field">'+lab('date','날짜')+'<input name="date" type="date" value="'+esc(r.date||'')+'"'+D+'></label>'+
-      sec('end','<label class="field">'+lab('end','끝나는 날')+'<input name="endDate" type="date" value="'+esc(r.endDate||'')+'"'+D+'></label>')+'</div>'+
-    '<div class="two"><label class="field">'+lab('time','시간')+'<input name="time" type="time" value="'+esc(r.time||'')+'"></label>'+
-      sec('arr','<label class="field"><span>도착 시각</span><input name="arrTime" type="time" value="'+esc(r.arrTime||'')+'"></label>')+'</div>'+
+    '<fieldset class="dt-box"><legend>날짜 및 시간</legend>'+
+      '<div class="two"><label class="field">'+lab('date','날짜')+'<input name="date" type="date" value="'+esc(r.date||'')+'"'+D+'></label>'+
+        '<label class="field">'+lab('time','시간')+'<input name="time" type="time" value="'+esc(r.time||'')+'"></label></div>'+
+      '<div class="two dt-2">'+sec('end','<label class="field">'+lab('end','끝나는 날')+'<input name="endDate" type="date" value="'+esc(r.endDate||'')+'"'+D+'></label>')+
+        sec('arr','<label class="field"><span>도착 시각</span><input name="arrTime" type="time" value="'+esc(r.arrTime||'')+'"></label>')+'</div></fieldset>'+
     sec('seat','<label class="field"><span>좌석</span><input name="seat" value="'+esc(r.seat||'')+'" placeholder="예: 7호차 3A~3E"></label>')+
-    '<label class="field"><span>예약번호</span><textarea name="confirm" class="short" autocomplete="off" autocapitalize="characters" placeholder="ABC123 (2명, HONG GILDONG, KIM MINJI)">'+esc(r.confirm||'')+'</textarea><small>번호가 여러 개면 한 줄에 하나씩, 번호 (인원, 이름) 형식으로 적어요.</small></label>'+
-    '<label class="field"><span class="res-lab">예약한 곳'+(L?'<a class="mini" href="'+esc(L.url)+'" target="_blank" rel="noopener">'+(L.kind==='search'?'찾아보기':'열기')+'</a>':'')+'</span><input name="app" value="'+esc(r.app||'')+'" placeholder="예: 아고다, 트리니티항공, 클룩"></label>'+
-    '<label class="field"><span>예약한 곳 링크</span><input name="link" type="url" value="'+esc(r.link||'')+'" placeholder="https://"><small>비워두면 아고다, 트립닷컴처럼 잘 알려진 곳은 공식 사이트로 자동 연결돼요.</small></label>'+
     '<label class="field"><span>결제 금액</span><div class="sp-amt"><input name="costAmt" type="text" inputmode="numeric" pattern="[0-9,]*" value="'+esc(c.amount||'')+'" placeholder="0">'+
       '<div class="seg"><label><input type="radio" name="costCur" value="KRW"'+(c.cur!=='JPY'?' checked':'')+'><span>원</span></label><label><input type="radio" name="costCur" value="JPY"'+(c.cur==='JPY'?' checked':'')+'><span>엔</span></label></div></div>'+
       '<div class="seg res-when"><label><input type="radio" name="costWhen" value="before"'+(c.when!=='onsite'?' checked':'')+'><span>미리 결제</span></label><label><input type="radio" name="costWhen" value="onsite"'+(c.when==='onsite'?' checked':'')+'><span>현장 결제</span></label></div>'+
       '<small>경비 탭에 자동으로 합산돼요.</small></label>'+
-    sec('place','<label class="field"><span class="res-lab">지도 검색어<button type="button" class="mini" data-act="res-map">'+ICON.pin+'지도</button></span><input name="map" value="'+esc(r.map||r.title||'')+'" placeholder="비워두면 이름으로 찾아요"><small>구글 지도에서 이 검색어로 찾아요. 이름만 넣어도 되고, 구글 지도 공유 링크를 넣으면 그 링크를 바로 열어요.</small></label>')+
-    sec('addr','<label class="field"><span class="res-lab">주소<button type="button" class="mini" data-act="res-taxi">기사님께 보여주기</button></span><textarea name="address" class="short" placeholder="예약 확인 메일의 주소 (일본어면 택시에 그대로 보여줘요)">'+esc(r.address||r.addressJa||'')+'</textarea></label>')+
-    sec('phone','<label class="field"><span class="res-lab">전화번호'+(r.phone?'<a class="mini" href="tel:'+esc(String(r.phone).replace(/[^+\d]/g,''))+'">전화</a>':'')+'</span><input name="phone" type="tel" value="'+esc(r.phone||'')+'"></label>')+
-    areaField('메모','memo',r.memo,'한 줄에 하나씩 항목: 내용. 예: 수하물: 위탁 15kg')+
+    '<div class="two"><label class="field"><span class="res-lab">예약한 곳'+(L?'<a class="mini" href="'+esc(L.url)+'" target="_blank" rel="noopener">'+(L.kind==='search'?'찾아보기':'열기')+'</a>':'')+'</span><input name="app" value="'+esc(r.app||'')+'" placeholder="예: 아고다, 클룩"></label>'+
+      '<label class="field"><span>링크</span><input name="link" type="url" value="'+esc(r.link||'')+'" placeholder="https:// (선택)"></label></div>'+
+    '<label class="field"><span>예약번호</span><textarea name="confirm" class="short" autocomplete="off" autocapitalize="characters" placeholder="ABC123 (2명, HONG GILDONG, KIM MINJI)">'+esc(r.confirm||'')+'</textarea><small>번호가 여러 개면 한 줄에 하나씩, 번호 (인원, 이름) 형식으로 적어요.</small></label>'+
     '<div class="actions">'+(id?'<button type="button" class="btn btn-danger" data-act="del-res" data-id="'+id+'">삭제</button>':'')+
     '<button type="button" class="btn btn-ghost" data-act="sheet-close">취소</button><button type="submit" class="btn btn-primary">저장</button></div></form>');
   resFormApply(document.querySelector('form[data-form="res"]'));
@@ -1949,13 +1942,6 @@ function dayTitleForm(){
   var i=document.querySelector('.sheet input[name=title]'); if(i) setTimeout(function(){i.focus();i.select();},250);
 }
 
-function showTaxi(id){ var r=findRes(id), a=r&&(r.address||r.addressJa); if(!a){ toast('주소를 먼저 넣어 주세요'); return; } showTaxiText(a,r.phone); }
-function showTaxiText(addr,phone){
-  var el=document.createElement('div'); el.className='taxi'; el.setAttribute('role','dialog'); el.setAttribute('data-act','taxi-close');
-  el.innerHTML='<p class="t1">運転手さんへ</p><p class="t2">この住所まで<br>お願いします。</p><p class="t3">'+esc(addr)+'</p>'+
-    (phone?'<p class="t4">TEL '+esc(phone)+'</p>':'')+'<p class="t4">大人5名です。</p><div class="close">화면을 누르면 닫혀요</div>';
-  document.body.appendChild(el);
-}
 
 /* ---------- saving (this phone only) ---------- */
 function saveLocal(){ if(FAMILY) return true; try{ localStorage.setItem(LS_STATE, JSON.stringify(state)); return true; }catch(e){ return false; } }
@@ -2044,7 +2030,6 @@ document.addEventListener('click',function(e){
       toast(PL[dk].unit+'을 지웠어요'); break;
     case 'res-open': if(canEdit()) resForm(id); else resDetail(id); break;
     case 'res-map': var rmf=el.closest('form'), rq=(rmf.map.value||rmf.title.value||'').trim(); if(rq) window.open(mapUrl(rq),'_blank','noopener'); else toast('지도 검색어나 이름을 넣어 주세요'); break;
-    case 'res-taxi': var rtf=el.closest('form'), ra=(rtf.address.value||'').trim(); if(ra) showTaxiText(ra,rtf.phone.value); else toast('주소를 먼저 넣어 주세요'); break;
     case 'res-edit': resForm(id); break;
     case 'res-add': resForm(null); break;
     case 'day-title': dayTitleForm(); break;
@@ -2066,8 +2051,6 @@ document.addEventListener('click',function(e){
     case 'dirty-reset': if(armed!=='dirty'){ armed='dirty'; el.textContent=hasBase()?'한 번 더 누르면 고치기 전으로 되돌려요':'한 번 더 누르면 목록을 비워요'; return; } armed=null; if(hasBase()) revertDirty(); else { clearDirty(); render(); toast('고친 내용 목록을 비웠어요'); } break;
     case 'sheet-close': closeSheet(); break;
     case 'copy': copyText(el.getAttribute('data-v')); break;
-    case 'taxi': showTaxi(id); break;
-    case 'taxi-close': el.remove(); break;
     case 'ck-edit': ui.ckEdit=!ui.ckEdit; render(); break;
     case 'check':
       var c=state.checklist.filter(function(x){return x.id===id;})[0]; if(!c) break;
@@ -2205,7 +2188,7 @@ document.addEventListener('pointerup',endDrag); document.addEventListener('point
 document.addEventListener('keydown',function(e){
   if((e.key==='Enter'||e.key===' ')&&e.target.matches&&e.target.matches('[role="button"][data-act]')){e.preventDefault();e.target.click();}
   if(e.key==='Escape'&&qrView){qrClose();return;}
-  if(e.key==='Escape'){var t=document.querySelector('.taxi'); if(t) t.remove(); else closeSheet();}
+  if(e.key==='Escape')closeSheet();
 });
 document.addEventListener('submit',function(e){
   var f=e.target.closest('form[data-form]'); if(!f) return;
@@ -2286,14 +2269,15 @@ document.addEventListener('submit',function(e){
     return;
   }
   if(kind==='res'){
-    if(!v.title) return; v.map=mapIn(v.map,v.title);
+    if(!v.title){ var ko=f.querySelector('input[name=nmLang][value=ko]'); if(ko){ ko.checked=true; ko.dispatchEvent(new Event('change',{bubbles:true})); } f.title.focus(); toast('한국 이름을 넣어 주세요'); return; }
+    v.map=mapIn(v.map,v.title);
     if(v.endDate && v.date && v.endDate<v.date) v.endDate='';
     closeSheet();
     commit(function(s){
       var prev=id?findRes(id):null;
-      var r=Object.assign({},prev||{},{id:id||uid('r'),cat:v.cat,title:v.title,nameOrig:v.nameOrig,date:v.date,time:v.time,confirm:v.confirm,app:v.app,link:v.link,memo:v.memo}); delete r.addressJa;
+      var r=Object.assign({},prev||{},{id:id||uid('r'),cat:v.cat,title:v.title,nameOrig:v.nameOrig,nameEn:v.nameEn,date:v.date,time:v.time,confirm:v.confirm,app:v.app,link:v.link}); delete r.address; delete r.addressJa; delete r.phone;
       // only the fields shown for this kind are taken from the form; hidden ones keep what they had
-      var show=' '+(RES_UI[v.cat]||RES_UI.etc).show+' ', SEC={no:['no'],trip:['from','to'],arr:['arrTime'],seat:['seat'],end:['endDate'],place:['map'],addr:['address'],phone:['phone']};
+      var show=' '+(RES_UI[v.cat]||RES_UI.etc).show+' ', SEC={no:['no'],trip:['from','to'],arr:['arrTime'],seat:['seat'],end:['endDate'],place:['map']};
       Object.keys(SEC).forEach(function(k){ if(show.indexOf(' '+k+' ')>=0) SEC[k].forEach(function(fl){ r[fl]=v[fl]||''; }); });
       if(show.indexOf(' end ')<0) r.endDate='';
       var ca=parseFloat(String(v.costAmt||'').replace(/[^0-9.]/g,''));
@@ -2310,7 +2294,7 @@ render();
 document.addEventListener('visibilitychange',function(){ if(document.visibilityState==='visible'&&document.querySelector('.sheet [data-close-sheet]')) closeSheet(); if(document.visibilityState==='hidden'&&autoT) autoShareNow(); });
 if(!FAMILY){ autoShareSoon(); window.addEventListener('online',autoShareSoon); if(!dirtyList().length) saveBase(); }
 if(FAMILY){ famRefresh(); window.addEventListener('online',famRefresh); document.addEventListener('visibilitychange',function(){ if(document.visibilityState==='visible') famRefresh(); }); }
-setInterval(function(){ if(ui.tab==='plan' && (ui.pview||'list')==='list' && state.days[ui.day] && state.days[ui.day].date===todayJST() && !$('#sheet-root').classList.contains('open') && !document.querySelector('.taxi')) render(); },60000);
+setInterval(function(){ if(ui.tab==='plan' && (ui.pview||'list')==='list' && state.days[ui.day] && state.days[ui.day].date===todayJST() && !$('#sheet-root').classList.contains('open')) render(); },60000);
 if('serviceWorker' in navigator){
   var hadCtl=!!navigator.serviceWorker.controller, reloaded=false;
   navigator.serviceWorker.addEventListener('controllerchange',function(){ if(hadCtl&&!reloaded&&!$('#sheet-root').classList.contains('open')){ reloaded=true; location.reload(); } });
