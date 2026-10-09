@@ -539,7 +539,7 @@ var SEED = JSON.parse($('#trip-data').textContent);
 var state = (function(){ try{ var s=localStorage.getItem(LS_STATE); if(s){ var o=JSON.parse(s); if(o&&Array.isArray(o.days)) return o; } }catch(e){} return JSON.parse(JSON.stringify(SEED)); })();
 var mode = 'local';
 var SS_UI = 'kyosaka:ui';
-var APP_VER = 106;   // shown at the bottom of 정보 (and used by the 새로고침 button); bump on every change
+var APP_VER = 107;   // shown at the bottom of 정보 (and used by the 새로고침 button); bump on every change
 /* family view: read-only copy of what the owner shared (?family link, remembered on this phone) */
 var LS_SHARED='kyosaka:shared', SHARED=null;
 var FAMILY=(function(){
@@ -1555,7 +1555,7 @@ function renderSpend(){
     return '<details class="sp-dayd"'+(d.date===todayJST()?' open':'')+'><summary><span>'+esc(mdw(d.date))+'</span>'+(t.total?'<small>'+esc(spSumText(t))+'</small><b>'+esc(krwShort(t.total))+'</b>':'<b><span class="muted">0</span></b>')+'</summary>'+(l.length?l.map(function(x){return entryRow(x,false);}).join(''):'<div class="sp-empty">기록 없음</div>')+'</details>'; }).join('');
   var pre=all.filter(function(x){return !x.date;}), pt=spSum(pre);
   var rateTxt='100엔 = '+esc(Math.round((+SP.rate||0)*1000)/10)+'원 기준';
-  return '<header class="page-head"><h1>경비</h1><p>'+(canEdit()?'쓴 돈 기록은 이 휴대폰에만 저장돼요. 백업을 가져와도 지워지지 않아요.':'공유받은 경비 기록이에요. 보기만 할 수 있어요.')+'</p></header>'+
+  return '<header class="page-head"><h1>경비</h1><p>'+(canEdit()?'쓴 돈 기록은 이 휴대폰에 저장되고, 가족 앱에도 자동으로 공유돼요. 채팅 백업을 가져와도 지워지지 않아요.':'공유받은 경비 기록이에요. 보기만 할 수 있어요.')+'</p></header>'+
     '<div class="sp-total"><span>여행 전체</span><b>'+esc(krwShort(s.total))+'</b><small>'+esc(spSumText(s))+'</small>'+(canEdit()?'<button class="sp-rate" data-act="sp-rate">'+rateTxt+'</button>':'<span class="sp-rate">'+rateTxt+'</span>')+'</div>'+
     (canEdit()?'<div class="pad"><button class="add wide" data-act="sp-open" data-id="" data-d="">+ 쓴 돈 추가</button></div>':'')+
     '<h2 class="group-label">분류별</h2>'+catHtml+
