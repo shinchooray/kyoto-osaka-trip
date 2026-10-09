@@ -490,7 +490,7 @@ ul.tev-memo{font-size:14px;color:var(--muted)}
 .htop-s{display:flex;align-items:center;gap:6px;flex-wrap:wrap;width:calc(100% - 32px);margin:10px 16px 6px;padding:6px 10px;border:0;border-radius:10px;background:transparent;color:var(--muted);font:inherit;font-size:13px;text-align:left;cursor:pointer}
 .htop-s svg{width:15px;height:15px;color:#6B4FA0;flex:none}
 .htop-s .htop-k{font-weight:700;color:#6B4FA0}
-.htop-s b{font-weight:600;color:var(--ink)}
+.htop-s b{font-weight:600;color:var(--ink);flex:1 1 0;min-width:0}
 .htop-s small{flex-basis:100%;padding-left:21px;font-size:12px}
 .htop-s .chev{margin-left:auto;width:14px;height:14px;color:var(--muted)}
 .htop-k{display:inline-flex;align-items:center;gap:5px;font-size:12.5px;font-weight:700;color:#6B4FA0}
@@ -540,7 +540,7 @@ var SEED = JSON.parse($('#trip-data').textContent);
 var state = (function(){ try{ var s=localStorage.getItem(LS_STATE); if(s){ var o=JSON.parse(s); if(o&&Array.isArray(o.days)) return o; } }catch(e){} return JSON.parse(JSON.stringify(SEED)); })();
 var mode = 'local';
 var SS_UI = 'kyosaka:ui';
-var APP_VER = 109;   // shown at the bottom of 정보 (and used by the 새로고침 button); bump on every change
+var APP_VER = 110;   // shown at the bottom of 정보 (and used by the 새로고침 button); bump on every change
 /* family view: read-only copy of what the owner shared (?family link, remembered on this phone) */
 var LS_SHARED='kyosaka:shared', SHARED=null;
 var FAMILY=(function(){
@@ -740,8 +740,8 @@ function hotelTop(d){
   var x=h||out; if(!x) return '';
   // just a note on top; the day's plan starts below. Tap it for the booking.
   var label=h?(h.date===d.date?'오늘 밤 · 체크인':'오늘 밤'):'오늘 체크아웃'+(out.endTime?' '+out.endTime:'');
-  return '<button class="htop-s" data-act="res-open" data-id="'+x.id+'">'+TYICON.stay+'<span class="htop-k">'+esc(label)+'</span><b>'+esc(x.title)+'</b>'+
-    (h&&out&&out.id!==h.id?'<small>체크아웃'+(out.endTime?' '+esc(out.endTime):'')+' · '+esc(out.title)+'</small>':'')+ICON.chev+'</button>';
+  return '<button class="htop-s" data-act="res-open" data-id="'+x.id+'">'+TYICON.stay+'<span class="htop-k">'+esc(label)+'</span><b>'+esc(x.title)+'</b>'+ICON.chev+
+    (h&&out&&out.id!==h.id?'<small>체크아웃'+(out.endTime?' '+esc(out.endTime):'')+' · '+esc(out.title)+'</small>':'')+'</button>';
 }
 function startNode(d,mode){
   var di=state.days.indexOf(d); if(di<=0) return '';
