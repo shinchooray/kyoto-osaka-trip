@@ -540,7 +540,7 @@ var SEED = JSON.parse($('#trip-data').textContent);
 var state = (function(){ try{ var s=localStorage.getItem(LS_STATE); if(s){ var o=JSON.parse(s); if(o&&Array.isArray(o.days)) return o; } }catch(e){} return JSON.parse(JSON.stringify(SEED)); })();
 var mode = 'local';
 var SS_UI = 'kyosaka:ui';
-var APP_VER = 114;   // shown at the bottom of 정보 (and used by the 새로고침 button); bump on every change
+var APP_VER = 115;   // shown at the bottom of 정보 (and used by the 새로고침 button); bump on every change
 /* family view: read-only copy of what the owner shared (?family link, remembered on this phone) */
 var LS_SHARED='kyosaka:shared', SHARED=null;
 var FAMILY=(function(){
@@ -1881,6 +1881,8 @@ function renderMapView(){
 var DAYCOL=['#3E6A48','#5E8A3A','#1F6F8B','#2E4E97','#6B4FA0'];
 var MAPRUN=0;
 function inArea(c){ return c.lat>33.4&&c.lat<36.3&&c.lng>134.0&&c.lng<137.0; }
+// airports back home (청주, 인천…) are not on the Kansai map, and that is fine
+function homeAirport(ev){ var n=(ev.place||ev.title||'')+' '+(ev.placeOrig||''); return /공항/.test(n)&&/청주|인천|김포|김해|대구|제주|무안|양양/.test(n); }
 function drawMap(keepView){
   var box=document.getElementById('tripmap'); if(!box) return;
   var st=document.getElementById('map-status');
@@ -1903,7 +1905,7 @@ function drawMap(keepView){
       evCoord(p.ev).then(function(c){
         if(run!==MAPRUN) return;
         // places outside Kyoto/Osaka (e.g. the airport back home) are left off the map
-        done++; if(c&&inArea(c)) found.push({p:p,c:c}); else if(!c) miss.push(p);
+        done++; if(c&&inArea(c)) found.push({p:p,c:c}); else if(!c&&!homeAirport(p.ev)) miss.push(p);
         if(st) st.textContent=done<pts.length?'위치 찾는 중… '+done+'/'+pts.length:(miss.length?miss.length+'곳은 위치를 못 찾았어요':'');
         if(done===pts.length) placeMarkers(L,found,miss,keep);
       });
