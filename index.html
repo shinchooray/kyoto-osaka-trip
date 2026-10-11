@@ -317,7 +317,9 @@ textarea.short{min-height:64px}
 .mq-wrap input[hidden]{display:none}
 .pl-sec{margin:14px 20px 6px;font-size:13px;font-weight:700;color:var(--ink)}
 .pl-sec small{font-weight:500;color:var(--muted)}
-.nm-wrap>.nm-seg{margin:0 0 6px}
+.nm-wrap>.nm-seg{margin:0 0 8px;display:inline-flex}
+.res-map{margin:-2px 0 12px}
+.nm-wrap>.nm-seg span{min-height:30px;padding:0 14px;font-size:13px}
 .nm-wrap h2[hidden],.nm-wrap input[hidden]{display:none}
 .sp-subd{border-top:1px solid var(--line)}
 .sp-subd:first-child{border-top:0}
@@ -540,7 +542,7 @@ var SEED = JSON.parse($('#trip-data').textContent);
 var state = (function(){ try{ var s=localStorage.getItem(LS_STATE); if(s){ var o=JSON.parse(s); if(o&&Array.isArray(o.days)) return o; } }catch(e){} return JSON.parse(JSON.stringify(SEED)); })();
 var mode = 'local';
 var SS_UI = 'kyosaka:ui';
-var APP_VER = 118;   // shown at the bottom of 정보 (and used by the 새로고침 button); bump on every change
+var APP_VER = 119;   // shown at the bottom of 정보 (and used by the 새로고침 button); bump on every change
 /* family view: read-only copy of what the owner shared (?family link, remembered on this phone) */
 var LS_SHARED='kyosaka:shared', SHARED=null;
 var FAMILY=(function(){
@@ -807,6 +809,7 @@ function confirmCodes(c){return confirmParts(c).map(function(p){return p.code;})
 function resRange(r){
   if(!r.date) return '날짜 없음';
   var s = mdw(r.date);
+  if(r.cat==='hotel'){ if(r.time) s+=' '+r.time; if(r.endDate&&r.endDate>r.date) s+=' – '+mdw(r.endDate)+(r.endTime?' '+r.endTime:'')+', '+between(r.date,r.endDate)+'박'; return s; }
   if(r.endDate && r.endDate>r.date){ s += ' – '+mdw(r.endDate); if(r.cat==='hotel') s += ', '+between(r.date,r.endDate)+'박'; }
   if(r.time) s += ' '+r.time+(r.arrTime?' → '+r.arrTime:'');
   return s;
@@ -872,9 +875,9 @@ var hintOff=false; try{ hintOff=localStorage.getItem('kyosaka:hint')==='off'; }c
 function banner(){
   if(!navigator.onLine) return '<div class="banner">인터넷이 없어요. 저장된 내용을 보여주고 있어요.</div>';
   if(FAMILY&&!SHARED) return '<div class="banner">아직 받은 일정이 없어요. 인터넷에 연결된 상태로 다시 열어 주세요.</div>';
-  if(!isStandalone() && !hintOff) return '<div class="banner"><span>홈 화면에 추가해서 쓰면 인터넷 없이도 열려요. 추가한 뒤에는 홈 화면 아이콘으로만 여세요.</span><button class="x" data-act="hint-off" aria-label="닫기">×</button></div>';
-  if(FAMILY) return '<div class="banner banner--fam"><span>가족 보기 · '+esc(whenText(SHARED.publishedAt))+' 공유된 일정이에요</span><button class="ver-btn" data-act="app-refresh">새로고침</button></div>';
-  return '';
+  var hint=(!isStandalone()&&!hintOff)?'<div class="banner"><span>홈 화면에 추가해서 쓰면 인터넷 없이도 열려요. 추가한 뒤에는 홈 화면 아이콘으로만 여세요.</span><button class="x" data-act="hint-off" aria-label="닫기">×</button></div>':'';
+  if(FAMILY) return '<div class="banner banner--fam"><span>가족 보기 · '+esc(whenText(SHARED.publishedAt))+' 공유된 일정이에요</span><button class="ver-btn" data-act="app-refresh">새로고침</button></div>'+hint;
+  return hint;
 }
 window.addEventListener('online',function(){render();}); window.addEventListener('offline',function(){render();});
 function statusText(){
@@ -1215,7 +1218,7 @@ function shareData(){
       return it;
     })};
   });
-  var res=state.reservations.map(function(r){ return pick(r,['id','cat','title','nameOrig','date','time','endDate','endTime','cost','map','no','from','to','arrTime']); });
+  var res=state.reservations.map(function(r){ return pick(r,['id','cat','title','nameOrig','date','time','endDate','endTime','cost','map','no','from','to','arrTime','seat']); });
   var sp={rate:SP.rate,items:SP.items.map(function(x){ return pick(x,['id','date','ev','leg','cat','amount','cur','memo','unit','count']); })};
   return {app:'kyosaka',type:'family-share',publishedAt:new Date().toISOString(),
     state:{v:state.v,trip:pick(state.trip,['title','start','end','members']),days:days,reservations:res,checklist:[]},spend:sp,
@@ -2072,8 +2075,12 @@ function resDetail(id){
   var r=findRes(id); if(!r) return;
   function kv(k,v){return '<div class="kv"><div class="kv-main"><div class="kv-k">'+k+'</div><div class="kv-v'+(v?'':' empty')+'">'+esc(v||'아직 없음')+'</div></div></div>';}
   function nm(k,v){ return '<h2 data-nm="'+k+'"'+(k==='ko'?'':' hidden')+'>'+(v?esc(v):'<span class="muted">아직 없음</span>')+'</h2>'; }
-  openSheet('<div class="nm-wrap">'+nameSeg(r)+nm('ko',r.title)+nm('ja',r.nameOrig)+'</div><p class="sub">'+catBadge(r.cat)+' '+esc(resRange(r))+'</p>'+(r.no?kv((RES_UI[r.cat]||{}).no||'편명',r.no):'')+(r.from||r.to?kv('구간',(r.from||'')+' → '+(r.to||'')):'')+
-    (costText(r)?kv('결제 금액',costText(r)):'')+qrSection(r)+
+  // 일본 이름이 있을 때만 바꿔 보기; 숙소·식당·입장권은 지도 버튼; QR 사진은 주인 폰에만 있어서 보여주지 않음
+  var mq=SYNC_RES.indexOf(r.cat)>=0?(r.map||r.title):'';
+  openSheet('<div class="nm-wrap nm-wrap--ro">'+(r.nameOrig?nameSeg(r):'')+nm('ko',r.title)+nm('ja',r.nameOrig)+'</div><p class="sub">'+catBadge(r.cat)+' '+esc(resRange(r))+'</p>'+
+    (mq?'<div class="res-map"><a class="mini" href="'+esc(mapUrl(mq))+'" target="_blank" rel="noopener">'+ICON.pin+'구글 지도에서 보기</a></div>':'')+
+    (r.no?kv((RES_UI[r.cat]||{}).no||'편명',r.no):'')+(r.from||r.to?kv('구간',(r.from||'')+' → '+(r.to||'')):'')+(r.seat?kv('좌석',r.seat):'')+
+    (costText(r)?kv('결제 금액',costText(r)):'')+
     '<p class="sub">예약번호는 공유되지 않아요.</p><div class="actions"><button class="btn btn-primary" data-act="sheet-close">닫기</button></div>');
 }
 // a booking opens straight into its editable form, showing only the fields that fit its kind
