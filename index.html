@@ -540,7 +540,7 @@ var SEED = JSON.parse($('#trip-data').textContent);
 var state = (function(){ try{ var s=localStorage.getItem(LS_STATE); if(s){ var o=JSON.parse(s); if(o&&Array.isArray(o.days)) return o; } }catch(e){} return JSON.parse(JSON.stringify(SEED)); })();
 var mode = 'local';
 var SS_UI = 'kyosaka:ui';
-var APP_VER = 116;   // shown at the bottom of 정보 (and used by the 새로고침 button); bump on every change
+var APP_VER = 117;   // shown at the bottom of 정보 (and used by the 새로고침 button); bump on every change
 /* family view: read-only copy of what the owner shared (?family link, remembered on this phone) */
 var LS_SHARED='kyosaka:shared', SHARED=null;
 var FAMILY=(function(){
@@ -1209,7 +1209,7 @@ function shareData(){
     return {date:d.date,city:d.city,title:d.title,items:d.items.map(function(ev){
       var stay=ev.type==='stay'||isHotelEv(ev);
       var it=pick(ev,stay?['id','time','type','title','place','placeOrig']:['id','time','type','title','place','placeOrig','map','memo','lat','lng','spot','restaurant','bakery','tentative']);
-      var gv=stay?null:ggCached(gQuery(ev)); if(gv){ it.lat=gv.lat; it.lng=gv.lng; }
+      var gv=stay?null:coordNow(ev); if(gv){ it.lat=gv.lat; it.lng=gv.lng; }
       if(ev.route) it.route=pick(ev.route,['how','min']);
       if(!stay&&aboutRaw(ev.about)) it.about=pick(ev.about,['intro','history','highlights','facts','tip']);
       return it;
@@ -1696,6 +1696,7 @@ function drawPlaceMap(k,keepView){
         if(done===LIST.length){
           if(!keep){ if(bounds.length===1) MAP.setView(bounds[0],15); else if(bounds.length) MAP.fitBounds(bounds,{padding:[30,30]}); }
           var mm=document.getElementById('map-miss'); if(mm) mm.innerHTML=miss.length?'<div class="list"><div class="row"><div class="row-main"><div class="row-k">지도에 못 올린 '+P.unit+'</div>'+miss.map(function(b){return '<div class="row-sub">'+esc(b.name)+'</div>';}).join('')+'</div></div></div>':'';
+          if(!FAMILY) autoShareSoon();
           // places found just now may change the north-to-south numbers
           if(ui.tab==='plan'&&ui.pview===k&&plOrder(k).map(function(b){return b.id;}).join()!==LIST.map(function(b){return b.id;}).join()) render();
         }
@@ -1752,7 +1753,7 @@ function plClosedNote(k,b){
     out.push((+d.date.slice(5,7))+'/'+(+d.date.slice(8,10))+'('+WD.charAt(wd)+')'+(planned.indexOf(d.date)>=0?' 일정 있는 날':'')); });
   return out.length?'<div class="row-sub pl-warn">⚠ '+esc(out.join(', '))+' 휴무일 수 있어요</div>':'';
 }
-function plShare(k){ return PLD[k].map(function(b){ var x=pick(b,['id','city','name','nameOrig','map','memo','lat','lng','about','hrs']), g=ggCached(gQuery(plEv(k,b))); if(g){ x.lat=g.lat; x.lng=g.lng; } return x; }); }
+function plShare(k){ return PLD[k].map(function(b){ var x=pick(b,['id','city','name','nameOrig','map','memo','lat','lng','about','hrs']), g=coordNow(plEv(k,b)); if(g){ x.lat=g.lat; x.lng=g.lng; } return x; }); }
 // pick from the 구경/밥/빵 list, one city at a time (days 1–2 Kyoto, 3–5 Osaka unless the place picked says otherwise)
 function dayCity(i){ return i<=1?'kyoto':'osaka'; }
 function plOptions(k,city,sel){
@@ -1836,9 +1837,15 @@ function gQuery(ev){
   return ev.place||ev.placeOrig||'';
 }
 function ggCached(q){ try{ var v=localStorage.getItem(GG_KEY+q); return v?JSON.parse(v):undefined; }catch(e){ return undefined; } }
+var GG_Q=[], GG_N=0, GG_FLY={};
+function ggNext(){ while(GG_N<4&&GG_Q.length){ (function(j){ GG_N++; j.fn().then(function(v){ GG_N--; j.res(v); ggNext(); }); })(GG_Q.shift()); } }
 function ggLookup(q){
   var c=ggCached(q); if(c!==undefined) return Promise.resolve(c);
   if(!navigator.onLine||!q) return Promise.resolve(undefined);
+  if(GG_FLY[q]) return GG_FLY[q];
+  return GG_FLY[q]=new Promise(function(res){ GG_Q.push({fn:function(){ return ggFetch(q,0); },res:res}); ggNext(); }).then(function(v){ delete GG_FLY[q]; return v; });
+}
+function ggFetch(q,attempt){
   return fetch('https://places.googleapis.com/v1/places:searchText',{method:'POST',
     headers:{'Content-Type':'application/json','X-Goog-Api-Key':gKey(),'X-Goog-FieldMask':'places.location'},
     body:JSON.stringify({textQuery:q,languageCode:'ko',regionCode:'JP',pageSize:1,locationBias:{rectangle:{low:{latitude:33.4,longitude:134.0},high:{latitude:36.3,longitude:137.0}}}})})
@@ -1849,6 +1856,7 @@ function ggLookup(q){
       try{ localStorage.setItem(GG_KEY+q,JSON.stringify(v)); }catch(e){}
       return v;
     }).catch(function(e){
+      if(e&&(e.status===429||e.status>=500)&&attempt<2) return new Promise(function(r){ setTimeout(r,1200*(attempt+1)); }).then(function(){ return ggFetch(q,attempt+1); });
       if(!ggWarned&&e&&e.status){ ggWarned=true; toast('구글 위치 찾기가 안 돼요 ('+e.status+'). 정보 탭에서 키를 확인해 주세요',true); }
       return undefined;
     });
@@ -1858,12 +1866,12 @@ function evCoord(ev){
   if(m) return Promise.resolve({lat:+m[1],lng:+m[2],via:'map'});
   var h=ev.map?null:hotelOfEv(ev), l=gLink(ev.map||(h&&h.map)), c=l&&linkLL(l);
   if(c&&inArea(c)) return Promise.resolve({lat:c.lat,lng:c.lng,via:'map'});
-  if(gKey()) return ggLookup(gQuery(ev)).then(function(v){ return v?{lat:v.lat,lng:v.lng,via:ev.map?'map':'name'}:evCoordFree(ev); });
+  if(gKey()) return ggLookup(gQuery(ev)).then(function(v){ return v?{lat:v.lat,lng:v.lng,via:ev.map?'map':'name'}:evCoordFree(ev,v===null); });
   return evCoordFree(ev);
 }
-function evCoordFree(ev){
+function evCoordFree(ev,noKo){
   if(isFinite(+ev.lat)&&isFinite(+ev.lng)&&ev.lat!==''&&ev.lng!=null&&ev.lat!=null&&pinFresh(ev)) return Promise.resolve({lat:+ev.lat,lng:+ev.lng});
-  var qs=geoQueries(ev), i=0;
+  var qs=geoQueries(ev).filter(function(g){ return !noKo||!/[\uAC00-\uD7A3]/.test(g.q); }), i=0;
   return new Promise(function(res){
     (function next(){ if(i>=qs.length) return res(null); var g=qs[i++]; geoLookup(g.q).then(function(v){ if(v) res({lat:v.lat,lng:v.lng,via:g.via}); else next(); }); })();
   });
@@ -1907,7 +1915,7 @@ function drawMap(keepView){
         // places outside Kyoto/Osaka (e.g. the airport back home) are left off the map
         done++; if(c&&inArea(c)) found.push({p:p,c:c}); else if(!c&&!homeAirport(p.ev)) miss.push(p);
         if(st) st.textContent=done<pts.length?'위치 찾는 중… '+done+'/'+pts.length:(miss.length?miss.length+'곳은 위치를 못 찾았어요':'');
-        if(done===pts.length) placeMarkers(L,found,miss,keep);
+        if(done===pts.length){ placeMarkers(L,found,miss,keep); if(!FAMILY) autoShareSoon(); }
       });
     });
   }).catch(function(){ box.innerHTML='<div class="map-off">지도를 불러오지 못했어요. 인터넷 연결을 확인해 주세요</div>'; });
