@@ -542,7 +542,7 @@ var SEED = JSON.parse($('#trip-data').textContent);
 var state = (function(){ try{ var s=localStorage.getItem(LS_STATE); if(s){ var o=JSON.parse(s); if(o&&Array.isArray(o.days)) return o; } }catch(e){} return JSON.parse(JSON.stringify(SEED)); })();
 var mode = 'local';
 var SS_UI = 'kyosaka:ui';
-var APP_VER = 119;   // shown at the bottom of 정보 (and used by the 새로고침 button); bump on every change
+var APP_VER = 120;   // shown at the bottom of 정보 (and used by the 새로고침 button); bump on every change
 /* family view: read-only copy of what the owner shared (?family link, remembered on this phone) */
 var LS_SHARED='kyosaka:shared', SHARED=null;
 var FAMILY=(function(){
@@ -1636,7 +1636,7 @@ function coordNow(ev){
   var m=coordM(ev.map); if(m) return {lat:+m[1],lng:+m[2]};
   var l=gLink(ev.map), c=l&&linkLL(l); if(c&&inArea(c)) return c;
   if(gKey()){ var g=ggCached(gQuery(ev)); if(g) return g; }
-  if(isFinite(+ev.lat)&&ev.lat!=null&&ev.lat!==''&&pinFresh(ev)) return {lat:+ev.lat,lng:+ev.lng};
+  if(isFinite(+ev.lat)&&ev.lat!=null&&ev.lat!==''&&(FAMILY||pinFresh(ev))) return {lat:+ev.lat,lng:+ev.lng};
   var qs=geoQueries(ev); for(var i=0;i<qs.length;i++){ var v=geoCached(qs[i].q); if(v) return v; }
   return null;
 }
@@ -1873,7 +1873,8 @@ function evCoord(ev){
   return evCoordFree(ev);
 }
 function evCoordFree(ev,noKo){
-  if(isFinite(+ev.lat)&&isFinite(+ev.lng)&&ev.lat!==''&&ev.lng!=null&&ev.lat!=null&&pinFresh(ev)) return Promise.resolve({lat:+ev.lat,lng:+ev.lng});
+  // on family phones the pin came with the share, already matching the owner's current search word, so it is always used
+  if(isFinite(+ev.lat)&&isFinite(+ev.lng)&&ev.lat!==''&&ev.lng!=null&&ev.lat!=null&&(FAMILY||pinFresh(ev))) return Promise.resolve({lat:+ev.lat,lng:+ev.lng});
   var qs=geoQueries(ev).filter(function(g){ return !noKo||!/[\uAC00-\uD7A3]/.test(g.q); }), i=0;
   return new Promise(function(res){
     (function next(){ if(i>=qs.length) return res(null); var g=qs[i++]; geoLookup(g.q).then(function(v){ if(v) res({lat:v.lat,lng:v.lng,via:g.via}); else next(); }); })();
