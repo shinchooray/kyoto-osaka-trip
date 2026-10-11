@@ -540,7 +540,7 @@ var SEED = JSON.parse($('#trip-data').textContent);
 var state = (function(){ try{ var s=localStorage.getItem(LS_STATE); if(s){ var o=JSON.parse(s); if(o&&Array.isArray(o.days)) return o; } }catch(e){} return JSON.parse(JSON.stringify(SEED)); })();
 var mode = 'local';
 var SS_UI = 'kyosaka:ui';
-var APP_VER = 115;   // shown at the bottom of 정보 (and used by the 새로고침 button); bump on every change
+var APP_VER = 116;   // shown at the bottom of 정보 (and used by the 새로고침 button); bump on every change
 /* family view: read-only copy of what the owner shared (?family link, remembered on this phone) */
 var LS_SHARED='kyosaka:shared', SHARED=null;
 var FAMILY=(function(){
@@ -1627,7 +1627,7 @@ function plMerge(k,list){
   plSave(k);
 }
 function plEv(k,b){ return {id:k+':'+b.id,type:PL[k].ev,title:b.name,place:b.name,placeOrig:b.nameOrig||'',map:b.map||'',lat:b.lat,lng:b.lng}; }
-function plUses(k,id){ var f=PL[k].fld, b=findPl(k,id), out=[]; state.days.forEach(function(d){ d.items.forEach(function(ev){ if(ev[f]===id||(b&&ev.place===b.name)) out.push({d:d,ev:ev}); }); }); return out; }
+function plUses(k,id){ var f=PL[k].fld, b=findPl(k,id), out=[]; state.days.forEach(function(d){ d.items.forEach(function(ev){ if(ev[f]===id||(b&&ev.type!=='stay'&&ev.place===b.name)) out.push({d:d,ev:ev}); }); }); return out; }
 // where a place is, from what this phone already knows (no lookups)
 function coordNow(ev){
   var m=coordM(ev.map); if(m) return {lat:+m[1],lng:+m[2]};
@@ -1938,19 +1938,28 @@ function placeMarkers(L,found,miss,keep){
 }
 
 /* ---------- sheets ---------- */
+var SHEET_AT=null;
 function openSheet(html){
   var root=$('#sheet-root');
+  if(!root.classList.contains('open')) SHEET_AT={y:window.scrollY||0,tab:ui.tab,pv:ui.pview,day:ui.day};
   root.innerHTML='<div class="scrim" data-act="sheet-close"></div><div class="sheet" role="dialog" aria-modal="true"><div class="grab"></div>'+html+'</div>';
   root.classList.add('open');
   document.documentElement.style.overflow='hidden';
 }
-function closeSheet(){var root=$('#sheet-root');root.classList.remove('open');root.innerHTML='';document.documentElement.style.overflow='';}
+// closing a sheet (and the phone keyboard with it) must not leave the page scrolled somewhere else
+function closeSheet(){
+  var root=$('#sheet-root'), at=SHEET_AT; SHEET_AT=null;
+  if(document.activeElement&&document.activeElement.blur) document.activeElement.blur();
+  root.classList.remove('open');root.innerHTML='';document.documentElement.style.overflow='';
+  if(at) setTimeout(function(){ if(ui.tab===at.tab&&ui.pview===at.pv&&ui.day===at.day&&!root.classList.contains('open')) window.scrollTo(0,at.y); },0);
+}
 
 function findEv(id){for(var i=0;i<state.days.length;i++){var it=state.days[i].items;for(var j=0;j<it.length;j++){if(it[j].id===id) return {day:i,idx:j,ev:it[j]};}}return null;}
 // a booking (숙소, 식당, 입장권) and a schedule stop are the same place when their names match;
 // editing either one carries the change over (names, 지도 검색어, and for 식당·입장권 the date and time)
 var SYNC_RES=['hotel','food','ticket'];
-function samePlace(ev,r){ return SYNC_RES.indexOf(r.cat)>=0&&((ev.place&&ev.place===r.title)||(ev.placeOrig&&r.nameOrig&&ev.placeOrig===r.nameOrig)); }
+function isStay(o){ return 'cat' in o?o.cat==='hotel':('place' in o||'type' in o)?o.type==='stay':false; }
+function samePlace(ev,r){ return SYNC_RES.indexOf(r.cat)>=0&&isStay(ev)===isStay(r)&&((ev.place&&ev.place===r.title)||(ev.placeOrig&&r.nameOrig&&ev.placeOrig===r.nameOrig)); }
 // one place, many cards: bookings (숙소·식당·입장권), schedule stops and 구경/밥/빵 list places are the same place
 // when they share the 한국 이름 (or a stop was picked from a list); what is saved on one is copied to all the others
 function setJa(o,v){ if('cat' in o||!('place' in o||'type' in o)) o.nameOrig=v; else o.placeOrig=v; }
@@ -1964,25 +1973,25 @@ function placeSet(o,kind,c){
   delete o.lat; delete o.lng; return 2;
 }
 function placeSync(s,src,old){
-  var ids=Object.assign({},old.links), n=nmOf(src), cur={ko:n[0]||'',ja:n[1]||'',mapKo:src.mapKo||'',mapJa:src.mapJa||'',mapUrl:src.mapUrl||'',mapBy:src.mapBy||'ko'}, cnt={ev:0,res:0,pl:0};
+  var st=isStay(src), ids=Object.assign({},old.links), n=nmOf(src), cur={ko:n[0]||'',ja:n[1]||'',mapKo:src.mapKo||'',mapJa:src.mapJa||'',mapUrl:src.mapUrl||'',mapBy:src.mapBy||'ko'}, cnt={ev:0,res:0,pl:0};
   PLK.forEach(function(k){ var v=src[PL[k].fld]; if(v&&!ids[k]) ids[k]=v; });
   function hit(e){ return (old.ko&&(e.place||e.title)===old.ko)||PLK.some(function(k){ return ids[k]&&e[PL[k].fld]===ids[k]; }); }
   var evs=[];
-  for(var pass=0;pass<2;pass++) s.days.forEach(function(d){ d.items.forEach(function(e){ if(e===src||evs.indexOf(e)>=0||!hit(e)) return; evs.push(e); PLK.forEach(function(k){ var v=e[PL[k].fld]; if(v&&!ids[k]) ids[k]=v; }); }); });
+  for(var pass=0;pass<2;pass++) s.days.forEach(function(d){ d.items.forEach(function(e){ if(e===src||evs.indexOf(e)>=0||isStay(e)!==st||!hit(e)) return; evs.push(e); PLK.forEach(function(k){ var v=e[PL[k].fld]; if(v&&!ids[k]) ids[k]=v; }); }); });
   evs.forEach(function(e){ var r=placeSet(e,'ev',cur); if(!r) return; cnt.ev++; markDirty('event',e.id,'upsert');
     if(r===2){ flagRoute(e); s.days.forEach(function(d){ var i=d.items.indexOf(e); if(i>=0) flagRoute(d.items[i+1]); }); } });
-  s.reservations.forEach(function(r){ if(r===src||SYNC_RES.indexOf(r.cat)<0||!old.ko||r.title!==old.ko) return; if(placeSet(r,'res',cur)){ cnt.res++; markDirty('reservation',r.id,'upsert'); } });
-  PLK.forEach(function(k){ var ch=0; PLD[k].forEach(function(b){ if(b===src||!((old.ko&&b.name===old.ko)||ids[k]===b.id)) return; if(placeSet(b,'pl',cur)) ch++; }); if(ch){ cnt.pl+=ch; plSave(k); markDirty('pl-'+k,'all','upsert'); } });
+  s.reservations.forEach(function(r){ if(r===src||SYNC_RES.indexOf(r.cat)<0||isStay(r)!==st||!old.ko||r.title!==old.ko) return; if(placeSet(r,'res',cur)){ cnt.res++; markDirty('reservation',r.id,'upsert'); } });
+  if(!st) PLK.forEach(function(k){ var ch=0; PLD[k].forEach(function(b){ if(b===src||!((old.ko&&b.name===old.ko)||ids[k]===b.id)) return; if(placeSet(b,'pl',cur)) ch++; }); if(ch){ cnt.pl+=ch; plSave(k); markDirty('pl-'+k,'all','upsert'); } });
   return cnt;
 }
 // a new card for a place that is already somewhere (and left on the plain 한국 이름) takes over that place's 지도 검색어
 function placeAdopt(s,o,k){
   if((o.mapBy&&o.mapBy!=='ko')||o.mapKo||o.mapJa||o.mapUrl) return false;
-  var ko=nmOf(o)[0], src=null;
-  if(!k) PLK.forEach(function(x){ var v=o[PL[x].fld]; if(v&&!src) src=findPl(x,v)||null; });
-  PLK.forEach(function(x){ if(!src) src=PLD[x].filter(function(b){ return b!==o&&b.name===ko; })[0]||null; });
-  if(!src) s.reservations.forEach(function(r){ if(!src&&r!==o&&SYNC_RES.indexOf(r.cat)>=0&&r.title===ko) src=r; });
-  if(!src) s.days.forEach(function(d){ d.items.forEach(function(e){ if(!src&&e!==o&&e.place===ko) src=e; }); });
+  var ko=nmOf(o)[0], st=isStay(o), src=null;
+  if(!k&&!st) PLK.forEach(function(x){ var v=o[PL[x].fld]; if(v&&!src) src=findPl(x,v)||null; });
+  if(!st) PLK.forEach(function(x){ if(!src) src=PLD[x].filter(function(b){ return b!==o&&b.name===ko; })[0]||null; });
+  if(!src) s.reservations.forEach(function(r){ if(!src&&r!==o&&SYNC_RES.indexOf(r.cat)>=0&&isStay(r)===st&&r.title===ko) src=r; });
+  if(!src) s.days.forEach(function(d){ d.items.forEach(function(e){ if(!src&&e!==o&&isStay(e)===st&&e.place===ko) src=e; }); });
   if(!src) return false;
   var sj=nmOf(src)[1]; if(!nmOf(o)[1]&&sj) setJa(o,sj);
   o.mapKo=src.mapKo||''; o.mapJa=src.mapJa||''; o.mapUrl=src.mapUrl||''; o.mapBy=src.mapBy||'ko'; mapFix(o); return true;
@@ -2353,6 +2362,10 @@ document.addEventListener('submit',function(e){
       var moved=!old||locChanged||old.day!==dayIdx||(old.ev.time||'')!==v.time;
       if(v.tentative==='1') item.tentative=true; else delete item.tentative;
       PLK.forEach(function(k){ var P=PL[k]; if(v.type===P.ev&&v[P.fld]&&findPl(k,v[P.fld])) item[P.fld]=v[P.fld]; else delete item[P.fld]; });
+      // switching the stop to another kind (숙소 → 식당) or another list place puts a new place here;
+      // only an edit that keeps both is a change to the same place, which is carried to its other cards
+      var replaced=old&&(old.ev.type!==item.type||PLK.some(function(k){ var fl=PL[k].fld; return (old.ev[fl]||'')!==(item[fl]||''); }));
+      if(replaced) oldPlace=null;
       // the route is edited from 가는 길 now; forms without route fields leave it as it is
       var ro=item.route||{}, routeEdited=!!f.rhow&&['how','min','label'].some(function(k){ var a=ro[k]==null?'':String(ro[k]); if(k==='how') a=howForm(a); return a!==String(v['r'+k]||''); });
       if(routeEdited){
@@ -2368,7 +2381,7 @@ document.addEventListener('submit',function(e){
       // the way here and the way to the next stop may no longer fit
       if(moved){ if(!routeEdited) flagRoute(item); flagRoute(target.items[target.items.indexOf(item)+1]); if(oldNext&&(old.day!==dayIdx||oldDay.items.indexOf(oldNext)!==oldDay.items.indexOf(item)+1)) flagRoute(oldNext); }
       // a booked meal or ticket moves with its stop
-      if(old){ var o=old.ev; s.reservations.forEach(function(r){ if(r.cat==='hotel'||!samePlace(o,r)) return; var ch=false;
+      if(old&&!replaced){ var o=old.ev; s.reservations.forEach(function(r){ if(r.cat==='hotel'||!samePlace(o,r)) return; var ch=false;
         if(old.day!==dayIdx){ r.date=target.date; ch=true; } if((o.time||'')!==(item.time||'')){ r.time=item.time; ch=true; }
         if(ch){ synced++; markDirty('reservation',r.id,'upsert'); } }); }
       cnt=placeSave(s,item,null,oldPlace); if(synced) cnt.res++;
