@@ -540,7 +540,7 @@ var SEED = JSON.parse($('#trip-data').textContent);
 var state = (function(){ try{ var s=localStorage.getItem(LS_STATE); if(s){ var o=JSON.parse(s); if(o&&Array.isArray(o.days)) return o; } }catch(e){} return JSON.parse(JSON.stringify(SEED)); })();
 var mode = 'local';
 var SS_UI = 'kyosaka:ui';
-var APP_VER = 117;   // shown at the bottom of 정보 (and used by the 새로고침 button); bump on every change
+var APP_VER = 118;   // shown at the bottom of 정보 (and used by the 새로고침 button); bump on every change
 /* family view: read-only copy of what the owner shared (?family link, remembered on this phone) */
 var LS_SHARED='kyosaka:shared', SHARED=null;
 var FAMILY=(function(){
@@ -1208,8 +1208,8 @@ function shareData(){
   var days=state.days.map(function(d){
     return {date:d.date,city:d.city,title:d.title,items:d.items.map(function(ev){
       var stay=ev.type==='stay'||isHotelEv(ev);
-      var it=pick(ev,stay?['id','time','type','title','place','placeOrig']:['id','time','type','title','place','placeOrig','map','memo','lat','lng','spot','restaurant','bakery','tentative']);
-      var gv=stay?null:coordNow(ev); if(gv){ it.lat=gv.lat; it.lng=gv.lng; }
+      var it=pick(ev,stay?['id','time','type','title','place','placeOrig','map','lat','lng']:['id','time','type','title','place','placeOrig','map','memo','lat','lng','spot','restaurant','bakery','tentative']);
+      var gv=coordNow(ev); if(gv){ it.lat=gv.lat; it.lng=gv.lng; }   // 숙소 위치도 가족과 함께 봐요
       if(ev.route) it.route=pick(ev.route,['how','min']);
       if(!stay&&aboutRaw(ev.about)) it.about=pick(ev.about,['intro','history','highlights','facts','tip']);
       return it;
