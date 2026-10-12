@@ -542,7 +542,7 @@ var SEED = JSON.parse($('#trip-data').textContent);
 var state = (function(){ try{ var s=localStorage.getItem(LS_STATE); if(s){ var o=JSON.parse(s); if(o&&Array.isArray(o.days)) return o; } }catch(e){} return JSON.parse(JSON.stringify(SEED)); })();
 var mode = 'local';
 var SS_UI = 'kyosaka:ui';
-var APP_VER = 122;   // shown at the bottom of 정보 (and used by the 새로고침 button); bump on every change
+var APP_VER = 123;   // shown at the bottom of 정보 (and used by the 새로고침 button); bump on every change
 /* family view: read-only copy of what the owner shared (?family link, remembered on this phone) */
 var LS_SHARED='kyosaka:shared', SHARED=null;
 var FAMILY=(function(){
@@ -2146,6 +2146,7 @@ function resForm(id){
       '<small>경비 탭에 자동으로 합산돼요.</small></label>'+
     '<label class="field"><span class="res-lab">예약 링크'+(L?'<a class="mini" href="'+esc(L.url)+'" target="_blank" rel="noopener">'+(L.kind==='search'?'찾아보기':'열기')+'</a>':'')+'</span><input name="link" type="url" value="'+esc(r.link||'')+'" placeholder="https://"></label>'+
     '<label class="field"><span>예약번호</span><textarea name="confirm" class="short" autocomplete="off" autocapitalize="characters" placeholder="ABC123 (2명, HONG GILDONG, KIM MINJI)">'+esc(r.confirm||'')+'</textarea><small>번호가 여러 개면 한 줄에 하나씩, 번호 (인원, 이름) 형식으로 적어요.</small></label>'+
+    areaField('메모','memo',r.memo,'이 폰에만 보여요. 가족 앱에는 공유되지 않아요.')+
     '<div class="actions">'+(id?'<button type="button" class="btn btn-danger" data-act="del-res" data-id="'+id+'">삭제</button>':'')+
     '<button type="button" class="btn btn-ghost" data-act="sheet-close">취소</button><button type="submit" class="btn btn-primary">저장</button></div></form>');
   resFormApply(document.querySelector('form[data-form="res"]'));
@@ -2432,7 +2433,7 @@ document.addEventListener('submit',function(e){
     closeSheet();
     commit(function(s){
       var prev=id?findRes(id):null, oldPlace=prev?placeOld(prev):null;
-      var r=Object.assign({},prev||{},{id:id||uid('r'),cat:v.cat,title:v.title,nameOrig:v.nameOrig,date:v.date,time:v.time,confirm:v.confirm,link:v.link}); delete r.address; delete r.addressJa; delete r.phone;
+      var r=Object.assign({},prev||{},{id:id||uid('r'),cat:v.cat,title:v.title,nameOrig:v.nameOrig,date:v.date,time:v.time,confirm:v.confirm,link:v.link,memo:v.memo}); delete r.address; delete r.addressJa; delete r.phone;
       // only the fields shown for this kind are taken from the form; hidden ones keep what they had
       var show=' '+(RES_UI[v.cat]||RES_UI.etc).show+' ', SEC={no:['no'],trip:['from','to'],arr:['arrTime'],seat:['seat'],end:['endDate'],endt:['endTime']};
       Object.keys(SEC).forEach(function(k){ if(show.indexOf(' '+k+' ')>=0) SEC[k].forEach(function(fl){ r[fl]=v[fl]||''; }); });
