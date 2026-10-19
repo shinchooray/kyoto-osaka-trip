@@ -588,7 +588,7 @@ var state = (function(){ try{ var s=localStorage.getItem(LS_STATE); if(s){ var o
   return JSON.parse(JSON.stringify(SEED)); })();
 var mode = 'local';
 var SS_UI = 'kyosaka:ui';
-var APP_VER = 134;   // shown at the bottom of 정보 (and used by the 새로고침 button); bump on every change
+var APP_VER = 135;   // shown at the bottom of 정보 (and used by the 새로고침 button); bump on every change
 /* family view: read-only copy of what the owner shared (?family link, remembered on this phone) */
 var FAM_TRIP=(function(){ var m=location.search.match(/[?&]family=([\w-]+)/); try{ if(m) localStorage.setItem('kyosaka:famTrip',m[1]); return localStorage.getItem('kyosaka:famTrip')||'main'; }catch(e){ return m?m[1]:'main'; } })();
 var LS_SHARED=FAM_TRIP==='main'?'kyosaka:shared':'kyosaka:shared:'+FAM_TRIP, SHARED=null;
@@ -1217,6 +1217,9 @@ function renderInfo(){
     }).join('')+'</div>'+
     '<h2 class="group-label">지도</h2><div class="list">'+
       '<button class="row" data-act="gkey-edit"><div class="row-main"><div class="row-title">구글 위치 찾기 '+(lsGet(LS_GKEY)?'켜짐':'꺼짐')+'</div><div class="row-sub">'+(lsGet(LS_GKEY)?'일정 탭 지도가 구글 지도처럼 한글 이름으로도 위치를 찾아요':'구글 API 키를 넣으면 일정 탭 지도 위치가 구글 지도와 같아져요')+'</div></div>'+ICON.chev+'</button></div>'+
+    (!FAMILY&&canEdit()?'<h2 class="group-label">백업</h2><div class="list">'+
+      '<button class="row" data-act="backup-save"><div class="row-main"><div class="row-title">백업 파일 저장</div><div class="row-sub">'+bkSub()+'</div></div>'+ICON.chev+'</button>'+
+      '<label class="row" style="cursor:pointer"><div class="row-main"><div class="row-title">백업 파일 열기</div><div class="row-sub">저장해 둔 백업 파일로 여행을 되살려요</div></div>'+ICON.chev+'<input type="file" data-import="backup" hidden></label></div>':'')+
     '<h2 class="group-label">가족과 나누기</h2><div class="list">'+
       (function(){ var at=lsGet(LS_PUBAT), auto=autoOn(), blocked=auto&&shareBlocked();
         var sub=blocked?'<b style="color:var(--accent)">확인할 줄이 있어서 자동 공유가 멈췄어요. 눌러서 확인하고 올려 주세요</b>':
@@ -1226,7 +1229,7 @@ function renderInfo(){
         return '<button class="row" data-act="share-prep"><div class="row-main"><div class="row-title">가족 앱에 공유하기</div><div class="row-sub">'+sub+'</div></div>'+ICON.chev+'</button>'+
           (lsGet(LS_GHTOKEN)?'<button class="row" data-act="share-auto"><div class="row-main"><div class="row-title">자동 공유 '+(auto?'켜짐':'꺼짐')+'</div><div class="row-sub">눌러서 '+(auto?'끄기':'켜기')+'</div></div></button>':''); })()+
       '<button class="row" data-act="share-link"><div class="row-main"><div class="row-title">가족용 주소 보내기</div><div class="row-sub">가족이 이 주소로 열고 홈 화면에 추가하면, 공유한 내용이 자동으로 보여요</div></div>'+ICON.chev+'</button>'+
-    '</div><p class="foot">QR 이미지는 이 휴대폰에 따로 저장돼서 백업을 가져와도 지워지지 않아요. 가족에게는 QR 화면의 보내기로 나눠 주세요.</p><p class="foot">모든 내용은 이 휴대폰 안에만 저장돼요. 인터넷 없이도 열리지만, 지도와 길찾기는 인터넷이 필요해요.</p><p class="foot ver-row">앱 버전 '+APP_VER+'<button class="ver-btn" data-act="app-refresh">새로고침</button></p>'+
+    '</div><p class="foot">QR 이미지는 이 휴대폰에 따로 저장돼서 백업을 가져와도 지워지지 않아요. 백업 파일에도 들어가지 않아요. 가족에게는 QR 화면의 보내기로 나눠 주세요.</p><p class="foot">모든 내용은 이 휴대폰 안에만 저장돼요. 휴대폰을 바꾸거나 실수로 지워질 때를 대비해 가끔 백업 파일을 저장해 두세요. 인터넷 없이도 열리지만, 지도와 길찾기는 인터넷이 필요해요.</p><p class="foot ver-row">앱 버전 '+APP_VER+'<button class="ver-btn" data-act="app-refresh">새로고침</button></p>'+
     '';
 }
 
@@ -1355,6 +1358,7 @@ function readBackup(text){
     var a=text.indexOf('{'), b=text.lastIndexOf('}'); if(a>=0&&b>a) text=text.slice(a,b+1);
     var o=JSON.parse(text);
     if(o&&o.type==='patch'&&Array.isArray(o.changes)){ patchPreview(o); return; }
+    if(o&&o.type==='full-backup'&&o.data&&typeof o.data==='object'){ fullPreview(o); return; }
     var s=o&&o.state?o.state:o;
     if(!s||!Array.isArray(s.days)||!Array.isArray(s.reservations)||!Array.isArray(s.checklist)) throw 0;
     pendingBackup=s;
@@ -1434,6 +1438,49 @@ function applyPatch(o){
 function pasteBackup(){
   openSheet('<form data-form="backup-text"><h2>백업 붙여넣기</h2><p class="sub">백업 파일을 열 수 없을 때, 백업 내용을 복사해서 붙여넣어 주세요.</p>'+areaField('백업 내용','text','')+
     '<div class="actions"><button type="button" class="btn btn-ghost" data-act="sheet-close">취소</button><button type="submit" class="btn btn-primary">확인</button></div></form>');
+}
+
+/* ---------- backup file: every trip on this phone (plan, spending, bookings, lists) in one file; never keys, tokens or QR images ---------- */
+var LS_BACKUPAT='kyosaka:backupAt', pendingFull=null;
+var BK_SKIP=['ghtoken','gkey','role','famTrip','famTrips','toast','trip','backupAt','loc','hint','dirty','base','dirtyCopiedAt','sharedAt','autoShare','shareHash','shareOk','shareWarned','shareErr'];
+function bkKeep(k){ var m=String(k).match(/^kyosaka:(t_[^:]+:)?(.*)$/); if(!m||BK_SKIP.indexOf(m[2])>=0) return false; return !(!m[1]&&/^shared(:|$)/.test(m[2])); }
+// which trip a key belongs to ('main' keys have no second colon); null = shared by all trips (map caches)
+function bkOwner(k){ var m=k.match(/^kyosaka:t_([^:]+):/); if(m) return m[1]; return /^kyosaka:[^:]+$/.test(k)&&['trips','mapv2'].indexOf(k.slice(8))<0?'main':null; }
+function bkTrips(o){ return (Array.isArray(o.trips)?o.trips:[]).filter(function(x){ return x&&x.id&&typeof o.data[(x.id==='main'?'kyosaka:':'kyosaka:t_'+x.id+':')+'state']==='string'; }); }
+function bkSub(){
+  var at=lsGet(LS_BACKUPAT), d=at?Math.floor((Date.now()-new Date(at))/864e5):null, n=tripList().length;
+  var when=at?'마지막 백업: '+(d<1?'오늘':d+'일 전'):'아직 백업한 적이 없어요';
+  return '여행 '+n+'개 전부(일정·쓴 돈·예약·목록)를 파일 하나로 저장해요. '+(!at||d>=7?'<b style="color:var(--accent)">'+when+'</b>':when);
+}
+function backupSave(){
+  var data={}; try{ Object.keys(localStorage).forEach(function(k){ if(bkKeep(k)) data[k]=localStorage.getItem(k); }); }catch(e){}
+  var txt=JSON.stringify({app:'kyosaka',type:'full-backup',v:1,appVer:APP_VER,exportedAt:new Date().toISOString(),trips:tripList(),data:data});
+  var nm='여행일정-백업-'+new Date().toISOString().slice(0,10), f=null;
+  function done(){ lsSet(LS_BACKUPAT,new Date().toISOString()); render(); toast('백업 파일을 만들었어요. 파일 앱이나 메일에 보관해 주세요'); }
+  function dl(){ try{ var u=URL.createObjectURL(new Blob([txt],{type:'application/json'})), a=document.createElement('a'); a.href=u; a.download=nm+'.json'; document.body.appendChild(a); a.click(); a.remove(); setTimeout(function(){ URL.revokeObjectURL(u); },60000); done(); }catch(e){ toast('백업 파일을 만들지 못했어요',true); } }
+  // iPhone: the share sheet (파일에 저장, 메일, 카톡); elsewhere a download
+  try{ [[nm+'.json','application/json'],[nm+'.txt','text/plain']].some(function(x){ var g=new File([txt],x[0],{type:x[1]}); if(navigator.canShare&&navigator.canShare({files:[g]})){ f=g; return true; } return false; }); }catch(e){ f=null; }
+  if(f&&navigator.share){ navigator.share({files:[f]}).then(done,function(e){ if(!e||e.name!=='AbortError') dl(); }); return; }
+  dl();
+}
+function fullPreview(o){
+  var ts=bkTrips(o); if(!ts.length){ toast('이 백업 파일에는 여행이 없어요',true); return; }
+  pendingFull=o; var have=tripList().filter(function(x){ return !ts.some(function(y){ return y.id===x.id; }); });
+  openSheet('<h2>백업 파일을 가져올까요?</h2><p class="sub">'+(o.exportedAt?esc(String(o.exportedAt).slice(0,10))+'에 만든 백업이에요. ':'')+'여행 '+ts.length+'개가 들어 있어요.</p>'+
+    '<div class="pv">'+ts.map(function(x){ return '<div>'+esc(x.title||'여행')+(x.start&&x.end?' · '+esc(mdw(x.start))+' – '+esc(mdw(x.end)):'')+'</div>'; }).join('')+'</div>'+
+    '<p class="sub">이 여행들은 백업할 때의 내용(일정, 쓴 돈, 예약, 목록)으로 바뀌어요.'+(have.length?' 백업에 없는 여행 '+have.length+'개('+esc(have.map(function(x){ return x.title||'여행'; }).join(', '))+')는 그대로 남아요.':'')+'</p>'+
+    '<div class="actions"><button class="btn btn-ghost" data-act="sheet-close">취소</button><button class="btn btn-primary" data-act="full-apply">가져오기</button></div>');
+}
+function fullApply(o){
+  var ts=bkTrips(o), ids=ts.map(function(x){ return x.id; });
+  try{
+    // the restored trips are replaced as a whole (a trip's spending that was empty at backup time must not survive)
+    Object.keys(localStorage).forEach(function(k){ var ow=bkOwner(k); if(ow&&ids.indexOf(ow)>=0&&(bkKeep(k)||/:(dirty|base|dirtyCopiedAt)$/.test(k))) localStorage.removeItem(k); });
+    Object.keys(o.data).forEach(function(k){ var v=o.data[k], ow=bkOwner(k); if(typeof v!=='string'||!bkKeep(k)||k==='kyosaka:trips') return; if(ow&&ids.indexOf(ow)<0) return; localStorage.setItem(k,v); });
+    var l=tripList().map(function(x){ return ts.filter(function(y){ return y.id===x.id; })[0]||x; });
+    ts.forEach(function(y){ if(!l.some(function(x){ return x.id===y.id; })) l.push(y); }); tripListSave(l);
+  }catch(e){ toast('휴대폰 저장 공간이 부족해서 다 가져오지 못했어요',true); return; }
+  ssSet('kyosaka:toast','백업 파일에서 여행 '+ts.length+'개를 가져왔어요'); stashUI(); setTimeout(function(){ location.reload(); },150);
 }
 
 /* ---------- family share (owner uploads a stripped copy to GitHub; family phones read it) ---------- */
@@ -2551,7 +2598,7 @@ document.addEventListener('click',function(e){
     case 'hint-off': hintOff=true; try{localStorage.setItem('kyosaka:hint','off');}catch(e){} render(); break;
     case 'backup-paste':
       if(navigator.clipboard&&navigator.clipboard.readText){
-        navigator.clipboard.readText().then(function(t){ if(t&&(t.indexOf('"days"')>=0||t.indexOf('"patch"')>=0)) readBackup(t); else pasteBackup(); },function(){ pasteBackup(); });
+        navigator.clipboard.readText().then(function(t){ if(t&&(t.indexOf('"days"')>=0||t.indexOf('"patch"')>=0||t.indexOf('"full-backup"')>=0)) readBackup(t); else pasteBackup(); },function(){ pasteBackup(); });
       } else pasteBackup();
       break;
     case 'patch-apply':
@@ -2563,6 +2610,8 @@ document.addEventListener('click',function(e){
         if(left.length){ try{ localStorage.setItem(LS_DIRTY,JSON.stringify(left)); }catch(e){} saveBase(); } else clearDirty();
         render(); toast('바뀐 내용 '+pp.changes.length+'건을 가져왔어요'); }
       break;
+    case 'backup-save': backupSave(); break;
+    case 'full-apply': if(pendingFull){ var fo=pendingFull; pendingFull=null; closeSheet(); fullApply(fo); } break;
     case 'backup-apply': if(pendingBackup){ var nb=pendingBackup; pendingBackup=null; closeSheet();
       nb.trip=nb.trip||{}; ['country','tz','regions','chat','members'].forEach(function(f){ if(nb.trip[f]==null) nb.trip[f]=state.trip[f]; }); if(!Array.isArray(nb.lists)) nb.lists=state.lists;
       var rids=(nb.trip.regions||[]).map(function(r){ return r.id; }); (nb.days||[]).forEach(function(d){ if(d.city!=='move'&&rids.indexOf(d.city)<0){ var cur=state.days.filter(function(x){ return x.date===d.date; })[0]; d.city=cur&&(cur.city==='move'||rids.indexOf(cur.city)>=0)?cur.city:rids[0]; } }); nb.checklist=mergeChecklist(state.checklist,nb.checklist); pruneRoutes(nb); PLK.forEach(function(k){ if(Array.isArray(nb[PL[k].key])) plMerge(k,nb[PL[k].key]); delete nb[PL[k].key]; }); clearDirty(); commit(function(){ state=nb; },true); ssSet('kyosaka:toast','백업을 가져왔어요'); stashUI(); setTimeout(function(){ location.reload(); },150); } break;
@@ -2657,6 +2706,7 @@ document.addEventListener('change',function(e){
   var pkk=ef&&PLK.filter(function(k){ return PL[k].fld===inp.name; })[0];
   if(pkk&&inp.value) PLK.forEach(function(k2){ if(k2!==pkk&&PL[k2].ev===PL[pkk].ev){ var o2=ef.querySelector('select[name="'+PL[k2].fld+'"]'); if(o2) o2.value=''; } });
   if(pkk){ var b=findPl(pkk,inp.value); if(b){ ef.place.value=b.name; ef.placeOrig.value=b.nameOrig||''; mqSet(ef,b); } return; } if(inp.matches&&inp.matches('[data-import="ckphoto"]')){ var cf=inp.files; qrAdd('ck:'+inp.getAttribute('data-id'),cf); inp.value=''; return; }
+  if(inp.matches&&inp.matches('[data-import="backup"]')){ var bf=inp.files&&inp.files[0]; inp.value=''; if(bf){ var fr=new FileReader(); fr.onload=function(){ readBackup(String(fr.result||'')); }; fr.onerror=function(){ toast('파일을 읽지 못했어요',true); }; fr.readAsText(bf); } return; }
   if(inp.matches&&inp.matches('[data-import="qr"]')){ var fs=inp.files; qrAdd(inp.getAttribute('data-id'),fs); inp.value=''; return; }
 });
 var qrTouch=null;
