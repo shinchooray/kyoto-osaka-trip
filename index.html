@@ -588,7 +588,7 @@ var state = (function(){ try{ var s=localStorage.getItem(LS_STATE); if(s){ var o
   return JSON.parse(JSON.stringify(SEED)); })();
 var mode = 'local';
 var SS_UI = 'kyosaka:ui';
-var APP_VER = 135;   // shown at the bottom of 정보 (and used by the 새로고침 button); bump on every change
+var APP_VER = 136;   // shown at the bottom of 정보 (and used by the 새로고침 button); bump on every change
 /* family view: read-only copy of what the owner shared (?family link, remembered on this phone) */
 var FAM_TRIP=(function(){ var m=location.search.match(/[?&]family=([\w-]+)/); try{ if(m) localStorage.setItem('kyosaka:famTrip',m[1]); return localStorage.getItem('kyosaka:famTrip')||'main'; }catch(e){ return m?m[1]:'main'; } })();
 var LS_SHARED=FAM_TRIP==='main'?'kyosaka:shared':'kyosaka:shared:'+FAM_TRIP, SHARED=null;
@@ -1208,13 +1208,9 @@ function renderInfo(){
     return '<button class="row" data-act="res-open" data-id="'+h.id+'"><div class="row-main"><div class="row-title">'+esc(h.title)+'</div>'+
       '<div class="row-sub">'+esc(resRange(h)||'날짜를 넣어 주세요')+'</div></div>'+ICON.chev+'</button>';
   }).join('');
-  var sos=ctry(state.trip.country)[7].concat(state.trip.country==='KR'?[]:[['영사콜센터 (24시간, 한국어)','+82-2-3210-0404']]);
 
   return '<header class="page-head"><h1>정보</h1><p>급할 때 찾아보는 것들</p></header>'+syncBar()+
     '<h2 class="group-label">숙소</h2><div class="list">'+(hotelRows||'<div class="text-block empty">숙소 예약이 없어요</div>')+'</div>'+
-    '<h2 class="group-label">긴급 연락처</h2><div class="list">'+sos.map(function(s){
-      return '<a class="row" href="tel:'+s[1].replace(/[^+\d]/g,'')+'"><div class="row-main"><div class="row-title">'+esc(s[0])+'</div></div><span class="row-num">'+esc(s[1])+'</span></a>';
-    }).join('')+'</div>'+
     '<h2 class="group-label">지도</h2><div class="list">'+
       '<button class="row" data-act="gkey-edit"><div class="row-main"><div class="row-title">구글 위치 찾기 '+(lsGet(LS_GKEY)?'켜짐':'꺼짐')+'</div><div class="row-sub">'+(lsGet(LS_GKEY)?'일정 탭 지도가 구글 지도처럼 한글 이름으로도 위치를 찾아요':'구글 API 키를 넣으면 일정 탭 지도 위치가 구글 지도와 같아져요')+'</div></div>'+ICON.chev+'</button></div>'+
     (!FAMILY&&canEdit()?'<h2 class="group-label">백업</h2><div class="list">'+
@@ -1283,9 +1279,18 @@ function locStart(asked){
     var sig=locName(); meDot();
     if((first||sig!==LOC.last)&&ui.tab==='plan'&&(ui.pview||'list')==='list'&&!document.querySelector('#sheet-root.open')){ LOC.last=sig; render(); } else LOC.last=sig;
   },function(err){
-    if(err&&err.code===1){ locStop(); render(); toast('위치 사용이 허락되지 않았어요. 폰 설정에서 이 앱(브라우저)의 위치를 허락해 주세요',true); }
+    if(err&&err.code===1){ locStop(); render(); if(asked) locDeniedSheet(); else toast('위치가 막혀 있어서 내 위치를 껐어요',true); }
+    else if(asked&&!LOC.pos) toast('위치를 아직 못 잡았어요. 창가나 밖에서 잠시 기다려 주세요');
   },{enableHighAccuracy:true,maximumAge:60000,timeout:30000});
   if(asked){ render(); toast('위치를 확인하고 있어요'); }
+}
+// the app's own "허용" is not enough on an iPhone: the phone's settings can still say no
+function locDeniedSheet(){
+  var ios=/iPhone|iPad|iPod/.test(navigator.userAgent)||(navigator.platform==='MacIntel'&&navigator.maxTouchPoints>1);
+  openSheet('<h2>위치가 막혀 있어요</h2><p class="sub">허용을 눌러도 폰 설정에서 막혀 있으면 계속 거절돼요. 아래를 확인해 주세요.</p>'+
+    (ios?'<div class="pv"><div>1. 설정 → 개인정보 보호 및 보안 → 위치 서비스 → <b>켬</b></div><div>2. 같은 화면 아래 <b>Safari 웹사이트</b> → <b>앱을 사용하는 동안</b>, 정확한 위치 켬</div><div>3. 설정 → 앱 → Safari → 위치 → <b>허용</b> (이러면 열 때마다 묻지 않아요)</div><div>4. 이 앱을 완전히 닫았다가 다시 열기</div></div>':
+      '<div class="pv"><div>1. 폰의 위치(GPS)가 켜져 있는지</div><div>2. 브라우저 설정 → 사이트 설정 → 위치에서 이 사이트가 <b>허용</b>인지</div><div>3. 이 앱을 닫았다가 다시 열기</div></div>')+
+    '<div class="actions"><button class="btn btn-ghost" data-act="sheet-close">닫기</button><button class="btn btn-primary" data-act="loc-on">다시 해 보기</button></div>');
 }
 function locStop(){ LOC.on=false; LOC.pos=null; try{ localStorage.removeItem('kyosaka:loc'); }catch(e){} if(LOC.watch!=null){ try{ navigator.geolocation.clearWatch(LOC.watch); }catch(e){} LOC.watch=null; } meDot(); }
 function distM(a,b){ var R=6371000, r=Math.PI/180, x=(b.lng-a.lng)*r*Math.cos((a.lat+b.lat)/2*r), y=(b.lat-a.lat)*r; return Math.sqrt(x*x+y*y)*R; }
@@ -2658,7 +2663,7 @@ document.addEventListener('click',function(e){
     case 'sp-open': spSheet(id,el.getAttribute('data-d')||''); break;
     case 'sp-rate': spRateSheet(); break;
     case 'sp-cat': spCatSheet(id); break;
-    case 'loc-on': locStart(true); break;
+    case 'loc-on': if(document.querySelector('#sheet-root.open')) closeSheet(); locStart(true); break;
     case 'loc-off': locStop(); render(); toast('내 위치 표시를 껐어요'); break;
     case 'sp-del': SP.items=SP.items.filter(function(x){return x.id!==id;}); spSave(); render(); var evd=el.getAttribute('data-ev'), lg=el.getAttribute('data-leg'); if(lg) legSheet(lg); else if(evd) spSheet(evd); toast('지웠어요'); break;
     case 'leg-open': legSheet(id); break;
