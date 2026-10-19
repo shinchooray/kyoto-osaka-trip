@@ -589,7 +589,7 @@ var state = (function(){ try{ var s=localStorage.getItem(LS_STATE); if(s){ var o
   return JSON.parse(JSON.stringify(SEED)); })();
 var mode = 'local';
 var SS_UI = 'kyosaka:ui';
-var APP_VER = 138;   // shown at the bottom of 정보 (and used by the 새로고침 button); bump on every change
+var APP_VER = 139;   // shown at the bottom of 정보 (and used by the 새로고침 button); bump on every change
 /* family view: read-only copy of what the owner shared (?family link, remembered on this phone) */
 var FAM_TRIP=(function(){ var m=location.search.match(/[?&]family=([\w-]+)/); try{ if(m) localStorage.setItem('kyosaka:famTrip',m[1]); return localStorage.getItem('kyosaka:famTrip')||'main'; }catch(e){ return m?m[1]:'main'; } })();
 var LS_SHARED=FAM_TRIP==='main'?'kyosaka:shared':'kyosaka:shared:'+FAM_TRIP, SHARED=null;
@@ -1294,29 +1294,36 @@ try{ LOC.on=localStorage.getItem('kyosaka:loc')==='on'; }catch(e){}
 function locStart(asked){
   if(!('geolocation' in navigator)){ if(asked) toast('이 폰에서는 위치를 쓸 수 없어요'); return; }
   LOC.on=true; try{ localStorage.setItem('kyosaka:loc','on'); }catch(e){}
-  if(LOC.watch==null) LOC.watch=navigator.geolocation.watchPosition(function(p){
-    var first=!LOC.pos; LOC.pos={lat:p.coords.latitude,lng:p.coords.longitude,acc:p.coords.accuracy}; LOC.at=Date.now();
-    var sig=locName(); meDot();
-    if((first||sig!==LOC.last)&&ui.tab==='plan'&&(ui.pview||'list')==='list'&&!document.querySelector('#sheet-root.open')){ LOC.last=sig; render(); } else LOC.last=sig;
-  },function(err){
-    if(err&&err.code===1){ locStop(); render(); if(asked) locDeniedSheet(err); else toast('위치가 막혀 있어서 내 위치를 껐어요',true); }
+  if(LOC.watch==null&&LOC.poll==null) LOC.watch=navigator.geolocation.watchPosition(locGot,function(err){
+    if(err&&err.code===1){
+      // some iPhone home-screen apps refuse the steady watch but still answer a one-off ask: ask every 30 s instead
+      if(LOC.watch!=null){ try{ navigator.geolocation.clearWatch(LOC.watch); }catch(e){} LOC.watch=null; }
+      var o={enableHighAccuracy:false,maximumAge:30000,timeout:20000};
+      navigator.geolocation.getCurrentPosition(function(p){ locGot(p); if(LOC.poll==null) LOC.poll=setInterval(function(){ navigator.geolocation.getCurrentPosition(locGot,function(){},o); },30000); },
+        function(e2){ locStop(); render(); if(asked) locDeniedSheet(err,e2); else toast('위치가 막혀 있어서 내 위치를 껐어요',true); },o);
+    }
     else if(asked&&!LOC.pos) toast('위치를 아직 못 잡았어요. 창가나 밖에서 잠시 기다려 주세요');
   },{enableHighAccuracy:true,maximumAge:60000,timeout:30000});
   if(asked){ render(); toast('위치를 확인하고 있어요'); }
 }
+function locGot(p){
+  var first=!LOC.pos; LOC.pos={lat:p.coords.latitude,lng:p.coords.longitude,acc:p.coords.accuracy}; LOC.at=Date.now();
+  var sig=locName(); meDot();
+  if((first||sig!==LOC.last)&&ui.tab==='plan'&&(ui.pview||'list')==='list'&&!document.querySelector('#sheet-root.open')){ LOC.last=sig; render(); } else LOC.last=sig;
+}
 // the app's own "허용" is not enough on an iPhone: the phone's settings can still say no
-function locDeniedSheet(err){
+function locDeniedSheet(err,e2){
   var ios=/iPhone|iPad|iPod/.test(navigator.userAgent)||(navigator.platform==='MacIntel'&&navigator.maxTouchPoints>1);
   var home=navigator.standalone===true||(window.matchMedia&&matchMedia('(display-mode: standalone)').matches);
   openSheet('<h2>위치가 막혀 있어요</h2><p class="sub">허용을 눌러도 폰 설정에서 막혀 있으면 계속 거절돼요. 아래를 확인해 주세요.</p>'+
     (ios?'<div class="pv"><div>1. 설정 → 개인정보 보호 및 보안 → 위치 서비스 → <b>켬</b></div><div>2. 같은 화면 아래 <b>Safari 웹사이트</b> → <b>앱을 사용하는 동안</b>, 정확한 위치 켬</div><div>3. 설정 → 앱 → Safari → 위치 → <b>허용</b>. 그 아래 웹사이트 목록에 <b>shinchooray.github.io</b>가 있으면 편집을 눌러 지우기</div><div>4. 설정 → 스크린 타임 → 콘텐츠 및 개인정보 보호 제한 → 위치 서비스가 <b>변경 허용</b>인지</div><div>5. 이 앱을 완전히 닫았다가 다시 열기</div></div>':
       '<div class="pv"><div>1. 폰의 위치(GPS)가 켜져 있는지</div><div>2. 브라우저 설정 → 사이트 설정 → 위치에서 이 사이트가 <b>허용</b>인지</div><div>3. 이 앱을 닫았다가 다시 열기</div></div>')+
     // what the phone actually said, so it can be told to the chat
-    '<p class="foot loc-why">폰이 알려준 내용: '+esc((err&&err.message)||'거절')+' · '+(home?'홈 화면 앱':'브라우저')+'<span class="loc-perm"></span></p>'+
+    '<p class="foot loc-why">폰이 알려준 내용: '+esc((err&&err.message)||'거절')+(e2?' / 한 번 묻기: '+esc(e2.message||e2.code):'')+' · '+(home?'홈 화면 앱':'브라우저')+'<span class="loc-perm"></span></p>'+
     '<div class="actions"><button class="btn btn-ghost" data-act="sheet-close">닫기</button><button class="btn btn-primary" data-act="loc-on">다시 해 보기</button></div>');
   try{ navigator.permissions.query({name:'geolocation'}).then(function(p){ var s=document.querySelector('.loc-perm'); if(s) s.textContent=' · 권한: '+({granted:'허용',denied:'거부',prompt:'물어봄'}[p.state]||p.state); }).catch(function(){}); }catch(e){}
 }
-function locStop(){ LOC.on=false; LOC.pos=null; try{ localStorage.removeItem('kyosaka:loc'); }catch(e){} if(LOC.watch!=null){ try{ navigator.geolocation.clearWatch(LOC.watch); }catch(e){} LOC.watch=null; } meDot(); }
+function locStop(){ LOC.on=false; LOC.pos=null; try{ localStorage.removeItem('kyosaka:loc'); }catch(e){} if(LOC.poll!=null){ clearInterval(LOC.poll); LOC.poll=null; } if(LOC.watch!=null){ try{ navigator.geolocation.clearWatch(LOC.watch); }catch(e){} LOC.watch=null; } meDot(); }
 function distM(a,b){ var R=6371000, r=Math.PI/180, x=(b.lng-a.lng)*r*Math.cos((a.lat+b.lat)/2*r), y=(b.lat-a.lat)*r; return Math.sqrt(x*x+y*y)*R; }
 // the nearest place this app already knows (today's stops, then the 구경/밥/빵 lists); no address lookup
 function locName(){
@@ -1343,7 +1350,8 @@ function meDot(){
   if(ME_MK&&MAP.hasLayer(ME_MK)) ME_MK.setLatLng(ll);
   else ME_MK=L.circleMarker(ll,{radius:8,color:'#fff',weight:3,fillColor:'#1A73E8',fillOpacity:1}).bindPopup('내 실제 위치').addTo(MAP);
 }
-if(LOC.on) setTimeout(function(){ locStart(false); },0);
+// a home-screen app on iPhone may refuse a location ask made before any tap (and then refuse every later one), so it waits for the first tap
+if(LOC.on){ if(navigator.standalone===true){ var locTap=function(){ document.removeEventListener('pointerdown',locTap,true); if(LOC.on&&LOC.watch==null&&LOC.poll==null) locStart(false); }; document.addEventListener('pointerdown',locTap,true); } else setTimeout(function(){ locStart(false); },0); }
 function dayList(d){
   var live=d.date===todayJST(), now=nowJST(), cur=null, next=null;
   if(live){ d.items.forEach(function(ev){ if(!ev.time) return; if(ev.time<=now) cur=ev; else if(!next) next=ev; }); }
