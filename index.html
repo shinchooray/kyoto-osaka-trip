@@ -562,7 +562,7 @@ var SEED = JSON.parse($('#trip-data').textContent);
 var state = (function(){ try{ var s=localStorage.getItem(LS_STATE); if(s){ var o=JSON.parse(s); if(o&&Array.isArray(o.days)) return o; } }catch(e){} return JSON.parse(JSON.stringify(SEED)); })();
 var mode = 'local';
 var SS_UI = 'kyosaka:ui';
-var APP_VER = 126;   // shown at the bottom of 정보 (and used by the 새로고침 button); bump on every change
+var APP_VER = 127;   // shown at the bottom of 정보 (and used by the 새로고침 button); bump on every change
 /* family view: read-only copy of what the owner shared (?family link, remembered on this phone) */
 var LS_SHARED='kyosaka:shared', SHARED=null;
 var FAMILY=(function(){
@@ -733,7 +733,10 @@ function legOf(d,ev){
 // a booking's cost is shown where it happens in the plan: 식당·입장권 on its stop, 숙소 on the check-in day's stop,
 // a reserved train or flight on the way it is taken (the first such ride that day, at or after the booked time)
 var HOW_RES={rail:['train','bus','transit'],flight:['flight']};
-function resOfStop(ev,date){ return state.reservations.filter(function(r){ return resCost(r)&&SYNC_RES.indexOf(r.cat)>=0&&samePlace(ev,r)&&(r.cat==='hotel'?r.date===date:(!r.date||r.date===date)); }); }
+function resOfStop(ev,date){
+  var d=state.days.filter(function(x){ return x.date===date; })[0];
+  return state.reservations.filter(function(r){ if(!resCost(r)||SYNC_RES.indexOf(r.cat)<0||!samePlace(ev,r)||(r.cat==='hotel'?r.date!==date:(r.date&&r.date!==date))) return false;
+    var first=d&&d.items.filter(function(x){ return samePlace(x,r); })[0]; return !first||first===ev; }); }
 function resOfLeg(d,ev){ var how=(ev.route&&ev.route.how)||'';
   return state.reservations.filter(function(r){ var hs=HOW_RES[r.cat]; if(!hs||!resCost(r)||r.date!==d.date||hs.indexOf(how)<0) return false;
     var own=null; d.items.forEach(function(x){ var h=(x.route&&x.route.how)||''; if(!own&&hs.indexOf(h)>=0&&(!r.time||!x.time||x.time>=r.time)) own=x; }); return own===ev; }); }
@@ -1179,10 +1182,10 @@ function dayList(d){
   if(live){ d.items.forEach(function(ev){ if(!ev.time) return; if(ev.time<=now) cur=ev; else if(!next) next=ev; }); }
   // on the way: from (arrival − travel minutes) until arrival, the way there is "지금" instead of the stop just left
   var going=null; if(live&&next){ var lg=legOf(d,next), gm=lg&&+lg.min; if(gm>0&&mins(now)>=mins(next.time)-gm) going=next; }
-  if(going) cur=null;
+  var lastStop=cur; if(going) cur=null;
   var meAt=live&&LOC.on?(next?next:null):undefined;
   var items=d.items.map(function(ev){
-    var q=evQuery(ev), past=live&&ev.time&&cur&&ev.time<cur.time, isCur=cur===ev, isNext=live&&ev===next, ty=ev.type||'sight';
+    var q=evQuery(ev), past=live&&ev.time&&lastStop&&ev.time<lastStop.time, isCur=cur===ev, isNext=live&&ev===next, ty=ev.type||'sight';
     // story sits next to the name; under it: money spent, memo (only when there is one); the map link is at the top right
     var story=aboutOf(ev)?'<button class="act act--story tev-story" data-act="about" data-id="'+ev.id+'">'+ICON.book+'이곳 이야기</button>':'';
     var acts=resChips(resOfStop(ev,d.date))+spChip(ev,d.date)+
@@ -1575,7 +1578,10 @@ function spAll(){
 // money written on a stop follows the stop's kind (구경 → 쇼핑 moves it too), unless a different category was picked on purpose
 function spSyncCats(){
   if(FAMILY) return; var ch=false;
-  SP.items.forEach(function(x){ if(!x.ev||x.leg||x.catAuto===false) return; var f=findEv(x.ev); if(!f) return; var c=EV2SP[f.ev.type]||'etc'; if(x.cat!==c||x.catAuto!==true){ x.cat=c; x.catAuto=true; ch=true; } });
+  SP.items.forEach(function(x){ if(!x.ev||x.leg||x.catAuto===false) return; var f=findEv(x.ev); if(!f) return; var c=EV2SP[f.ev.type]||'etc';
+    // an older record on a 기타 stop may have had its category picked by hand, so it is left as it is
+    if(x.catAuto===undefined&&c==='etc') return;
+    if(x.cat!==c||x.catAuto!==true){ x.cat=c; x.catAuto=true; ch=true; } });
   if(ch){ try{ localStorage.setItem(LS_SPEND,JSON.stringify(SP)); }catch(e){} autoShareSoon(); }
 }
 function spSum(list){ var j=0,k=0; list.forEach(function(x){ if(x.cur==='KRW') k+=x.amount; else j+=x.amount; }); return {jpy:j,krw:k,total:j*(+SP.rate||0)+k}; }
@@ -1790,7 +1796,7 @@ function drawPlaceMap(k,keepView){
     if(MAP){ try{ MAP.remove(); }catch(e){} MAP=null; } ME_MK=null;
     MAP=L.map('tripmap',{zoomControl:true,attributionControl:true}).setView([34.85,135.6],9); MAP_KEY=mapViewKey();
     L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19,crossOrigin:true,attribution:'© OpenStreetMap'}).addTo(MAP);
-    MAPLAYER=L.layerGroup().addTo(MAP);
+    MAPLAYER=L.layerGroup().addTo(MAP); meDot();
     }
     if(!keep) MAP.on('popupopen',function(pe){ var a=pe.popup.getElement().querySelector('[data-pop-pl]'); if(a) a.onclick=function(e){ e.preventDefault(); plForm(k,a.getAttribute('data-pop-pl')); }; });
     var run=++MAPRUN, done=0, bounds=[], miss=[], LIST=plOrder(k);
@@ -2018,7 +2024,7 @@ function drawMap(keepView){
     if(MAP){ try{ MAP.remove(); }catch(e){} MAP=null; } ME_MK=null;
     MAP=L.map('tripmap',{zoomControl:true,attributionControl:true}).setView([34.95,135.65],10); MAP_KEY=mapViewKey();
     L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19,crossOrigin:true,attribution:'© OpenStreetMap'}).addTo(MAP);
-    MAPLAYER=L.layerGroup().addTo(MAP);
+    MAPLAYER=L.layerGroup().addTo(MAP); meDot();
     MAP.on('popupopen',function(pe){ var a=pe.popup.getElement().querySelector('[data-pop-edit]'); if(a) a.onclick=function(ev){ ev.preventDefault(); evForm(a.getAttribute('data-pop-edit')); }; });
     }
     var days=ui.mapAll?state.days.map(function(_,i){return i;}):[ui.day];
