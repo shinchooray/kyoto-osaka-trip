@@ -314,7 +314,9 @@ textarea.short{min-height:64px}
 .pl-warn{color:#B1501D;font-weight:600}
 .chip--res{display:inline-flex;align-items:center;gap:5px;border:1px solid color-mix(in srgb,#6B4FA0 45%,transparent);background:color-mix(in srgb,#6B4FA0 8%,transparent);color:#6B4FA0;font-weight:700;cursor:pointer}
 .chip--res small{font-size:11px;font-weight:600;opacity:.8}
-.rt-res{margin-top:6px;display:flex;flex-wrap:wrap;gap:6px}
+.rt-res{margin-top:4px;display:flex;flex-wrap:wrap;gap:8px}
+.rt-res .chip--res{padding:0;border:0;background:none;color:var(--muted);font-size:12px;font-weight:600}
+.rt-res .chip--res small{font-size:11px}
 .tlist .tev-route.is-cur{padding:8px 10px 8px 12px;margin:8px 0 2px;border:2px solid var(--accent);border-radius:14px;background:var(--surface);box-shadow:0 0 0 3px color-mix(in srgb,var(--accent) 18%,transparent)}
 .pill--go{display:inline-block;margin:0 0 6px}
 .cat-pick{display:flex;flex-wrap:wrap;gap:6px}
@@ -562,7 +564,7 @@ var SEED = JSON.parse($('#trip-data').textContent);
 var state = (function(){ try{ var s=localStorage.getItem(LS_STATE); if(s){ var o=JSON.parse(s); if(o&&Array.isArray(o.days)) return o; } }catch(e){} return JSON.parse(JSON.stringify(SEED)); })();
 var mode = 'local';
 var SS_UI = 'kyosaka:ui';
-var APP_VER = 128;   // shown at the bottom of 정보 (and used by the 새로고침 button); bump on every change
+var APP_VER = 129;   // shown at the bottom of 정보 (and used by the 새로고침 button); bump on every change
 /* family view: read-only copy of what the owner shared (?family link, remembered on this phone) */
 var LS_SHARED='kyosaka:shared', SHARED=null;
 var FAMILY=(function(){
@@ -1198,7 +1200,7 @@ function dayList(d){
     var q=evQuery(ev), past=live&&ev.time&&lastStop&&ev.time<lastStop.time, isCur=cur===ev, isNext=live&&ev===next, ty=ev.type||'sight';
     // story sits next to the name; under it: money spent, memo (only when there is one); the map link is at the top right
     var story=aboutOf(ev)?'<button class="act act--story tev-story" data-act="about" data-id="'+ev.id+'">'+ICON.book+'이곳 이야기</button>':'';
-    var acts=resChips(resOfStop(ev,d.date))+spChip(ev,d.date)+
+    var rs=resOfStop(ev,d.date), acts=resChips(rs)+spChip(ev,d.date,rs.length>0)+
       (ev.memo?'<button class="act act--memo" data-act="memo-toggle">'+ICON.note+'<span>메모</span></button>':'');
     var mapA=q?'<a class="act tev-map" href="'+esc(mapUrl(q))+'" target="_blank" rel="noopener">'+ICON.pin+'지도</a>':'';
     var tap=past?' data-act="tev-toggle" data-id="'+ev.id+'"':(canEdit()?' data-act="ev-edit" data-id="'+ev.id+'" role="button" tabindex="0"':'');
@@ -1609,11 +1611,12 @@ function fitLines(root){
 }
 document.addEventListener('toggle',function(e){ if(e.target&&e.target.querySelector&&e.target.open) fitLines(e.target); },true);
 window.addEventListener('resize',function(){ if(ui.tab==='spend') fitLines(); });
-function spChip(ev,date){
-  var l=spForEv(ev.id);
-  if(!canEdit()) return l.length?'<span class="chip chip--spent">'+esc(spSumText(spSum(l)))+'</span>':'';
+// after a booking's price, money spent there is shown as "+ ¥…" (on top of the booking)
+function spChip(ev,date,afterRes){
+  var l=spForEv(ev.id), pre=afterRes?'+ ':'';
+  if(!canEdit()) return l.length?'<span class="chip chip--spent">'+pre+esc(spSumText(spSum(l)))+'</span>':'';
   if(!l.length) return '<button class="chip chip--spend" data-act="sp-open" data-id="'+ev.id+'" data-d="'+date+'">+ 쓴 돈</button>';
-  var s=spSum(l); return '<button class="chip chip--spent" data-act="sp-open" data-id="'+ev.id+'" data-d="'+date+'">'+esc(spSumText(s))+'</button>';
+  var s=spSum(l); return '<button class="chip chip--spent" data-act="sp-open" data-id="'+ev.id+'" data-d="'+date+'">'+pre+esc(spSumText(s))+'</button>';
 }
 function spDayLine(date){
   var s=spSum(spForDay(date)); if(!s.total) return '';
