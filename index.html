@@ -587,7 +587,7 @@ var state = (function(){ try{ var s=localStorage.getItem(LS_STATE); if(s){ var o
   return JSON.parse(JSON.stringify(SEED)); })();
 var mode = 'local';
 var SS_UI = 'kyosaka:ui';
-var APP_VER = 131;   // shown at the bottom of 정보 (and used by the 새로고침 button); bump on every change
+var APP_VER = 132;   // shown at the bottom of 정보 (and used by the 새로고침 button); bump on every change
 /* family view: read-only copy of what the owner shared (?family link, remembered on this phone) */
 var LS_SHARED='kyosaka:shared', SHARED=null;
 var FAMILY=(function(){
@@ -669,6 +669,8 @@ function tripFix(s){
     var names={kyoto:'교토',osaka:'오사카'}, cols={kyoto:'var(--kyoto)',osaka:'var(--osaka)'};
     t.regions=seen.map(function(id,i){ return {id:id,name:names[id]||id,color:cols[id]||REGION_COLORS[i%REGION_COLORS.length]}; }); ch=true; }
   if(!Array.isArray(t.members)){ t.members=[]; ch=true; }
+  var LL={kyoto:[35.0116,135.7681],osaka:[34.6937,135.5023]};
+  (t.regions||[]).forEach(function(r){ if(r.lat==null&&LL[r.id]){ r.lat=LL[r.id][0]; r.lng=LL[r.id][1]; ch=true; } });
   if(!Array.isArray(s.lists)){ s.lists=JSON.parse(JSON.stringify(OLD_LISTS)); ch=true; }
   return ch;
 }
@@ -1915,6 +1917,7 @@ function renderPlaceView(k){
     (canEdit()?'<div class="pad"><button class="add wide" data-act="pl-add" data-k="'+k+'">'+cn+' '+P.unit+' 추가</button></div>':'');
 }
 function drawPlaceMap(k,keepView){
+  regionCentersEnsure();
   var box=document.getElementById('tripmap'); if(!box) return;
   var st=document.getElementById('map-status'), P=PL[k];
 
@@ -1924,7 +1927,7 @@ function drawPlaceMap(k,keepView){
     if(keep){ MAPLAYER.clearLayers(); }
     else {
     if(MAP){ try{ MAP.remove(); }catch(e){} MAP=null; } ME_MK=null;
-    MAP=L.map('tripmap',{zoomControl:true,attributionControl:true}).setView([34.85,135.6],9); MAP_KEY=mapViewKey();
+    MAP=L.map('tripmap',{zoomControl:true,attributionControl:true}).setView(mapHome().c,mapHome().z); MAP_KEY=mapViewKey();
     L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19,crossOrigin:true,attribution:'© OpenStreetMap'}).addTo(MAP);
     MAPLAYER=L.layerGroup().addTo(MAP); meDot();
     }
@@ -1983,7 +1986,7 @@ function plHoursNeed(k){
 function ggHours(q){
   return fetch('https://places.googleapis.com/v1/places:searchText',{method:'POST',
     headers:{'Content-Type':'application/json','X-Goog-Api-Key':gKey(),'X-Goog-FieldMask':'places.regularOpeningHours.periods,places.businessStatus'},
-    body:JSON.stringify({textQuery:q,languageCode:'ko',regionCode:'JP',pageSize:1,locationBias:{rectangle:{low:{latitude:33.4,longitude:134.0},high:{latitude:36.3,longitude:137.0}}}})})
+    body:gBody(q,'ko')})
     .then(function(r){ return r.ok?r.json():null; })
     .then(function(j){ var p=j&&j.places&&j.places[0]; if(!p) return j?{days:null,st:''}:null;
       var per=p.regularOpeningHours&&p.regularOpeningHours.periods, days=null;
@@ -2054,13 +2057,15 @@ function geoGsi(q){
     .then(function(j){ var c=j&&j[0]&&j[0].geometry&&j[0].geometry.coordinates; return c?{lat:+c[1],lng:+c[0]}:null; });
 }
 function geoOsm(q){
-  return fetch('https://nominatim.openstreetmap.org/search?format=json&limit=1&accept-language=ko&countrycodes=jp&viewbox=134.9,35.3,136.2,34.2&bounded=1&q='+encodeURIComponent(q))
+  var cs=areaCenters(), cc=String(state.trip.country||'').toLowerCase(), vb='';
+  if(cs.length){ var la=cs.map(function(c){ return c.lat; }), ln=cs.map(function(c){ return c.lng; }); vb='&viewbox='+(Math.min.apply(null,ln)-1.2)+','+(Math.max.apply(null,la)+1.2)+','+(Math.max.apply(null,ln)+1.2)+','+(Math.min.apply(null,la)-1.2)+'&bounded=1'; }
+  return fetch('https://nominatim.openstreetmap.org/search?format=json&limit=1&accept-language=ko'+(cc?'&countrycodes='+cc:'')+vb+'&q='+encodeURIComponent(q))
     .then(function(r){ return r.ok?r.json():[]; })
     .then(function(j){ return j&&j[0]?{lat:+j[0].lat,lng:+j[0].lon}:null; });
 }
 function geoPump(){
   if(GEO_BUSY||!GEO_Q.length) return; GEO_BUSY=true;
-  var job=GEO_Q.shift(), ja=/[\u3040-\u30FF\u4E00-\u9FFF]/.test(job.q), failed=false;
+  var job=GEO_Q.shift(), ja=state.trip.country==='JP'&&/[\u3040-\u30FF\u4E00-\u9FFF]/.test(job.q), failed=false;
   function safe(p){ return p.catch(function(){ failed=true; return null; }); }
   (ja?safe(geoGsi(job.q)).then(function(v){ return (v&&inArea(v))?v:safe(geoOsm(job.q)); }):safe(geoOsm(job.q)))
     .then(function(v){
@@ -2099,7 +2104,7 @@ function ggLookup(q){
 function ggFetch(q,attempt){
   return fetch('https://places.googleapis.com/v1/places:searchText',{method:'POST',
     headers:{'Content-Type':'application/json','X-Goog-Api-Key':gKey(),'X-Goog-FieldMask':'places.location'},
-    body:JSON.stringify({textQuery:q,languageCode:'ko',regionCode:'JP',pageSize:1,locationBias:{rectangle:{low:{latitude:33.4,longitude:134.0},high:{latitude:36.3,longitude:137.0}}}})})
+    body:gBody(q,'ko')})
     .then(function(r){ if(!r.ok) throw r; return r.json(); })
     .then(function(j){
       var l=j&&j.places&&j.places[0]&&j.places[0].location, v=l?{lat:+l.latitude,lng:+l.longitude}:null;
@@ -2134,16 +2139,46 @@ function evCoordFree(ev,noKo){
 }
 function renderMapView(){
   var all=ui.mapAll;
-  return '<div class="mapbar"><div class="seg seg--sm"><label><input type="radio" name="mapscope" data-act="map-scope" data-v="day"'+(all?'':' checked')+'><span>이 날</span></label><label><input type="radio" name="mapscope" data-act="map-scope" data-v="all"'+(all?' checked':'')+'><span>5일 전체</span></label></div><span class="map-status" id="map-status"></span></div>'+
+  return '<div class="mapbar"><div class="seg seg--sm"><label><input type="radio" name="mapscope" data-act="map-scope" data-v="day"'+(all?'':' checked')+'><span>이 날</span></label><label><input type="radio" name="mapscope" data-act="map-scope" data-v="all"'+(all?' checked':'')+'><span>'+state.days.length+'일 전체</span></label></div><span class="map-status" id="map-status"></span></div>'+
     '<div id="tripmap" class="tripmap"></div><div id="map-miss" class="map-miss"></div>'+
     '<p class="foot">지도는 인터넷이 필요해요. 한 번 본 곳은 휴대폰에 저장돼요. 지도 © OpenStreetMap</p>';
 }
 var DAYCOL=['#3E6A48','#5E8A3A','#1F6F8B','#2E4E97','#6B4FA0'];
 var MAPRUN=0;
-function inArea(c){ return c.lat>33.4&&c.lat<36.3&&c.lng>134.0&&c.lng<137.0; }
+// the trip's area: within 250 km of a region's centre; before any centre is known, anywhere but back home in Korea
+function areaCenters(){ return regions().filter(function(r){ return r.lat!=null&&isFinite(+r.lat); }).map(function(r){ return {lat:+r.lat,lng:+r.lng}; }); }
+function inKorea(c){ return c.lat>33&&c.lat<38.7&&c.lng>124.5&&c.lng<131; }
+function inArea(c){
+  if(!c||!isFinite(+c.lat)||!isFinite(+c.lng)) return false;
+  var cs=areaCenters(); if(!cs.length) return state.trip.country==='KR'||!inKorea(c);
+  return cs.some(function(r){ return distM(r,c)<250000; });
+}
+function mapHome(){ var cs=areaCenters(); if(!cs.length) return {c:[30,135],z:3}; var la=0,ln=0; cs.forEach(function(r){ la+=r.lat; ln+=r.lng; }); return {c:[la/cs.length,ln/cs.length],z:cs.length>1?9:11}; }
+// Google search near the trip's area, in its country
+function gBody(q,lang,mask){
+  var cs=areaCenters(), b={textQuery:q,languageCode:lang||'ko',pageSize:1};
+  if(state.trip.country) b.regionCode=state.trip.country;
+  if(cs.length){ var h=mapHome(); b.locationBias={circle:{center:{latitude:h.c[0],longitude:h.c[1]},radius:50000}}; }
+  return JSON.stringify(b);
+}
+// a region added in 설정 finds its centre once (by name, in the trip's country) and keeps it in the trip
+var RG_BUSY=false;
+function regionCentersEnsure(){
+  if(FAMILY||RG_BUSY||!navigator.onLine) return; var todo=regions().filter(function(r){ return r.lat==null&&!r.noLL; }); if(!todo.length) return; RG_BUSY=true;
+  var cn=ctry(state.trip.country)[1];
+  (function next(i){
+    if(i>=todo.length){ RG_BUSY=false; saveLocal(); autoShareSoon(); if(ui.tab==='plan'&&(ui.pview==='map'||PL[ui.pview])){ if(MAP){ try{ MAP.remove(); }catch(e){} MAP=null; MAP_KEY=null; } render(); } return; }
+    var r=todo[i], q=r.name+' '+cn;
+    var g=gKey()?fetch('https://places.googleapis.com/v1/places:searchText',{method:'POST',headers:{'Content-Type':'application/json','X-Goog-Api-Key':gKey(),'X-Goog-FieldMask':'places.location'},body:JSON.stringify({textQuery:q,languageCode:'ko',regionCode:state.trip.country||undefined,pageSize:1})})
+      .then(function(x){ return x.ok?x.json():null; }).then(function(j){ var l=j&&j.places&&j.places[0]&&j.places[0].location; return l?{lat:+l.latitude,lng:+l.longitude}:null; }):Promise.resolve(null);
+    g.catch(function(){ return null; }).then(function(v){ return v||fetch('https://nominatim.openstreetmap.org/search?format=json&limit=1&accept-language=ko&countrycodes='+String(state.trip.country||'').toLowerCase()+'&q='+encodeURIComponent(r.name)).then(function(x){ return x.ok?x.json():[]; }).then(function(j){ return j&&j[0]?{lat:+j[0].lat,lng:+j[0].lon}:null; }).catch(function(){ return null; }); })
+      .then(function(v){ if(v){ r.lat=v.lat; r.lng=v.lng; } else r.noLL=1; setTimeout(function(){ next(i+1); },1100); });
+  })(0);
+}
 // airports back home (청주, 인천…) are not on the Kansai map, and that is fine
 function homeAirport(ev){ var n=(ev.place||ev.title||'')+' '+(ev.placeOrig||''); return /공항/.test(n)&&/청주|인천|김포|김해|대구|제주|무안|양양/.test(n); }
 function drawMap(keepView){
+  regionCentersEnsure();
   var box=document.getElementById('tripmap'); if(!box) return;
   var st=document.getElementById('map-status');
 
@@ -2152,7 +2187,7 @@ function drawMap(keepView){
     var keep=keepView&&MAP&&MAP.getContainer()===box;
     if(!keep){
     if(MAP){ try{ MAP.remove(); }catch(e){} MAP=null; } ME_MK=null;
-    MAP=L.map('tripmap',{zoomControl:true,attributionControl:true}).setView([34.95,135.65],10); MAP_KEY=mapViewKey();
+    MAP=L.map('tripmap',{zoomControl:true,attributionControl:true}).setView(mapHome().c,mapHome().z); MAP_KEY=mapViewKey();
     L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19,crossOrigin:true,attribution:'© OpenStreetMap'}).addTo(MAP);
     MAPLAYER=L.layerGroup().addTo(MAP); meDot();
     MAP.on('popupopen',function(pe){ var a=pe.popup.getElement().querySelector('[data-pop-edit]'); if(a) a.onclick=function(ev){ ev.preventDefault(); evForm(a.getAttribute('data-pop-edit')); }; });
@@ -2315,7 +2350,7 @@ function ggName(q,lang){
   if(!navigator.onLine) return Promise.resolve('');
   return fetch('https://places.googleapis.com/v1/places:searchText',{method:'POST',
     headers:{'Content-Type':'application/json','X-Goog-Api-Key':gKey(),'X-Goog-FieldMask':'places.displayName'},
-    body:JSON.stringify({textQuery:q,languageCode:lang,regionCode:'JP',pageSize:1,locationBias:{rectangle:{low:{latitude:33.4,longitude:134.0},high:{latitude:36.3,longitude:137.0}}}})})
+    body:gBody(q,lang)})
     .then(function(r){ return r.ok?r.json():null; })
     .then(function(j){ var n=j&&j.places&&j.places[0]&&j.places[0].displayName&&j.places[0].displayName.text||''; if(n){ try{ localStorage.setItem(key,JSON.stringify(n)); }catch(e){} } return n; })
     .catch(function(){ return ''; });
@@ -2702,7 +2737,7 @@ document.addEventListener('submit',function(e){
     var dates=datesBetween(v.start,v.end), lost=state.days.filter(function(d){ return dates.indexOf(d.date)<0&&d.items.length; });
     if(lost.length){ toast(lost.map(function(d){ return md(d.date); }).join(', ')+'에 일정이 있어서 날짜를 줄일 수 없어요. 먼저 옮기거나 지워 주세요',true); return; }
     var rows=[].slice.call(f.querySelectorAll('.rg-row')), rg=[];
-    rows.forEach(function(r,i){ var nm=r.querySelector('input').value.trim(); if(!nm) return; var old=regionOf(r.getAttribute('data-rid')); rg.push({id:r.getAttribute('data-rid'),name:nm,color:old?old.color:REGION_COLORS[i%REGION_COLORS.length],lat:old&&old.lat,lng:old&&old.lng}); });
+    rows.forEach(function(r,i){ var nm=r.querySelector('input').value.trim(); if(!nm) return; var old=regionOf(r.getAttribute('data-rid')), same=old&&old.name===nm; rg.push({id:r.getAttribute('data-rid'),name:nm,color:old?old.color:REGION_COLORS[i%REGION_COLORS.length],lat:same?old.lat:null,lng:same?old.lng:null}); });
     if(!rg.length){ toast('지역을 하나 이상 넣어 주세요'); return; }
     closeSheet();
     commit(function(s){
