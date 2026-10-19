@@ -587,9 +587,10 @@ var state = (function(){ try{ var s=localStorage.getItem(LS_STATE); if(s){ var o
   return JSON.parse(JSON.stringify(SEED)); })();
 var mode = 'local';
 var SS_UI = 'kyosaka:ui';
-var APP_VER = 132;   // shown at the bottom of 정보 (and used by the 새로고침 button); bump on every change
+var APP_VER = 133;   // shown at the bottom of 정보 (and used by the 새로고침 button); bump on every change
 /* family view: read-only copy of what the owner shared (?family link, remembered on this phone) */
-var LS_SHARED='kyosaka:shared', SHARED=null;
+var FAM_TRIP=(function(){ var m=location.search.match(/[?&]family=([\w-]+)/); try{ if(m) localStorage.setItem('kyosaka:famTrip',m[1]); return localStorage.getItem('kyosaka:famTrip')||'main'; }catch(e){ return m?m[1]:'main'; } })();
+var LS_SHARED=FAM_TRIP==='main'?'kyosaka:shared':'kyosaka:shared:'+FAM_TRIP, SHARED=null;
 var FAMILY=(function(){
   var q=location.search;
   try{ if(/[?&]owner\b/.test(q)) localStorage.removeItem('kyosaka:role'); else if(/[?&]family\b/.test(q)) localStorage.setItem('kyosaka:role','family'); return localStorage.getItem('kyosaka:role')==='family'; }
@@ -656,6 +657,9 @@ var LIST_ICONS=[['sight','관광'],['food','식사'],['cafe','빵·카페'],['sh
 var REGION_COLORS=['#3E6A48','#2E4E97','#B1501D','#6B4FA0','#1F6F8B','#A8336B','#8A5A2B','#4D6B1F'];
 // 받침에 맞는 조사: josa('오사카','으로','로') → 오사카로
 function josa(w,a,b){ w=String(w||''); var c=w.trim().slice(-1).charCodeAt(0); if(!(c>=0xAC00&&c<=0xD7A3)) return w+b; var j=(c-0xAC00)%28; return w+((j&&!(a==='으로'&&j===8))?a:b); }
+var LANGS={JP:'ja',CN:'zh-CN',TW:'zh-TW',HK:'zh-HK',TH:'th',VN:'vi',PH:'en',SG:'en',MY:'ms',ID:'id',US:'en',CA:'en',GB:'en',FR:'fr',DE:'de',IT:'it',ES:'es',CH:'de',AU:'en',NZ:'en',KR:'ko'};
+function localWord(){ return state.trip.country==='JP'?'일본':'현지'; }
+function localLang(){ return LANGS[state.trip.country]||'en'; }
 function defaultRate(){ return ctry(state.trip.country)[8]||1; }
 function ctry(code){ return COUNTRIES.filter(function(c){ return c[0]===code; })[0]||COUNTRIES[0]; }
 var LCUR, TZ;
@@ -760,8 +764,8 @@ function mapNormLists(){ if(FAMILY) return; PLK.forEach(function(k){ var ch=0; P
 function mapField(o,ko,ja){
   var by=o.mapBy||'ko';
   function inp(k,name,val,was,ph){ return '<input name="'+name+'" data-mq="'+k+'" value="'+esc(val||'')+'"'+(was!=null?' data-was="'+esc(was)+'"':'')+' placeholder="'+ph+'" autocomplete="off"'+(by===k?'':' hidden')+'>'; }
-  return '<div class="field mq-wrap"><span class="res-lab">지도 검색어<span class="seg seg--sm nm-seg">'+[['ko','한국'],['ja','일본'],['url','URL']].map(function(x){ return '<label><input type="radio" name="mapBy" value="'+x[0]+'"'+(by===x[0]?' checked':'')+'><span>'+x[1]+'</span></label>'; }).join('')+'</span></span>'+
-    inp('ko','mapKo',o.mapKo||ko,ko||'','한국 이름')+inp('ja','mapJa',o.mapJa||ja,ja||'','일본 이름 (예: 金閣寺)')+inp('url','mapUrl',o.mapUrl,null,'구글 지도 링크 또는 좌표')+
+  return '<div class="field mq-wrap"><span class="res-lab">지도 검색어<span class="seg seg--sm nm-seg">'+[['ko','한국'],['ja',localWord()],['url','URL']].map(function(x){ return '<label><input type="radio" name="mapBy" value="'+x[0]+'"'+(by===x[0]?' checked':'')+'><span>'+x[1]+'</span></label>'; }).join('')+'</span></span>'+
+    inp('ko','mapKo',o.mapKo||ko,ko||'','한국 이름')+inp('ja','mapJa',o.mapJa||ja,ja||'',localWord()+' 이름')+inp('url','mapUrl',o.mapUrl,null,'구글 지도 링크 또는 좌표')+
     '<small>고른 것 하나로 지도 버튼, 지도 핀, 경로 보기를 찾아요. 잘 안 찾아지면 구글 지도의 공유 링크를 URL에 넣으세요. 좌표(예: 34.9671, 135.7727)도 URL에 넣으면 돼요.</small></div>';
 }
 function mapFromForm(v,o){
@@ -1158,7 +1162,7 @@ function changesText(){
   // send only what changed: no long 이곳 이야기 texts, and lists/checklist only when they changed
   function noAbout(o){ var c=Object.assign({},o); delete c.about; delete c.hrs; return c; }
   ch.forEach(function(c){ if(c.item) c.item=noAbout(c.item); });
-  var payload={app:'kyosaka',type:'offline-changes',changes:ch}, kinds={};
+  var payload={app:'kyosaka',type:'offline-changes',trip:state.trip.title||'',changes:ch}, kinds={};
   dirtyList().forEach(function(d){ kinds[d.kind]=1; });
   var base=null; try{ base=JSON.parse(lsGet(LS_BASE)||'null'); }catch(e){}
   if(kinds.checklist||!base||JSON.stringify(base.state&&base.state.checklist)!==JSON.stringify(state.checklist)) payload.checklist=state.checklist;
@@ -1428,7 +1432,9 @@ function pasteBackup(){
 }
 
 /* ---------- family share (owner uploads a stripped copy to GitHub; family phones read it) ---------- */
-var GH_REPO='shinchooray/kyoto-osaka-trip', GH_BRANCH='family', GH_FILE='shared.json';
+// each trip has its own file on the family branch; the first trip keeps shared.json
+var GH_REPO='shinchooray/kyoto-osaka-trip', GH_BRANCH='family', GH_FILE=shareFile(FAMILY?FAM_TRIP:TRIP);
+function shareFile(id){ return !id||id==='main'?'shared.json':'shared-'+id+'.json'; }
 var LS_GHTOKEN='kyosaka:ghtoken', LS_PUBAT=TK('sharedAt'), pendingShare=null;
 function whenText(iso){ var d=new Date(iso); if(isNaN(d)) return ''; return (d.getMonth()+1)+'/'+d.getDate()+' '+('0'+d.getHours()).slice(-2)+':'+('0'+d.getMinutes()).slice(-2); }
 function pick(o,keys){ var r={}; keys.forEach(function(k){ var v=o&&o[k]; if(v!=null&&v!=='') r[k]=JSON.parse(JSON.stringify(v)); }); return r; }
@@ -1552,7 +1558,7 @@ function sharePut(o,attempt){
 // auto share: a little after each change, upload if something the family sees changed.
 // New lines that look like booking numbers or addresses stop it until checked once by hand.
 var LS_AUTOSHARE=TK('autoShare'), LS_SHAREHASH=TK('shareHash'), LS_SHAREOK=TK('shareOk'), autoT=null, autoBusy=false;
-function autoOn(){ return !FAMILY&&TRIP==='main'&&!!lsGet(LS_GHTOKEN)&&lsGet(LS_AUTOSHARE)!=='off'; }
+function autoOn(){ return !FAMILY&&!!lsGet(LS_GHTOKEN)&&lsGet(LS_AUTOSHARE)!=='off'; }
 function hashStr(s){ var h=0; for(var i=0;i<s.length;i++) h=(h*31+s.charCodeAt(i))|0; return String(h); }
 function shareSig(o){ var c=Object.assign({},o); delete c.publishedAt; return JSON.stringify(c); }
 function warnSig(o){ return shareLines(o).filter(function(x){return x.w;}).map(function(x){return x.t;}).sort().join('\n'); }
@@ -1591,8 +1597,8 @@ function appRefresh(btn){
   });
 }
 function shareLink(){
-  var url=APP_URL+'?family', text='교토·오사카 여행 일정이에요. 열어서 홈 화면에 추가해 두면 인터넷 없이도 볼 수 있어요.';
-  if(navigator.share){ navigator.share({title:'교토·오사카 가족여행',text:text,url:url}).catch(function(){}); return; }
+  var url=APP_URL+'?family='+TRIP, text=(state.trip.title||'여행')+' 일정이에요. 열어서 홈 화면에 추가해 두면 인터넷 없이도 볼 수 있어요.';
+  if(navigator.share){ navigator.share({title:state.trip.title||'여행 일정',text:text,url:url}).catch(function(){}); return; }
   toast(quietCopyText(url)?'가족용 주소를 복사했어요':url,true);
 }
 // family phones: fetch the latest shared copy (no login needed)
@@ -1963,7 +1969,7 @@ function plForm(k,id){
     selectField('지역','city',id?plCity(b):b.city,plCities())+
     '<div class="field nm-wrap"><span class="res-lab">이름'+nameSeg(b)+'</span>'+
       '<input name="name" data-nm="ko" value="'+esc(b.name||'')+'" placeholder="'+P.ph+'" autocomplete="off">'+
-      '<input name="nameOrig" data-nm="ja" value="'+esc(b.nameOrig||'')+'" placeholder="일본 이름 (선택)" autocomplete="off" hidden></div>'+
+      '<input name="nameOrig" data-nm="ja" value="'+esc(b.nameOrig||'')+'" placeholder="'+localWord()+' 이름 (선택)" autocomplete="off" hidden></div>'+
     mapField(b,b.name,b.nameOrig)+
     areaField('메모','memo',b.memo,P.memo)+
     '<div class="actions">'+(id?'<button type="button" class="btn btn-danger" data-act="del-pl" data-k="'+k+'" data-id="'+esc(id)+'">삭제</button>':'')+
@@ -2229,7 +2235,7 @@ function placeMarkers(L,found,miss,keep){
   var fb=found.filter(function(f){ return f.p.ev.map&&f.c.via&&f.c.via!=='map'; });
   function box(title,list){ return list.length?'<div class="row"><div class="row-main"><div class="row-k">'+title+'</div>'+list.map(function(p){return '<div class="row-sub">'+esc((p.ev.time||'')+' '+evName(p.ev)+(title.indexOf('검색어')>=0?' ('+p.ev.map+')':''))+'</div>';}).join('')+'</div></div>':''; }
   var h=box('지도에 못 올린 일정',miss)+box('지도 검색어로 못 찾아서 장소 이름으로 표시한 일정',fb.map(function(f){return f.p;}));
-  if(mm) mm.innerHTML=h?'<div class="list">'+h+'</div>'+(fb.length&&canEdit()?'<p class="foot">검색어를 영어나 일본어로 바꾸거나, 구글 지도에서 길게 눌러 나온 좌표를 넣어 보세요.</p>':''):'';
+  if(mm) mm.innerHTML=h?'<div class="list">'+h+'</div>'+(fb.length&&canEdit()?'<p class="foot">검색어를 '+(state.trip.country==='JP'?'영어나 일본어':'영어나 현지어')+'로 바꾸거나, 구글 지도에서 길게 눌러 나온 좌표를 넣어 보세요.</p>':''):'';
 }
 
 /* ---------- sheets ---------- */
@@ -2316,7 +2322,7 @@ function evForm(id,preset){
     PLK.map(function(k){ return plPick(k,ev,dayIdx); }).join('')+
     '<div class="field nm-wrap"><span class="res-lab">이름'+nameSeg(ev)+'</span>'+
       '<input name="place" data-nm="ko" value="'+esc(ev.place||ev.title||'')+'" placeholder="예: 킨카쿠지" autocomplete="off">'+
-      '<input name="placeOrig" data-nm="ja" value="'+esc(ev.placeOrig||'')+'" placeholder="예: 金閣寺 (선택)" autocomplete="off" hidden></div>'+
+      '<input name="placeOrig" data-nm="ja" value="'+esc(ev.placeOrig||'')+'" placeholder="'+localWord()+' 이름 (선택)" autocomplete="off" hidden></div>'+
     mapField(ev,ev.place||ev.title,ev.placeOrig)+
     areaField('메모','memo',ev.memo)+
     '<div class="actions">'+(id?'<button type="button" class="btn btn-danger" data-act="del-ev" data-id="'+id+'">삭제</button>':'')+
@@ -2325,7 +2331,7 @@ function evForm(id,preset){
 
 // 한국 이름 is the name; 일본 can be switched in just to look at it
 function nameSeg(r){
-  return '<div class="seg seg--sm nm-seg">'+[['ko','한국'],['ja','일본']].map(function(x,i){ return '<label><input type="radio" name="nmLang" value="'+x[0]+'"'+(i?'':' checked')+'><span>'+x[1]+'</span></label>'; }).join('')+'</div>';
+  return '<div class="seg seg--sm nm-seg">'+[['ko','한국'],['ja',localWord()]].map(function(x,i){ return '<label><input type="radio" name="nmLang" value="'+x[0]+'"'+(i?'':' checked')+'><span>'+x[1]+'</span></label>'; }).join('')+'</div>';
 }
 document.addEventListener('change',function(e){ var t=e.target; if(t.name!=='mapBy') return; var w=t.closest('.mq-wrap'); if(!w) return;
   w.querySelectorAll('[data-mq]').forEach(function(el){ el.hidden=el.getAttribute('data-mq')!==t.value; }); });
@@ -2338,7 +2344,7 @@ function nameFill(f,inp,lang){
   if(kind==='res'?['hotel','food','ticket'].indexOf(f.cat.value)<0:(kind!=='place'&&kind!=='ev')) return;
   var ko=f.querySelector('input[data-nm="ko"]'), ja=f.querySelector('input[data-nm="ja"]'), q=((f.mapUrl&&mapWord(f.mapUrl.value))||(f.mapKo&&f.mapKo.value)||ko.value).trim(); if(!q) return;
   var ph=inp.placeholder; inp.placeholder='구글에서 찾는 중…';
-  ggName(q,lang).then(function(n){ inp.placeholder=ph; if(!n||inp.value) return; inp.value=n;
+  ggName(q,lang==='ja'?localLang():lang).then(function(n){ inp.placeholder=ph; if(!n||inp.value) return; inp.value=n;
     var mj=f.mapJa; if(mj&&(!mj.value||mj.value===mj.getAttribute('data-was'))){ mj.value=n; mj.setAttribute('data-was',n); }
     var id=f.getAttribute('data-id'), pk=f.getAttribute('data-k'), o=kind==='res'?findRes(id):kind==='ev'?((findEv(id)||{}).ev):(id&&findPl(pk,id));
     if(o){ var old=placeOld(o,kind==='place'?pk:null); setJa(o,n); mapFix(o); placeSync(state,o,old); saveLocal(); autoShareSoon();
@@ -2392,8 +2398,8 @@ function resForm(id){
   openSheet('<form data-form="res" data-id="'+(id||'')+'"><h2>'+(id?esc(r.title):'예약 추가')+'</h2>'+(id?'<p class="sub">'+catBadge(r.cat)+' '+esc(resRange(r))+'</p>'+qrSection(r):'')+
     selectField('종류','cat',r.cat,Object.keys(CAT).map(function(k){return [k,CAT[k]];}))+
     '<div class="field nm-wrap"><span class="res-lab">이름'+nameSeg(r)+'</span>'+
-      '<input name="title" data-nm="ko" value="'+esc(r.title||'')+'" placeholder="예: 가는 비행기, 교토 숙소, 저녁 식당" autocomplete="off">'+
-      '<input name="nameOrig" data-nm="ja" value="'+esc(r.nameOrig||'')+'" placeholder="일본 이름 (선택)" autocomplete="off" hidden></div>'+
+      '<input name="title" data-nm="ko" value="'+esc(r.title||'')+'" placeholder="예: 가는 비행기, 호텔 이름, 저녁 식당" autocomplete="off">'+
+      '<input name="nameOrig" data-nm="ja" value="'+esc(r.nameOrig||'')+'" placeholder="'+localWord()+' 이름 (선택)" autocomplete="off" hidden></div>'+
     sec('place',mapField(r,r.title,r.nameOrig))+
     sec('no','<label class="field">'+lab('no','편명')+'<input name="no" value="'+esc(r.no||'')+'" autocomplete="off"></label>')+
     sec('trip','<div class="two"><label class="field">'+lab('from','출발')+'<input name="from" value="'+esc(r.from||'')+'"></label><label class="field">'+lab('to','도착')+'<input name="to" value="'+esc(r.to||'')+'"></label></div>')+

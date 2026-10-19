@@ -1,6 +1,6 @@
 {
-  "name": "교토·오사카 가족여행",
-  "short_name": "교토오사카",
+  "name": "여행 일정 (가족)",
+  "short_name": "가족 여행",
   "id": "./?family",
   "start_url": "./?family",
   "scope": "./",
@@ -9,7 +9,16 @@
   "theme_color": "#EDEFEA",
   "lang": "ko",
   "icons": [
-    {"src": "icon-192.png", "sizes": "192x192", "type": "image/png"},
-    {"src": "icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable"}
+    {
+      "src": "icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
   ]
 }
